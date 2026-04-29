@@ -154,8 +154,8 @@ document.addEventListener("DOMContentLoaded", async () => {
     statusEl.innerHTML = `
       <div class="confirm-row">
         <span>Clear ${taggedTabs.length} tagged ${taggedTabs.length === 1 ? "tab" : "tabs"}?</span>
-        <button id="clearNoBtn">N</button>
         <button id="clearYesBtn">Y</button>
+        <button id="clearNoBtn">N</button>
       </div>
     `;
     document.getElementById("clearNoBtn")?.addEventListener("click", () => {
@@ -353,6 +353,16 @@ document.addEventListener("DOMContentLoaded", async () => {
     if (event.key === "Escape") {
       event.preventDefault();
       window.close();
+      return;
+    }
+    if (isConfirmingClear && event.key.toLowerCase() === "n") {
+      event.preventDefault();
+      setStatus("Clear cancelled");
+      return;
+    }
+    if (isConfirmingClear && event.key.toLowerCase() === "y") {
+      event.preventDefault();
+      document.getElementById("clearYesBtn")?.click();
       return;
     }
     if (event.shiftKey && event.code === "Space") {

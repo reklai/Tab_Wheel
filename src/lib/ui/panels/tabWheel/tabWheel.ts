@@ -301,8 +301,8 @@ export async function openTabWheelPanel(): Promise<void> {
         ? `
           <div class="ht-tabwheel-confirm">
             <span>Clear ${entries.length} tagged ${entries.length === 1 ? "tab" : "tabs"}?</span>
-            <button data-action="clear-no">N</button>
             <button data-action="clear-yes">Y</button>
+            <button data-action="clear-no">N</button>
           </div>
         `
         : escapeHtml(status);
@@ -458,6 +458,21 @@ export async function openTabWheelPanel(): Promise<void> {
         return;
       }
 
+      if (isConfirmingClear && event.key.toLowerCase() === "n") {
+        event.preventDefault();
+        event.stopPropagation();
+        setStatus("Clear cancelled");
+        return;
+      }
+
+      if (isConfirmingClear && event.key.toLowerCase() === "y") {
+        event.preventDefault();
+        event.stopPropagation();
+        const button = panel.querySelector('[data-action="clear-yes"]') as HTMLButtonElement | null;
+        button?.click();
+        return;
+      }
+
       if (isTextInputEvent(event)) {
         if (event.shiftKey && event.code === "Space") {
           event.preventDefault();
@@ -492,21 +507,6 @@ export async function openTabWheelPanel(): Promise<void> {
         event.preventDefault();
         event.stopPropagation();
         moveActive(-1);
-        return;
-      }
-
-      if (isConfirmingClear && event.key.toLowerCase() === "n") {
-        event.preventDefault();
-        event.stopPropagation();
-        setStatus("Clear cancelled");
-        return;
-      }
-
-      if (isConfirmingClear && event.key.toLowerCase() === "y") {
-        event.preventDefault();
-        event.stopPropagation();
-        const button = panel.querySelector('[data-action="clear-yes"]') as HTMLButtonElement | null;
-        button?.click();
         return;
       }
 
