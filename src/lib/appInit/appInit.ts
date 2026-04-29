@@ -34,9 +34,6 @@ const WHEEL_COOLDOWN_MS = 320;
 const STATUS_TIMEOUT_MS = 1800;
 const SCROLL_SAVE_DEBOUNCE_MS = 700;
 const SCROLL_RESTORE_SUPPRESS_SAVE_MS = 450;
-const MODIFIER_CLICK_SUPPRESSION_MS = 1400;
-const MOUSE_GESTURE_OWNERSHIP_TIMEOUT_MS = 5000;
-const POST_MOUSE_GESTURE_SUPPRESSION_MS = 250;
 const SHORTCUT_KEYUP_SUPPRESSION_MS = 900;
 const TAGGED_INDICATOR_DEBOUNCE_MS = 90;
 const TAGGED_PILL_ID = "tw-tagged-pill";
@@ -45,9 +42,12 @@ const TAGGED_FAVICON_RESTORE_ATTR = "data-tabwheel-favicon-restore";
 type TabWheelEventModifierKey = TabWheelModifierKey | "shift";
 type MouseGestureTerminalEvent = "click" | "auxclick" | "contextmenu";
 interface OwnedMouseGesture {
-  button: number;
   terminalEvent: MouseGestureTerminalEvent;
-  startedAt: number;
+  startClientX: number;
+  startClientY: number;
+  releaseClientX: number | null;
+  releaseClientY: number | null;
+  hasReleased: boolean;
 }
 const EVENT_MODIFIER_KEYS: readonly TabWheelEventModifierKey[] = ["alt", "ctrl", "shift", "meta"];
 const SCROLL_RESTORE_DELAYS_MS = [0, 80, 220, 500, 900, 1500, 2400, 3600];
@@ -136,15 +136,7 @@ export function initApp(): void {
   let suppressScrollSaveUntil = 0;
   let scrollRestoreToken = 0;
   let lastWheelAt = 0;
-  let claimedGestureButton = -1;
-  let claimedGestureUntil = 0;
-  let suppressNextPointerUpUntil = 0;
-  let suppressNextMouseUpUntil = 0;
-  let suppressNextClickUntil = 0;
-  let suppressNextAuxClickUntil = 0;
-  let suppressNextContextMenuUntil = 0;
   const ownedMouseGesturesByButton = new Map<number, OwnedMouseGesture>();
-  const ownedMouseGestureTimersByButton = new Map<number, number>();
   let suppressShortcutKeyUpUntil = 0;
   let suppressShortcutKeyUpModifier: TabWheelModifierKey | null = null;
   let suppressShortcutKeyUpWithShift = false;
@@ -452,9 +444,10 @@ export function initApp(): void {
 
     const confirm = (): void => {
       closeClearConfirm();
-      void clearTaggedTabs().then((result) => {
-        showStatus(result.ok ? `Cleared ${taggedCount} tagged ${taggedCount === 1 ? "tab" : "tabs"}` : result.reason || "Clear failed");
+      void clearTaggedTabs().then(() => {
         scheduleTaggedIndicatorRefresh();
+      }).catch(() => {
+        showStatus("Clear failed");
       });
     };
     const cancel = (): void => {
@@ -585,103 +578,101 @@ export function initApp(): void {
 
   function clearOwnedMouseGesture(button: number): void {
     ownedMouseGesturesByButton.delete(button);
-    const timer = ownedMouseGestureTimersByButton.get(button);
-    if (timer) {
-      window.clearTimeout(timer);
-      ownedMouseGestureTimersByButton.delete(button);
-    }
   }
 
   function clearOwnedMouseGestures(): void {
     ownedMouseGesturesByButton.clear();
-    for (const timer of ownedMouseGestureTimersByButton.values()) {
-      window.clearTimeout(timer);
-    }
-    ownedMouseGestureTimersByButton.clear();
   }
 
   function hasOwnedMouseGesture(button: number): boolean {
     return ownedMouseGesturesByButton.has(button);
   }
 
-  function suppressAllNativeMouseFollowups(until: number): void {
-    suppressNextPointerUpUntil = Math.max(suppressNextPointerUpUntil, until);
-    suppressNextMouseUpUntil = Math.max(suppressNextMouseUpUntil, until);
-    suppressNextClickUntil = Math.max(suppressNextClickUntil, until);
-    suppressNextAuxClickUntil = Math.max(suppressNextAuxClickUntil, until);
-    suppressNextContextMenuUntil = Math.max(suppressNextContextMenuUntil, until);
+  function isSameMousePosition(event: MouseEvent, clientX: number | null, clientY: number | null): boolean {
+    return clientX !== null && clientY !== null && event.clientX === clientX && event.clientY === clientY;
   }
 
-  function extendOwnedMouseGestureTerminalSuppression(button: number): void {
-    const until = Date.now() + MODIFIER_CLICK_SUPPRESSION_MS;
-    if (button === 0) suppressNextClickUntil = Math.max(suppressNextClickUntil, until);
-    if (button === 1) suppressNextAuxClickUntil = Math.max(suppressNextAuxClickUntil, until);
-    if (button === 2) suppressNextContextMenuUntil = Math.max(suppressNextContextMenuUntil, until);
+  function isOwnedMouseGestureTerminalEvent(
+    gesture: OwnedMouseGesture,
+    event: MouseEvent,
+    terminalEvent: MouseGestureTerminalEvent,
+  ): boolean {
+    if (!event.isTrusted) return false;
+    if (gesture.terminalEvent !== terminalEvent) return false;
+    if (terminalEvent === "contextmenu") {
+      return event.button === 2
+        || isSameMousePosition(event, gesture.startClientX, gesture.startClientY)
+        || isSameMousePosition(event, gesture.releaseClientX, gesture.releaseClientY);
+    }
+    return gesture.hasReleased
+      && (event.detail > 0 || isSameMousePosition(event, gesture.releaseClientX, gesture.releaseClientY));
   }
 
-  function ownMouseGesture(button: number): void {
+  function ownMouseGesture(button: number, event: MouseEvent): boolean {
     const terminalEvent = resolveMouseGestureTerminalEvent(button);
-    if (!terminalEvent) return;
+    if (!terminalEvent) return false;
     clearOwnedMouseGesture(button);
     ownedMouseGesturesByButton.set(button, {
-      button,
       terminalEvent,
-      startedAt: Date.now(),
+      startClientX: event.clientX,
+      startClientY: event.clientY,
+      releaseClientX: null,
+      releaseClientY: null,
+      hasReleased: false,
     });
-    suppressAllNativeMouseFollowups(Date.now() + MODIFIER_CLICK_SUPPRESSION_MS);
-    const timer = window.setTimeout(() => {
-      clearOwnedMouseGesture(button);
-    }, MOUSE_GESTURE_OWNERSHIP_TIMEOUT_MS);
-    ownedMouseGestureTimersByButton.set(button, timer);
+    return true;
   }
 
-  function releaseOwnedMouseGesture(button: number): void {
+  function markOwnedMouseGestureReleased(button: number, event: MouseEvent): boolean {
     const gesture = ownedMouseGesturesByButton.get(button);
-    if (!gesture) return;
+    if (!gesture) return false;
+    gesture.releaseClientX = event.clientX;
+    gesture.releaseClientY = event.clientY;
+    gesture.hasReleased = true;
+    return true;
+  }
+
+  function completeOwnedMouseGesture(
+    button: number,
+    terminalEvent: MouseGestureTerminalEvent,
+    event: MouseEvent,
+  ): boolean {
+    const gesture = ownedMouseGesturesByButton.get(button);
+    if (!gesture) return false;
+    if (!isOwnedMouseGestureTerminalEvent(gesture, event, terminalEvent)) {
+      clearOwnedMouseGesture(button);
+      return false;
+    }
     clearOwnedMouseGesture(button);
-    const until = Date.now() + POST_MOUSE_GESTURE_SUPPRESSION_MS;
-    if (gesture.terminalEvent === "click") {
-      suppressNextClickUntil = Math.max(suppressNextClickUntil, until);
-    }
-    if (gesture.terminalEvent === "auxclick") {
-      suppressNextAuxClickUntil = Math.max(suppressNextAuxClickUntil, until);
-    }
-    if (gesture.terminalEvent === "contextmenu") {
-      suppressNextContextMenuUntil = Math.max(
-        suppressNextContextMenuUntil,
-        Date.now() + MODIFIER_CLICK_SUPPRESSION_MS,
-      );
-    }
+    runModifierClickAction(button);
+    return true;
   }
 
-  function markMouseGestureSuppressed(button: number): void {
-    suppressAllNativeMouseFollowups(Date.now() + MODIFIER_CLICK_SUPPRESSION_MS);
-    ownMouseGesture(button);
-  }
-
-  function isSuppressionActive(until: number): boolean {
-    return until > 0 && Date.now() <= until;
-  }
-
-  function isHandledModifierMouseEvent(event: MouseEvent): boolean {
-    return isTabWheelModifier(event, settings.gestureModifier, settings.gestureWithShift)
+  function isHandledModifierMouseEvent(
+    event: MouseEvent,
+    button = event.button,
+  ): boolean {
+    return event.isTrusted
+      && isTabWheelModifier(event, settings.gestureModifier, settings.gestureWithShift)
       && !isEditableTarget(event.target)
-      && [0, 1, 2].includes(event.button);
+      && [0, 1, 2].includes(button);
   }
 
   function runModifierClickAction(button: number): void {
     if (button === 0) {
-      void tagCurrentTab().then((result) => {
-        showStatus(result.ok ? result.alreadyTagged ? "Already tagged" : "Tagged tab" : result.reason || "Tag failed");
+      void tagCurrentTab().then(() => {
         scheduleTaggedIndicatorRefresh();
+      }).catch(() => {
+        showStatus("Tag failed");
       });
       return;
     }
 
     if (button === 2) {
-      void removeCurrentTabTag().then((result) => {
-        showStatus(result.ok ? "Removed tag" : result.reason || "Remove failed");
+      void removeCurrentTabTag().then(() => {
         scheduleTaggedIndicatorRefresh();
+      }).catch(() => {
+        showStatus("Remove failed");
       });
       return;
     }
@@ -689,63 +680,55 @@ export function initApp(): void {
     void requestClearTaggedTabs();
   }
 
-  function claimModifierClickGesture(button: number): void {
-    markMouseGestureSuppressed(button);
-    const now = Date.now();
-    if (claimedGestureButton === button && now <= claimedGestureUntil) return;
-    claimedGestureButton = button;
-    claimedGestureUntil = now + 700;
-    runModifierClickAction(button);
+  function claimModifierClickGesture(button: number, event: MouseEvent): void {
+    if (hasOwnedMouseGesture(button)) return;
+    ownMouseGesture(button, event);
   }
 
   function pointerDownHandler(event: PointerEvent): void {
+    clearOwnedMouseGestures();
     if (!isHandledModifierMouseEvent(event)) return;
     suppressPageEvent(event);
-    claimModifierClickGesture(event.button);
+    claimModifierClickGesture(event.button, event);
   }
 
   function pointerUpHandler(event: PointerEvent): void {
-    if (hasOwnedMouseGesture(event.button)) {
-      extendOwnedMouseGestureTerminalSuppression(event.button);
-    }
-    if (
-      hasOwnedMouseGesture(event.button)
-      || isSuppressionActive(suppressNextPointerUpUntil)
-      || isHandledModifierMouseEvent(event)
-    ) {
-      suppressNextPointerUpUntil = 0;
+    if (markOwnedMouseGestureReleased(event.button, event)) {
       suppressPageEvent(event);
+      return;
     }
+    if (isHandledModifierMouseEvent(event)) suppressPageEvent(event);
+  }
+
+  function pointerCancelHandler(event: PointerEvent): void {
+    if (!hasOwnedMouseGesture(event.button)) return;
+    clearOwnedMouseGesture(event.button);
+    suppressPageEvent(event);
   }
 
   function mouseDownHandler(event: MouseEvent): void {
+    clearOwnedMouseGestures();
     if (!isHandledModifierMouseEvent(event)) return;
     suppressPageEvent(event);
-    claimModifierClickGesture(event.button);
+    claimModifierClickGesture(event.button, event);
   }
 
   function mouseUpHandler(event: MouseEvent): void {
-    if (hasOwnedMouseGesture(event.button)) {
-      extendOwnedMouseGestureTerminalSuppression(event.button);
-    }
-    if (
-      hasOwnedMouseGesture(event.button)
-      || isSuppressionActive(suppressNextMouseUpUntil)
-      || isHandledModifierMouseEvent(event)
-    ) {
-      suppressNextMouseUpUntil = 0;
+    if (markOwnedMouseGestureReleased(event.button, event)) {
       suppressPageEvent(event);
+      return;
     }
+    if (isHandledModifierMouseEvent(event)) suppressPageEvent(event);
   }
 
   function clickHandler(event: MouseEvent): void {
-    if (
-      !hasOwnedMouseGesture(0)
-      && !isSuppressionActive(suppressNextClickUntil)
-      && !isHandledModifierMouseEvent(event)
-    ) return;
-    releaseOwnedMouseGesture(0);
-    suppressPageEvent(event);
+    if (completeOwnedMouseGesture(0, "click", event)) {
+      suppressPageEvent(event);
+      return;
+    }
+    if (isHandledModifierMouseEvent(event)) {
+      suppressPageEvent(event);
+    }
   }
 
   function isShortcutEvent(
@@ -814,25 +797,23 @@ export function initApp(): void {
   }
 
   function auxClickHandler(event: MouseEvent): void {
-    if (
-      !hasOwnedMouseGesture(event.button)
-      && !isSuppressionActive(suppressNextAuxClickUntil)
-      && !isHandledModifierMouseEvent(event)
-    ) return;
-    if (event.button === 1) {
-      releaseOwnedMouseGesture(1);
+    if (event.button === 1 && completeOwnedMouseGesture(1, "auxclick", event)) {
+      suppressPageEvent(event);
+      return;
     }
-    suppressPageEvent(event);
+    if (isHandledModifierMouseEvent(event)) {
+      suppressPageEvent(event);
+    }
   }
 
   function contextMenuHandler(event: MouseEvent): void {
-    if (
-      !hasOwnedMouseGesture(2)
-      && !isSuppressionActive(suppressNextContextMenuUntil)
-      && !isHandledModifierMouseEvent(event)
-    ) return;
-    releaseOwnedMouseGesture(2);
-    suppressPageEvent(event);
+    if (completeOwnedMouseGesture(2, "contextmenu", event)) {
+      suppressPageEvent(event);
+      return;
+    }
+    if (isHandledModifierMouseEvent(event, 2)) {
+      suppressPageEvent(event);
+    }
   }
 
   function storageChangedHandler(
@@ -879,6 +860,7 @@ export function initApp(): void {
   function visibilityHandler(): void {
     if (document.visibilityState === "hidden") {
       flushScrollSnapshot();
+      clearOwnedMouseGestures();
       closeClearConfirm();
       return;
     }
@@ -895,24 +877,12 @@ export function initApp(): void {
 
   window.addEventListener("pointerdown", pointerDownHandler, true);
   window.addEventListener("pointerup", pointerUpHandler, true);
+  window.addEventListener("pointercancel", pointerCancelHandler, true);
   window.addEventListener("mousedown", mouseDownHandler, true);
   window.addEventListener("mouseup", mouseUpHandler, true);
   window.addEventListener("click", clickHandler, true);
-  window.addEventListener("click", clickHandler, false);
   window.addEventListener("auxclick", auxClickHandler, true);
-  window.addEventListener("auxclick", auxClickHandler, false);
   window.addEventListener("contextmenu", contextMenuHandler, true);
-  window.addEventListener("contextmenu", contextMenuHandler, false);
-  document.addEventListener("pointerdown", pointerDownHandler, true);
-  document.addEventListener("pointerup", pointerUpHandler, true);
-  document.addEventListener("mousedown", mouseDownHandler, true);
-  document.addEventListener("mouseup", mouseUpHandler, true);
-  document.addEventListener("click", clickHandler, true);
-  document.addEventListener("click", clickHandler, false);
-  document.addEventListener("auxclick", auxClickHandler, true);
-  document.addEventListener("auxclick", auxClickHandler, false);
-  document.addEventListener("contextmenu", contextMenuHandler, true);
-  document.addEventListener("contextmenu", contextMenuHandler, false);
   window.addEventListener("keydown", keyDownHandler, true);
   window.addEventListener("keyup", keyUpHandler, true);
   document.addEventListener("keydown", keyDownHandler, true);
@@ -931,24 +901,12 @@ export function initApp(): void {
   window.__tabWheelCleanup = () => {
     window.removeEventListener("pointerdown", pointerDownHandler, true);
     window.removeEventListener("pointerup", pointerUpHandler, true);
+    window.removeEventListener("pointercancel", pointerCancelHandler, true);
     window.removeEventListener("mousedown", mouseDownHandler, true);
     window.removeEventListener("mouseup", mouseUpHandler, true);
     window.removeEventListener("click", clickHandler, true);
-    window.removeEventListener("click", clickHandler, false);
     window.removeEventListener("auxclick", auxClickHandler, true);
-    window.removeEventListener("auxclick", auxClickHandler, false);
     window.removeEventListener("contextmenu", contextMenuHandler, true);
-    window.removeEventListener("contextmenu", contextMenuHandler, false);
-    document.removeEventListener("pointerdown", pointerDownHandler, true);
-    document.removeEventListener("pointerup", pointerUpHandler, true);
-    document.removeEventListener("mousedown", mouseDownHandler, true);
-    document.removeEventListener("mouseup", mouseUpHandler, true);
-    document.removeEventListener("click", clickHandler, true);
-    document.removeEventListener("click", clickHandler, false);
-    document.removeEventListener("auxclick", auxClickHandler, true);
-    document.removeEventListener("auxclick", auxClickHandler, false);
-    document.removeEventListener("contextmenu", contextMenuHandler, true);
-    document.removeEventListener("contextmenu", contextMenuHandler, false);
     window.removeEventListener("keydown", keyDownHandler, true);
     window.removeEventListener("keyup", keyUpHandler, true);
     document.removeEventListener("keydown", keyDownHandler, true);

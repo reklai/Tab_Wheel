@@ -45,23 +45,20 @@ test("content script implements modifier wheel/click gestures and tagged scroll 
   assert.match(source, /window\.addEventListener\("wheel",\s*wheelHandler,\s*\{\s*passive:\s*false,\s*capture:\s*true\s*\}\)/);
   assert.match(source, /window\.addEventListener\("pointerdown",\s*pointerDownHandler,\s*true\)/);
   assert.match(source, /window\.addEventListener\("pointerup",\s*pointerUpHandler,\s*true\)/);
+  assert.match(source, /window\.addEventListener\("pointercancel",\s*pointerCancelHandler,\s*true\)/);
   assert.match(source, /window\.addEventListener\("mousedown",\s*mouseDownHandler,\s*true\)/);
   assert.match(source, /window\.addEventListener\("mouseup",\s*mouseUpHandler,\s*true\)/);
   assert.match(source, /window\.addEventListener\("click",\s*clickHandler,\s*true\)/);
   assert.match(source, /window\.addEventListener\("auxclick",\s*auxClickHandler,\s*true\)/);
   assert.match(source, /window\.addEventListener\("contextmenu",\s*contextMenuHandler,\s*true\)/);
-  assert.match(source, /window\.addEventListener\("contextmenu",\s*contextMenuHandler,\s*false\)/);
-  assert.match(source, /document\.addEventListener\("pointerdown",\s*pointerDownHandler,\s*true\)/);
-  assert.match(source, /document\.addEventListener\("pointerup",\s*pointerUpHandler,\s*true\)/);
-  assert.match(source, /document\.addEventListener\("mousedown",\s*mouseDownHandler,\s*true\)/);
-  assert.match(source, /document\.addEventListener\("mouseup",\s*mouseUpHandler,\s*true\)/);
-  assert.match(source, /document\.addEventListener\("click",\s*clickHandler,\s*true\)/);
-  assert.match(source, /document\.addEventListener\("click",\s*clickHandler,\s*false\)/);
-  assert.match(source, /document\.addEventListener\("auxclick",\s*auxClickHandler,\s*false\)/);
-  assert.match(source, /document\.addEventListener\("contextmenu",\s*contextMenuHandler,\s*false\)/);
+  assert.match(source, /window\.removeEventListener\("pointercancel",\s*pointerCancelHandler,\s*true\)/);
+  assert.doesNotMatch(source, /document\.addEventListener\("(?:pointerdown|pointerup|pointercancel|mousedown|mouseup|click|auxclick|contextmenu)"/);
+  assert.doesNotMatch(source, /document\.removeEventListener\("(?:pointerdown|pointerup|pointercancel|mousedown|mouseup|click|auxclick|contextmenu)"/);
+  assert.doesNotMatch(source, /window\.addEventListener\("(?:click|auxclick|contextmenu)",\s*\w+,\s*false\)/);
+  assert.doesNotMatch(source, /window\.removeEventListener\("(?:click|auxclick|contextmenu)",\s*\w+,\s*false\)/);
   assert.match(source, /claimModifierClickGesture/);
   assert.match(source, /stopImmediatePropagation\(\)/);
-  assert.match(source, /MODIFIER_CLICK_SUPPRESSION_MS/);
+  assert.doesNotMatch(source, /MODIFIER_CLICK_SUPPRESSION_MS|MOUSE_GESTURE_OWNERSHIP_TIMEOUT_MS|POST_MOUSE_GESTURE_SUPPRESSION_MS/);
   assert.match(source, /SHORTCUT_KEYUP_SUPPRESSION_MS/);
   assert.match(source, /EVENT_MODIFIER_KEYS:\s*readonly TabWheelEventModifierKey\[\]\s*=\s*\["alt",\s*"ctrl",\s*"shift",\s*"meta"\]/);
   assert.match(source, /settings\.gestureModifier/);
@@ -85,20 +82,51 @@ test("content script implements modifier wheel/click gestures and tagged scroll 
   assert.match(source, /getTabCycleWheelDelta/);
   assert.match(source, /return event\.deltaX/);
   assert.match(source, /resolveWheelDirection\(wheelDelta,\s*settings\.invertScroll\)/);
-  assert.match(source, /MOUSE_GESTURE_OWNERSHIP_TIMEOUT_MS/);
-  assert.match(source, /POST_MOUSE_GESTURE_SUPPRESSION_MS/);
   assert.match(source, /type MouseGestureTerminalEvent = "click" \| "auxclick" \| "contextmenu"/);
+  assert.match(source, /interface OwnedMouseGesture \{[\s\S]*terminalEvent: MouseGestureTerminalEvent;[\s\S]*startClientX: number;[\s\S]*startClientY: number;[\s\S]*releaseClientX: number \| null;[\s\S]*releaseClientY: number \| null;[\s\S]*hasReleased: boolean;[\s\S]*\}/);
   assert.match(source, /ownedMouseGesturesByButton = new Map<number, OwnedMouseGesture>\(\)/);
   assert.match(source, /function resolveMouseGestureTerminalEvent\(button: number\): MouseGestureTerminalEvent \| null \{[\s\S]*button === 0[\s\S]*"click"[\s\S]*button === 1[\s\S]*"auxclick"[\s\S]*button === 2[\s\S]*"contextmenu"/);
-  assert.match(source, /function suppressAllNativeMouseFollowups\(until: number\): void \{[\s\S]*suppressNextPointerUpUntil[\s\S]*suppressNextMouseUpUntil[\s\S]*suppressNextClickUntil[\s\S]*suppressNextAuxClickUntil[\s\S]*suppressNextContextMenuUntil/);
-  assert.match(source, /function extendOwnedMouseGestureTerminalSuppression\(button: number\): void \{[\s\S]*button === 0[\s\S]*suppressNextClickUntil[\s\S]*button === 1[\s\S]*suppressNextAuxClickUntil[\s\S]*button === 2[\s\S]*suppressNextContextMenuUntil/);
-  assert.match(source, /function ownMouseGesture\(button: number\): void \{[\s\S]*ownedMouseGesturesByButton\.set\(button,[\s\S]*MOUSE_GESTURE_OWNERSHIP_TIMEOUT_MS/);
-  assert.match(source, /function releaseOwnedMouseGesture\(button: number\): void \{[\s\S]*clearOwnedMouseGesture\(button\);[\s\S]*terminalEvent === "contextmenu"[\s\S]*MODIFIER_CLICK_SUPPRESSION_MS/);
-  assert.match(source, /function markMouseGestureSuppressed\(button: number\)/);
-  assert.match(source, /suppressAllNativeMouseFollowups\(Date\.now\(\) \+ MODIFIER_CLICK_SUPPRESSION_MS\);[\s\S]*ownMouseGesture\(button\)/);
-  assert.match(source, /function clickHandler\(event: MouseEvent\): void \{[\s\S]*hasOwnedMouseGesture\(0\)[\s\S]*releaseOwnedMouseGesture\(0\);[\s\S]*suppressPageEvent\(event\);/);
-  assert.match(source, /function auxClickHandler\(event: MouseEvent\): void \{[\s\S]*hasOwnedMouseGesture\(event\.button\)[\s\S]*event\.button === 1[\s\S]*releaseOwnedMouseGesture\(1\);[\s\S]*suppressPageEvent\(event\);/);
-  assert.match(source, /function contextMenuHandler\(event: MouseEvent\): void \{[\s\S]*hasOwnedMouseGesture\(2\)[\s\S]*releaseOwnedMouseGesture\(2\);[\s\S]*suppressPageEvent\(event\);/);
+  assert.match(source, /function isOwnedMouseGestureTerminalEvent\([\s\S]*gesture: OwnedMouseGesture,[\s\S]*event: MouseEvent,[\s\S]*terminalEvent: MouseGestureTerminalEvent,[\s\S]*\): boolean \{[\s\S]*!event\.isTrusted[\s\S]*gesture\.terminalEvent !== terminalEvent[\s\S]*terminalEvent === "contextmenu"[\s\S]*event\.button === 2[\s\S]*gesture\.hasReleased[\s\S]*event\.detail > 0/);
+  assert.match(source, /function ownMouseGesture\(button: number,\s*event: MouseEvent\): boolean \{[\s\S]*const terminalEvent = resolveMouseGestureTerminalEvent\(button\);[\s\S]*if \(!terminalEvent\) return false;[\s\S]*ownedMouseGesturesByButton\.set\(button,[\s\S]*terminalEvent,[\s\S]*startClientX: event\.clientX,[\s\S]*startClientY: event\.clientY,[\s\S]*releaseClientX: null,[\s\S]*releaseClientY: null,[\s\S]*hasReleased: false,[\s\S]*\}\);[\s\S]*return true;/);
+  assert.match(source, /function markOwnedMouseGestureReleased\(button: number,\s*event: MouseEvent\): boolean \{[\s\S]*ownedMouseGesturesByButton\.get\(button\);[\s\S]*gesture\.releaseClientX = event\.clientX;[\s\S]*gesture\.releaseClientY = event\.clientY;[\s\S]*gesture\.hasReleased = true;[\s\S]*return true;/);
+  assert.match(source, /function completeOwnedMouseGesture\([\s\S]*event: MouseEvent,[\s\S]*\): boolean \{[\s\S]*isOwnedMouseGestureTerminalEvent\(gesture,\s*event,\s*terminalEvent\)[\s\S]*clearOwnedMouseGesture\(button\);[\s\S]*runModifierClickAction\(button\);[\s\S]*return true;/);
+  assert.match(source, /function claimModifierClickGesture\(button: number,\s*event: MouseEvent\): void \{[\s\S]*if \(hasOwnedMouseGesture\(button\)\) return;[\s\S]*ownMouseGesture\(button,\s*event\);[\s\S]*\}/);
+  assert.doesNotMatch(source, /function claimModifierClickGesture\(button: number,[\s\S]*\): void \{[\s\S]*runModifierClickAction\(button\)/);
+  const runModifierClickActionSource = source.slice(
+    source.indexOf("function runModifierClickAction(button: number): void"),
+    source.indexOf("\n  function claimModifierClickGesture", source.indexOf("function runModifierClickAction(button: number): void")),
+  );
+  assert.match(runModifierClickActionSource, /tagCurrentTab\(\)\.then\(\(\) => \{[\s\S]*scheduleTaggedIndicatorRefresh\(\);[\s\S]*\}\)\.catch\(\(\) => \{[\s\S]*showStatus\("Tag failed"\);/);
+  assert.match(runModifierClickActionSource, /removeCurrentTabTag\(\)\.then\(\(\) => \{[\s\S]*scheduleTaggedIndicatorRefresh\(\);[\s\S]*\}\)\.catch\(\(\) => \{[\s\S]*showStatus\("Remove failed"\);/);
+  assert.doesNotMatch(runModifierClickActionSource, /showStatus\(result\.ok|Tagged tab|Already tagged|Removed tag/);
+  assert.match(source, /function isHandledModifierMouseEvent\([\s\S]*event: MouseEvent,[\s\S]*button = event\.button,[\s\S]*\): boolean \{[\s\S]*event\.isTrusted[\s\S]*isTabWheelModifier\(event,\s*settings\.gestureModifier,\s*settings\.gestureWithShift\)/);
+  assert.match(source, /function pointerDownHandler\(event: PointerEvent\): void \{[\s\S]*clearOwnedMouseGestures\(\);[\s\S]*suppressPageEvent\(event\);[\s\S]*claimModifierClickGesture\(event\.button,\s*event\);/);
+  assert.match(source, /function pointerUpHandler\(event: PointerEvent\): void \{[\s\S]*markOwnedMouseGestureReleased\(event\.button,\s*event\)[\s\S]*suppressPageEvent\(event\);/);
+  assert.match(source, /function pointerCancelHandler\(event: PointerEvent\): void \{[\s\S]*clearOwnedMouseGesture\(event\.button\);[\s\S]*suppressPageEvent\(event\);[\s\S]*\}/);
+  assert.match(source, /function mouseDownHandler\(event: MouseEvent\): void \{[\s\S]*clearOwnedMouseGestures\(\);[\s\S]*suppressPageEvent\(event\);[\s\S]*claimModifierClickGesture\(event\.button,\s*event\);/);
+  assert.match(source, /function mouseUpHandler\(event: MouseEvent\): void \{[\s\S]*markOwnedMouseGestureReleased\(event\.button,\s*event\)[\s\S]*suppressPageEvent\(event\);/);
+  const clickHandlerSource = source.slice(
+    source.indexOf("function clickHandler(event: MouseEvent): void"),
+    source.indexOf("\n  function isShortcutEvent", source.indexOf("function clickHandler(event: MouseEvent): void")),
+  );
+  const auxClickHandlerSource = source.slice(
+    source.indexOf("function auxClickHandler(event: MouseEvent): void"),
+    source.indexOf("\n  function contextMenuHandler", source.indexOf("function auxClickHandler(event: MouseEvent): void")),
+  );
+  const contextMenuHandlerSource = source.slice(
+    source.indexOf("function contextMenuHandler(event: MouseEvent): void"),
+    source.indexOf("\n  function storageChangedHandler", source.indexOf("function contextMenuHandler(event: MouseEvent): void")),
+  );
+  assert.match(clickHandlerSource, /completeOwnedMouseGesture\(0,\s*"click",\s*event\)[\s\S]*suppressPageEvent\(event\);/);
+  assert.match(auxClickHandlerSource, /event\.button === 1 && completeOwnedMouseGesture\(1,\s*"auxclick",\s*event\)[\s\S]*suppressPageEvent\(event\);/);
+  assert.match(contextMenuHandlerSource, /completeOwnedMouseGesture\(2,\s*"contextmenu",\s*event\)[\s\S]*suppressPageEvent\(event\);/);
+  assert.match(clickHandlerSource, /isHandledModifierMouseEvent\(event\)[\s\S]*suppressPageEvent\(event\);/);
+  assert.match(auxClickHandlerSource, /isHandledModifierMouseEvent\(event\)[\s\S]*suppressPageEvent\(event\);/);
+  assert.match(contextMenuHandlerSource, /isHandledModifierMouseEvent\(event,\s*2\)[\s\S]*suppressPageEvent\(event\);/);
+  assert.doesNotMatch(clickHandlerSource, /runModifierClickAction/);
+  assert.doesNotMatch(auxClickHandlerSource, /runModifierClickAction/);
+  assert.doesNotMatch(contextMenuHandlerSource, /runModifierClickAction/);
+  assert.doesNotMatch(source, /suppressAllNativeMouseFollowups|extendOwnedMouseGestureTerminalSuppression|releaseOwnedMouseGesture|markMouseGestureSuppressed|ownedMouseGestureTimersByButton/);
   assert.match(source, /isModifierKeyName/);
   assert.match(source, /isShortcutKeyEvent/);
   assert.match(source, /event\.code === `Digit\$\{normalizedKey\}`/);
@@ -123,6 +151,12 @@ test("content script implements modifier wheel/click gestures and tagged scroll 
   assert.match(source, /removeCurrentTabTag\(\)/);
   assert.match(source, /clearTaggedTabs\(\)/);
   assert.match(source, /data-tw-clear="yes"[\s\S]*data-tw-clear="no"/);
+  const clearConfirmSource = source.slice(
+    source.indexOf("function openClearConfirm(taggedCount: number): void"),
+    source.indexOf("\n  async function requestClearTaggedTabs", source.indexOf("function openClearConfirm(taggedCount: number): void")),
+  );
+  assert.match(clearConfirmSource, /clearTaggedTabs\(\)\.then\(\(\) => \{[\s\S]*scheduleTaggedIndicatorRefresh\(\);[\s\S]*\}\)\.catch\(\(\) => \{[\s\S]*showStatus\("Clear failed"\);/);
+  assert.doesNotMatch(clearConfirmSource, /showStatus\(result\.ok|Cleared \$\{taggedCount\}/);
   assert.match(source, /event\.key\.toLowerCase\(\) === "y"[\s\S]*confirm\(\)/);
   assert.match(source, /event\.key\.toLowerCase\(\) === "n"[\s\S]*cancel\(\)/);
   assert.match(source, /resolveWheelDirection\(wheelDelta,\s*settings\.invertScroll\)/);
