@@ -862,6 +862,7 @@ export function initApp(): void {
       flushScrollSnapshot();
       clearOwnedMouseGestures();
       closeClearConfirm();
+      dismissPanel();
       return;
     }
     scheduleTaggedIndicatorRefresh();

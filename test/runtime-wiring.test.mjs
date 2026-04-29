@@ -143,8 +143,7 @@ test("content script implements modifier wheel/click gestures and tagged scroll 
   const visibilityStart = source.indexOf("function visibilityHandler(): void");
   const visibilityEnd = source.indexOf("\n  function documentReadyHandler", visibilityStart);
   const visibilitySource = source.slice(visibilityStart, visibilityEnd);
-  assert.match(visibilitySource, /flushScrollSnapshot\(\);[\s\S]*closeClearConfirm\(\);/);
-  assert.doesNotMatch(visibilitySource, /dismissPanel\(\)/);
+  assert.match(visibilitySource, /flushScrollSnapshot\(\);[\s\S]*clearOwnedMouseGestures\(\);[\s\S]*closeClearConfirm\(\);[\s\S]*dismissPanel\(\);/);
   assert.match(source, /isShortcutEvent\(event,\s*settings\.panelModifier,\s*settings\.panelWithShift,\s*settings\.panelKey\)[\s\S]*suppressPageEvent\(event\);[\s\S]*openTabWheelPanel\(\)/);
   assert.match(source, /isShortcutEvent\(event,\s*settings\.helpModifier,\s*settings\.helpWithShift,\s*settings\.helpKey\)[\s\S]*suppressPageEvent\(event\);[\s\S]*openTabWheelHelpOverlay\(\)/);
   assert.match(source, /tagCurrentTab\(\)/);
@@ -301,6 +300,13 @@ test("TabWheel domain stores tagged tabs, preserves scroll x/y, and falls back t
   assert.match(source, /resolveCycleTargetIndex\(/);
   assert.match(source, /taggedTabIds/);
   assert.match(source, /restoreScroll\(targetTab\.id,\s*targetEntry\.scrollX,\s*targetEntry\.scrollY\)/);
+  const cycleSource = source.slice(
+    source.indexOf("async function cycle("),
+    source.indexOf("\n  async function activate", source.indexOf("async function cycle(")),
+  );
+  assert.match(cycleSource, /browser\.tabs\.update\(targetTab\.id,\s*\{\s*active:\s*true\s*\}\)/);
+  assert.match(cycleSource, /restoreScroll\(targetTab\.id,\s*targetEntry\.scrollX,\s*targetEntry\.scrollY\)/);
+  assert.doesNotMatch(cycleSource, /sendStatus|Cycling all tabs|Tagged \$\{/);
   assert.match(source, /browser\.runtime\.onStartup\.addListener/);
   assert.doesNotMatch(source, /TabWheelSession|MAX_TABWHEEL_SESSIONS|TABWHEEL_STORAGE_KEYS\.sessions|saveSession|loadSession|listSessions|deleteSession/);
 });

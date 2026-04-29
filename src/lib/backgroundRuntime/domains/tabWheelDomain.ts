@@ -478,12 +478,6 @@ export function createTabWheelDomain(): TabWheelDomain {
     const targetEntry = entries.find((entry) => entry.tabId === targetTab.id);
     if (targetEntry) {
       await restoreScroll(targetTab.id, targetEntry.scrollX, targetEntry.scrollY);
-      await sendStatus(
-        targetTab.id,
-        `Tagged ${entries.findIndex((entry) => entry.tabId === targetTab.id) + 1}/${entries.length}`,
-      );
-    } else {
-      await sendStatus(targetTab.id, "Cycling all tabs");
     }
     await updateBadge(activeTab.windowId);
     return {
