@@ -1,0 +1,53 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8" />
+  <link rel="stylesheet" href="toolbarPopup.css" />
+</head>
+<body>
+  <div class="tabwheel-popup">
+    <div class="titlebar">
+      <div class="traffic-lights">
+        <span class="dot dot-close"></span>
+        <span class="dot dot-minimize"></span>
+        <span class="dot dot-maximize"></span>
+      </div>
+      <span class="titlebar-text">TabWheel</span>
+      <span class="count-pill" id="tagCount">0/15 tagged</span>
+    </div>
+
+    <div class="action-grid">
+      <button class="action-btn primary" id="tagBtn">Tag Current</button>
+      <button class="action-btn" id="removeBtn">Remove Current</button>
+      <button class="action-btn danger" id="clearBtn">Clear All</button>
+      <button class="icon-btn" id="refreshBtn" title="Refresh" aria-label="Refresh tagged tabs">&#8635;</button>
+      <button class="icon-btn" id="settingsBtn" title="Settings">&#9881;</button>
+      <button class="icon-btn" id="helpBtn" title="Help">?</button>
+    </div>
+
+    <div class="search-row">
+      <input class="search-input" id="searchInput" type="search" placeholder="Search" autocomplete="off" />
+    </div>
+
+    <div class="section-header">
+      <span>Tagged Tabs</span>
+      <span id="listMeta">Click a row to activate</span>
+    </div>
+    <div class="list" id="taggedTabsList"></div>
+
+    <div class="status-line" id="statusLine"></div>
+
+    <div class="footer-hints">
+      <span><strong>Tab</strong> list</span>
+      <span><strong>F</strong> search</span>
+      <span><strong>Shift+Space</strong> clear search</span>
+      <span><strong>Enter</strong> open</span>
+      <span><strong>D</strong> delete</span>
+      <span><strong>J/K</strong> move</span>
+      <span><strong>Wheel</strong> scroll list</span>
+      <span><strong>Esc</strong> close</span>
+    </div>
+  </div>
+  <script src="toolbarPopup.js"></script>
+</body>
+</html>

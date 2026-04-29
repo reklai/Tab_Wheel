@@ -1,0 +1,32 @@
+{
+  "input": {
+    "storageSchemaVersion": 2,
+    "frecencyData": {
+      "https://example.com/": 12
+    },
+    "tabManagerList": [
+      {
+        "tabId": 7,
+        "url": "https://example.com/",
+        "title": "Example",
+        "slot": 1,
+        "scrollX": 0,
+        "scrollY": 200
+      }
+    ]
+  },
+  "expected": {
+    "storageSchemaVersion": 3,
+    "tabManagerList": [
+      {
+        "tabId": 7,
+        "url": "https://example.com/",
+        "title": "Example",
+        "slot": 1,
+        "scrollX": 0,
+        "scrollY": 200
+      }
+    ]
+  },
+  "expectedChanged": true
+}

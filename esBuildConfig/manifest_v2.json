@@ -1,0 +1,48 @@
+{
+  "manifest_version": 2,
+  "name": "TabWheel",
+  "version": "2.2.1",
+  "description": "Tag tabs and cycle them with Alt plus the scroll wheel by default.",
+  "browser_specific_settings": {
+    "gecko": {
+      "id": "@tabwheel.reklai",
+      "data_collection_permissions": {
+        "required": ["none"]
+      }
+    }
+  },
+  "permissions": [
+    "tabs",
+    "storage",
+    "<all_urls>"
+  ],
+  "background": {
+    "scripts": ["background.js"],
+    "persistent": false
+  },
+  "content_scripts": [
+    {
+      "matches": ["<all_urls>"],
+      "js": ["contentScript.js"],
+      "match_about_blank": true,
+      "run_at": "document_start"
+    }
+  ],
+  "options_ui": {
+    "page": "optionsPage/optionsPage.html",
+    "open_in_tab": true
+  },
+  "browser_action": {
+    "default_icon": {
+      "48": "icons/icon-48.png",
+      "96": "icons/icon-96.png"
+    },
+    "default_popup": "toolbarPopup/toolbarPopup.html",
+    "default_title": "TabWheel"
+  },
+  "icons": {
+    "48": "icons/icon-48.png",
+    "96": "icons/icon-96.png",
+    "128": "icons/icon-128.png"
+  }
+}

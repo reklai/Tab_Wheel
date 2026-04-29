@@ -1,0 +1,10 @@
+learn.md
+AGENTS.md
+.codex
+node_modules/
+dist/
+
+# Root-level build artifacts (real output is in dist/)
+/background.js
+/content-script.js
+/lib/

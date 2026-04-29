@@ -1,0 +1,30 @@
+{
+  "name": "tabwheel",
+  "version": "2.2.1",
+  "private": true,
+  "description": "Browser extension for cycling tagged tabs with Alt plus the scroll wheel",
+  "scripts": {
+    "build": "node esBuildConfig/build.mjs",
+    "build:firefox": "node esBuildConfig/build.mjs --target firefox",
+    "build:chrome": "node esBuildConfig/build.mjs --target chrome",
+    "watch": "node esBuildConfig/build.mjs --watch",
+    "watch:firefox": "node esBuildConfig/build.mjs --watch --target firefox",
+    "watch:chrome": "node esBuildConfig/build.mjs --watch --target chrome",
+    "lint": "node esBuildConfig/lint.mjs",
+    "test": "node --test test/*.test.mjs",
+    "typecheck": "tsc --noEmit",
+    "verify:compat": "node esBuildConfig/verifyCompat.mjs",
+    "verify:upgrade": "node esBuildConfig/verifyUpgrade.mjs",
+    "verify:store": "node esBuildConfig/verifyStore.mjs",
+    "ci": "npm run lint && npm run test && npm run typecheck && npm run verify:compat && npm run verify:upgrade && npm run verify:store && npm run build:firefox && npm run build:chrome",
+    "clean": "rm -rf dist"
+  },
+  "devDependencies": {
+    "@types/webextension-polyfill": "^0.12.4",
+    "esbuild": "^0.24.0",
+    "typescript": "^5.7.0"
+  },
+  "dependencies": {
+    "webextension-polyfill": "^0.12.0"
+  }
+}

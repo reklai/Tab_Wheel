@@ -1,0 +1,87 @@
+.ht-help-container {
+  position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%);
+  width: min(94vw, 680px); max-height: min(88vh, 760px); background: var(--ht-color-bg);
+  border: 1px solid var(--ht-color-border); border-radius: var(--ht-radius);
+  display: flex; flex-direction: column; overflow: hidden;
+  box-shadow: var(--ht-shadow-overlay);
+  backface-visibility: hidden;
+  will-change: transform;
+  contain: layout style paint;
+  overscroll-behavior: contain;
+}
+.ht-help-titlebar-text {
+  flex: 1; text-align: left; font-size: 12px; color: var(--ht-color-text);
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.ht-help-title-label { color: var(--ht-color-text-title); }
+.ht-help-settings {
+  width: 26px; height: 26px; border-radius: 6px; border: 1px solid var(--ht-color-border-soft);
+  background: var(--ht-color-surface-dim); color: var(--ht-color-text);
+  font: inherit; line-height: 1; cursor: pointer; flex-shrink: 0;
+}
+.ht-help-settings:hover { background: var(--ht-color-hover); }
+.ht-help-settings:focus-visible {
+  outline: 1px solid var(--ht-color-accent);
+  outline-offset: 2px;
+}
+.ht-help-body {
+  flex: 1; overflow-y: auto; padding: 8px 0;
+  scroll-behavior: auto;
+}
+.ht-help-section { margin-bottom: 4px; }
+.ht-help-header {
+  display: flex; align-items: center; padding: 6px 20px;
+  font-size: 11px; font-weight: 700; text-transform: uppercase;
+  letter-spacing: 0; color: var(--ht-color-accent);
+  user-select: none;
+}
+.ht-help-section-centered {
+  padding: 8px 18px 12px;
+  text-align: center;
+}
+.ht-help-section-centered .ht-help-header {
+  justify-content: center;
+  padding: 6px 0 8px;
+}
+.ht-help-steps {
+  display: grid;
+  gap: 7px;
+  justify-items: center;
+}
+.ht-help-step {
+  width: min(100%, 520px);
+  padding: 7px 10px;
+  border: 1px solid var(--ht-color-border-soft);
+  border-radius: 6px;
+  background: var(--ht-color-surface-dim);
+  color: var(--ht-color-text);
+  font-size: 12px;
+  line-height: 1.45;
+  overflow-wrap: anywhere;
+}
+.ht-help-items { overflow: hidden; }
+.ht-help-row {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 4px 20px 4px 38px; font-size: 12px; cursor: default;
+}
+.ht-help-label { color: var(--ht-color-text-soft); min-width: 0; }
+.ht-help-key {
+  font-size: 11px; color: var(--ht-color-text); background: var(--ht-color-surface);
+  padding: 2px 8px; border-radius: 4px; font-weight: 600;
+  white-space: normal; flex-shrink: 1; margin-left: 12px;
+  max-width: 70%; text-align: right; overflow-wrap: anywhere;
+}
+.ht-help-tip {
+  font-size: 11px; color: var(--ht-color-text-muted); padding: 10px 20px;
+  border-top: 1px solid var(--ht-color-border-soft);
+  text-align: center; line-height: 1.6;
+}
+
+@media (max-width: 520px), (max-height: 560px) {
+  .ht-help-container { border-radius: 8px; }
+  .ht-help-row { padding: 4px 10px 4px 12px; font-size: 11px; }
+  .ht-help-header { padding: 6px 10px; }
+  .ht-help-key { margin-left: 8px; padding: 2px 6px; }
+  .ht-help-section-centered { padding: 6px 10px 10px; }
+  .ht-help-step { font-size: 11px; padding: 6px 8px; }
+}

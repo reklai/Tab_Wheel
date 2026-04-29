@@ -1,0 +1,112 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8" />
+  <title>__EXTENSION_NAME__ — Settings</title>
+  <link rel="stylesheet" href="optionsPage.css" />
+</head>
+<body>
+  <main class="settings-container">
+    <div class="settings-titlebar">
+      <div class="traffic-lights">
+        <span class="dot dot-close"></span>
+        <span class="dot dot-minimize"></span>
+        <span class="dot dot-maximize"></span>
+      </div>
+      <span class="titlebar-text">__EXTENSION_NAME__ — Settings</span>
+    </div>
+
+    <section class="settings-body">
+      <div class="settings-header">
+        <h1>TabWheel</h1>
+        <p class="subtitle">Modifier-scroll cycling for tagged browser tabs.</p>
+      </div>
+
+      <label class="setting-row" for="invertScroll">
+        <span>
+          <strong>Invert wheel direction</strong>
+          <small id="invertScrollHelp">Alt + wheel down becomes previous, and Alt + wheel up becomes next.</small>
+        </span>
+        <input id="invertScroll" type="checkbox" />
+      </label>
+
+      <label class="setting-row" for="gestureModifier">
+        <span>
+          <strong>Gesture modifier</strong>
+          <small>Choose Alt, Ctrl, or Meta for wheel and click tag actions.</small>
+        </span>
+        <select class="setting-control" id="gestureModifier"></select>
+      </label>
+
+      <label class="setting-row" for="gestureWithShift">
+        <span>
+          <strong>Add Shift to gesture</strong>
+          <small>Requires Shift with the selected gesture modifier.</small>
+        </span>
+        <input id="gestureWithShift" type="checkbox" />
+      </label>
+
+      <label class="setting-row" for="panelModifier">
+        <span>
+          <strong>Panel shortcut modifier</strong>
+          <small>Choose Alt, Ctrl, or Meta. Change the panel key below.</small>
+        </span>
+        <select class="setting-control" id="panelModifier"></select>
+      </label>
+
+      <label class="setting-row" for="panelWithShift">
+        <span>
+          <strong>Add Shift to panel shortcut</strong>
+          <small>Requires Shift with the selected panel modifier.</small>
+        </span>
+        <input id="panelWithShift" type="checkbox" />
+      </label>
+
+      <label class="setting-row" for="panelKey">
+        <span>
+          <strong>Panel shortcut key</strong>
+          <small>Pairs with the panel modifier. Browser-reserved shortcuts may still be unavailable.</small>
+        </span>
+        <select class="setting-control" id="panelKey"></select>
+      </label>
+
+      <label class="setting-row" for="helpModifier">
+        <span>
+          <strong>Help shortcut modifier</strong>
+          <small>Choose Alt, Ctrl, or Meta. Change the help key below.</small>
+        </span>
+        <select class="setting-control" id="helpModifier"></select>
+      </label>
+
+      <label class="setting-row" for="helpWithShift">
+        <span>
+          <strong>Add Shift to help shortcut</strong>
+          <small>Requires Shift with the selected help modifier.</small>
+        </span>
+        <input id="helpWithShift" type="checkbox" />
+      </label>
+
+      <label class="setting-row" for="helpKey">
+        <span>
+          <strong>Help shortcut key</strong>
+          <small>Pairs with the help modifier. Browser-reserved shortcuts may still be unavailable.</small>
+        </span>
+        <select class="setting-control" id="helpKey"></select>
+      </label>
+
+      <div class="reference-grid" aria-label="Gesture reference">
+        <div><strong id="wheelShortcut">Alt + Wheel</strong><span>Cycle tagged tabs, or all tabs when none are tagged.</span></div>
+        <div><strong id="panelShortcut">Alt + T</strong><span>Open the in-page tagged-tab panel.</span></div>
+        <div><strong id="helpShortcut">Alt + M</strong><span>Open the TabWheel help menu.</span></div>
+        <div><strong id="tagShortcut">Alt + Left Click</strong><span>Tag the current tab.</span></div>
+        <div><strong id="removeShortcut">Alt + Right Click</strong><span>Remove the current tab tag.</span></div>
+        <div><strong id="clearShortcut">Alt + Middle Click</strong><span>Confirm before clearing all current-window tags.</span></div>
+      </div>
+    </section>
+
+    <div class="status-bar" id="statusBar"></div>
+  </main>
+
+  <script src="optionsPage.js"></script>
+</body>
+</html>

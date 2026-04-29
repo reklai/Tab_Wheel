@@ -1,0 +1,45 @@
+{
+  "input": {
+    "storageSchemaVersion": 3,
+    "tabWheelSettings": {
+      "invertScroll": true
+    },
+    "tabWheelSessions": [
+      {
+        "name": "Research",
+        "savedAt": 1710000000000,
+        "entries": [
+          {
+            "url": "https://example.com/",
+            "title": "Example",
+            "pinned": false,
+            "scrollX": 0,
+            "scrollY": 120
+          }
+        ]
+      }
+    ]
+  },
+  "expected": {
+    "storageSchemaVersion": 3,
+    "tabWheelSettings": {
+      "invertScroll": true
+    },
+    "tabWheelSessions": [
+      {
+        "name": "Research",
+        "savedAt": 1710000000000,
+        "entries": [
+          {
+            "url": "https://example.com/",
+            "title": "Example",
+            "pinned": false,
+            "scrollX": 0,
+            "scrollY": 120
+          }
+        ]
+      }
+    ]
+  },
+  "expectedChanged": false
+}

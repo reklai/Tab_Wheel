@@ -1,0 +1,17 @@
+{
+  "input": {
+    "storageSchemaVersion": 4,
+    "tabWheelSettings": {
+      "invertScroll": false
+    },
+    "futureKey": true
+  },
+  "expected": {
+    "storageSchemaVersion": 4,
+    "tabWheelSettings": {
+      "invertScroll": false
+    },
+    "futureKey": true
+  },
+  "expectedChanged": false
+}
