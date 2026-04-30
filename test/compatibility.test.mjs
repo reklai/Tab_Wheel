@@ -48,7 +48,7 @@ test("manifests do not expose native side panel/sidebar surfaces", () => {
   assert.equal(v3.permissions.includes("sidePanel"), false);
 });
 
-test("content scripts run early enough to claim modifier mouse gestures", () => {
+test("content scripts run early enough to claim modifier-wheel events", () => {
   const v2 = readJson("esBuildConfig/manifest_v2.json");
   const v3 = readJson("esBuildConfig/manifest_v3.json");
 

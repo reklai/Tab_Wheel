@@ -1,0 +1,163 @@
+.ht-quick-controls-container {
+  width: min(520px, calc(100vw - 28px));
+  max-height: min(760px, calc(100vh - 28px));
+  max-height: min(760px, calc(100dvh - 28px));
+  background: var(--ht-color-bg);
+  border: 1px solid var(--ht-color-border);
+  border-radius: var(--ht-radius);
+  box-shadow: var(--ht-shadow-overlay);
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  backface-visibility: hidden;
+  will-change: transform;
+  contain: layout style paint;
+  overscroll-behavior: contain;
+}
+
+.ht-quick-titlebar {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  gap: 10px;
+}
+
+.ht-quick-meta {
+  color: var(--ht-color-text-muted);
+  font-size: 11px;
+  white-space: nowrap;
+}
+
+.ht-quick-hero {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 12px 14px;
+  background: var(--ht-color-bg-elevated);
+  border-bottom: 1px solid var(--ht-color-border-soft);
+}
+
+.ht-quick-shortcut {
+  color: var(--ht-color-text-strong);
+  font-weight: 700;
+}
+
+.ht-quick-subtitle {
+  color: var(--ht-color-text-muted);
+  font-size: 11px;
+}
+
+.ht-quick-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 1px;
+  background: var(--ht-color-border-faint);
+  overflow: auto;
+}
+
+.ht-quick-row {
+  min-height: 54px;
+  padding: 10px 12px;
+  background: var(--ht-color-bg);
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.ht-quick-row-text {
+  min-width: 0;
+  flex: 1;
+  display: grid;
+  gap: 3px;
+}
+
+.ht-quick-row-text strong {
+  color: var(--ht-color-text);
+  font-size: 12px;
+  font-weight: 650;
+}
+
+.ht-quick-row-text small {
+  color: var(--ht-color-text-muted);
+  font-size: 10px;
+  line-height: 1.35;
+}
+
+.ht-quick-row select,
+.ht-quick-row input[type="checkbox"],
+.ht-quick-row input[type="range"] {
+  accent-color: var(--ht-color-accent);
+}
+
+.ht-quick-row select {
+  width: 116px;
+  min-width: 0;
+  padding: 5px 8px;
+  border: 1px solid var(--ht-color-border);
+  border-radius: 6px;
+  background: var(--ht-color-bg-elevated);
+  color: var(--ht-color-text);
+  font: inherit;
+}
+
+.ht-quick-row input[type="checkbox"] {
+  width: 18px;
+  height: 18px;
+  flex: 0 0 auto;
+}
+
+.ht-quick-range {
+  width: 142px;
+  display: grid;
+  grid-template-columns: minmax(74px, 1fr) 46px;
+  align-items: center;
+  gap: 8px;
+  color: var(--ht-color-text-muted);
+  font-size: 10px;
+}
+
+.ht-quick-range input {
+  width: 100%;
+}
+
+.ht-quick-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  padding: 10px 14px;
+  background: var(--ht-color-bg-elevated);
+  border-top: 1px solid var(--ht-color-border-soft);
+}
+
+.ht-quick-actions button {
+  min-width: 82px;
+  padding: 7px 10px;
+  border: 1px solid var(--ht-color-border);
+  border-radius: 6px;
+  background: var(--ht-color-bg-soft);
+  color: var(--ht-color-text);
+  font: inherit;
+  cursor: pointer;
+}
+
+.ht-quick-actions button:hover {
+  background: var(--ht-color-hover);
+}
+
+@media (max-width: 560px), (max-height: 620px) {
+  .ht-quick-controls-container {
+    width: calc(100vw - 18px);
+    max-height: calc(100vh - 18px);
+    max-height: calc(100dvh - 18px);
+    border-radius: 8px;
+  }
+
+  .ht-quick-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .ht-quick-hero {
+    align-items: flex-start;
+    flex-direction: column;
+    gap: 4px;
+  }
+}

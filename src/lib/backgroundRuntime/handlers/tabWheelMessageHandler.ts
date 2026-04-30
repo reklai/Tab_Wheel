@@ -2,7 +2,7 @@ import browser from "webextension-polyfill";
 import { TabWheelDomain } from "../domains/tabWheelDomain";
 import { RuntimeMessageHandler, UNHANDLED } from "./runtimeRouter";
 
-async function openHelpInActiveTab(): Promise<TabWheelMutationResult> {
+async function openHelpInActiveTab(): Promise<TabWheelActionResult> {
   const [tab] = await browser.tabs.query({ active: true, currentWindow: true });
   if (tab?.id == null) {
     return { ok: false, reason: "No active tab" };
@@ -15,7 +15,7 @@ async function openHelpInActiveTab(): Promise<TabWheelMutationResult> {
   }
 }
 
-async function openOptionsPage(): Promise<TabWheelMutationResult> {
+async function openOptionsPage(): Promise<TabWheelActionResult> {
   try {
     await browser.runtime.openOptionsPage();
     return { ok: true };
@@ -29,41 +29,19 @@ export function createTabWheelMessageHandler(
 ): RuntimeMessageHandler {
   return async (message, sender) => {
     switch (message.type) {
-      case "TABWHEEL_GET_CURRENT_STATE":
-        return await domain.getCurrentState(sender.tab);
-
-      case "TABWHEEL_TAG_CURRENT":
-        return await domain.tagCurrent(sender.tab, message.windowId);
-
-      case "TABWHEEL_REMOVE_CURRENT":
-        return await domain.removeCurrent(sender.tab, message.windowId);
-
-      case "TABWHEEL_REMOVE_TAB":
-        return await domain.removeTab(
-          message.tabId,
-          message.windowId ?? sender.tab?.windowId,
-        );
-
-      case "TABWHEEL_CLEAR_WINDOW":
-        return await domain.clearWindow(message.windowId ?? sender.tab?.windowId);
-
-      case "TABWHEEL_LIST":
-        return await domain.list(message.windowId ?? sender.tab?.windowId);
-
-      case "TABWHEEL_ACTIVATE":
-        return await domain.activate(
-          message.tabId,
-          message.windowId ?? sender.tab?.windowId,
-        );
-
       case "TABWHEEL_CYCLE":
         return await domain.cycle(message.direction, sender.tab);
 
+      case "TABWHEEL_GET_OVERVIEW":
+        return await domain.getOverview(sender.tab, message.windowId ?? sender.tab?.windowId);
+
       case "TABWHEEL_SAVE_SCROLL_POSITION": {
         const tabId = sender.tab?.id;
-        if (tabId == null) return { ok: false, reason: "No sender tab" };
+        const windowId = sender.tab?.windowId;
+        if (tabId == null || windowId == null) return { ok: false, reason: "No sender tab" };
         return await domain.saveScrollPosition(
           tabId,
+          windowId,
           message.scrollX,
           message.scrollY,
         );

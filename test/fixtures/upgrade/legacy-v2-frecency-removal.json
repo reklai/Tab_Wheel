@@ -4,6 +4,21 @@
     "frecencyData": {
       "https://example.com/": 12
     },
+    "tabWheelTaggedTabs": {
+      "1": [
+        {
+          "tabId": 7,
+          "windowId": 1,
+          "url": "https://example.com/",
+          "title": "Example",
+          "pinned": false,
+          "scrollX": 0,
+          "scrollY": 200,
+          "createdAt": 1710000000000,
+          "updatedAt": 1710000000000
+        }
+      ]
+    },
     "tabManagerList": [
       {
         "tabId": 7,
@@ -16,7 +31,10 @@
     ]
   },
   "expected": {
-    "storageSchemaVersion": 3,
+    "storageSchemaVersion": 6,
+    "tabWheelSettings": {
+      "allowGesturesInEditableFields": true
+    },
     "tabManagerList": [
       {
         "tabId": 7,

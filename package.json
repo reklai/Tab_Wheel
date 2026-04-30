@@ -2,7 +2,7 @@
   "name": "tabwheel",
   "version": "2.2.1",
   "private": true,
-  "description": "Browser extension for cycling tagged tabs with Alt plus the scroll wheel",
+  "description": "Browser extension for fast tab switching with Alt plus the scroll wheel",
   "scripts": {
     "build": "node esBuildConfig/build.mjs",
     "build:firefox": "node esBuildConfig/build.mjs --target firefox",

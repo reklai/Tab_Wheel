@@ -1,4 +1,4 @@
-/* __EXTENSION_NAME__ — options page styles */
+/* __EXTENSION_NAME__ - options page styles */
 
 * {
   margin: 0;
@@ -111,6 +111,11 @@ body {
   accent-color: #0a84ff;
 }
 
+.setting-range {
+  width: 180px;
+  accent-color: #0a84ff;
+}
+
 .setting-control {
   min-width: 112px;
   min-height: 30px;
@@ -129,7 +134,7 @@ body {
 
 .reference-grid {
   display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
+  grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: 10px;
   margin-top: 18px;
 }
@@ -181,5 +186,9 @@ body {
   .reference-grid,
   .setting-row {
     grid-template-columns: minmax(0, 1fr);
+  }
+
+  .setting-range {
+    width: 100%;
   }
 }

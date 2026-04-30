@@ -2,7 +2,7 @@
   "manifest_version": 2,
   "name": "TabWheel",
   "version": "2.2.1",
-  "description": "Tag tabs and cycle them with Alt plus the scroll wheel by default.",
+  "description": "Switch tabs quickly with Alt plus the scroll wheel by default.",
   "browser_specific_settings": {
     "gecko": {
       "id": "@tabwheel.reklai",

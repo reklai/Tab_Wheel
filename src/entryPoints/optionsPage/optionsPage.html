@@ -2,7 +2,7 @@
 <html>
 <head>
   <meta charset="utf-8" />
-  <title>__EXTENSION_NAME__ — Settings</title>
+  <title>__EXTENSION_NAME__ - Settings</title>
   <link rel="stylesheet" href="optionsPage.css" />
 </head>
 <body>
@@ -13,16 +13,32 @@
         <span class="dot dot-minimize"></span>
         <span class="dot dot-maximize"></span>
       </div>
-      <span class="titlebar-text">__EXTENSION_NAME__ — Settings</span>
+      <span class="titlebar-text">__EXTENSION_NAME__ - Settings</span>
     </div>
 
     <section class="settings-body">
       <div class="settings-header">
         <h1>TabWheel</h1>
-        <p class="subtitle">Modifier-scroll cycling for tagged browser tabs.</p>
+        <p class="subtitle">Fast modifier-wheel cycling for browser tabs.</p>
       </div>
 
-      <label class="setting-row" for="invertScroll">
+      <label class="setting-row" for="cycleOrder" title="Left-right follows the visible browser tab order. Recent follows most-recently-used tabs.">
+        <span>
+          <strong>Cycle order</strong>
+          <small>Use left-right browser tab order or most-recently-used tab order.</small>
+        </span>
+        <select class="setting-control" id="cycleOrder"></select>
+      </label>
+
+      <label class="setting-row" for="allowGesturesInEditableFields" title="Allow the wheel shortcut inside text boxes and rich editors.">
+        <span>
+          <strong>Allow modifier-wheel in editable fields</strong>
+          <small>Enabled by default for text boxes and rich editors. Turn off if a site needs native editor wheel behavior.</small>
+        </span>
+        <input id="allowGesturesInEditableFields" type="checkbox" />
+      </label>
+
+      <label class="setting-row" for="invertScroll" title="Swap wheel down/up so down goes previous and up goes next.">
         <span>
           <strong>Invert wheel direction</strong>
           <small id="invertScrollHelp">Alt + wheel down becomes previous, and Alt + wheel up becomes next.</small>
@@ -30,77 +46,66 @@
         <input id="invertScroll" type="checkbox" />
       </label>
 
-      <label class="setting-row" for="gestureModifier">
+      <label class="setting-row" for="gestureModifier" title="Base key for cycling and for opening quick controls.">
         <span>
-          <strong>Gesture modifier</strong>
-          <small>Choose Alt, Ctrl, or Meta for wheel and click tag actions.</small>
+          <strong>Wheel modifier</strong>
+          <small>Choose Alt, Ctrl, or Meta for modifier-wheel cycling.</small>
         </span>
         <select class="setting-control" id="gestureModifier"></select>
       </label>
 
-      <label class="setting-row" for="gestureWithShift">
+      <label class="setting-row" for="gestureWithShift" title="Add Shift to the selected modifier before wheel cycling is active.">
         <span>
-          <strong>Add Shift to gesture</strong>
-          <small>Requires Shift with the selected gesture modifier.</small>
+          <strong>Add Shift to wheel shortcut</strong>
+          <small>Requires Shift with the selected modifier.</small>
         </span>
         <input id="gestureWithShift" type="checkbox" />
       </label>
 
-      <label class="setting-row" for="panelModifier">
+      <label class="setting-row" for="skipPinnedTabs" title="Keep pinned utility tabs out of the cycling path.">
         <span>
-          <strong>Panel shortcut modifier</strong>
-          <small>Choose Alt, Ctrl, or Meta. Change the panel key below.</small>
+          <strong>Skip pinned tabs</strong>
+          <small>Keep utility tabs out of wheel cycling.</small>
         </span>
-        <select class="setting-control" id="panelModifier"></select>
+        <input id="skipPinnedTabs" type="checkbox" />
       </label>
 
-      <label class="setting-row" for="panelWithShift">
+      <label class="setting-row" for="wrapAround" title="At the first or last tab, continue from the opposite edge.">
         <span>
-          <strong>Add Shift to panel shortcut</strong>
-          <small>Requires Shift with the selected panel modifier.</small>
+          <strong>Wrap around</strong>
+          <small>Continue from the other edge of the tab list.</small>
         </span>
-        <input id="panelWithShift" type="checkbox" />
+        <input id="wrapAround" type="checkbox" />
       </label>
 
-      <label class="setting-row" for="panelKey">
+      <label class="setting-row" for="wheelAcceleration" title="Shortens the cooldown during repeated wheel bursts.">
         <span>
-          <strong>Panel shortcut key</strong>
-          <small>Pairs with the panel modifier. Browser-reserved shortcuts may still be unavailable.</small>
+          <strong>Acceleration</strong>
+          <small>Speed up repeated wheel tab switches during a short burst.</small>
         </span>
-        <select class="setting-control" id="panelKey"></select>
+        <input id="wheelAcceleration" type="checkbox" />
       </label>
 
-      <label class="setting-row" for="helpModifier">
+      <label class="setting-row" for="wheelSensitivity" title="Higher values need less wheel movement before switching tabs.">
         <span>
-          <strong>Help shortcut modifier</strong>
-          <small>Choose Alt, Ctrl, or Meta. Change the help key below.</small>
+          <strong>Sensitivity</strong>
+          <small>Higher values need less wheel movement before switching. Current: <span id="wheelSensitivityValue">1.0x</span></small>
         </span>
-        <select class="setting-control" id="helpModifier"></select>
+        <input class="setting-range" id="wheelSensitivity" type="range" step="0.1" />
       </label>
 
-      <label class="setting-row" for="helpWithShift">
+      <label class="setting-row" for="wheelCooldownMs" title="Minimum time between tab switches; lower feels faster but can overshoot.">
         <span>
-          <strong>Add Shift to help shortcut</strong>
-          <small>Requires Shift with the selected help modifier.</small>
+          <strong>Cooldown</strong>
+          <small>Minimum time between tab switches. Current: <span id="wheelCooldownValue">140ms</span></small>
         </span>
-        <input id="helpWithShift" type="checkbox" />
+        <input class="setting-range" id="wheelCooldownMs" type="range" step="10" />
       </label>
 
-      <label class="setting-row" for="helpKey">
-        <span>
-          <strong>Help shortcut key</strong>
-          <small>Pairs with the help modifier. Browser-reserved shortcuts may still be unavailable.</small>
-        </span>
-        <select class="setting-control" id="helpKey"></select>
-      </label>
-
-      <div class="reference-grid" aria-label="Gesture reference">
-        <div><strong id="wheelShortcut">Alt + Wheel</strong><span>Cycle tagged tabs, or all tabs when none are tagged.</span></div>
-        <div><strong id="panelShortcut">Alt + T</strong><span>Open the in-page tagged-tab panel.</span></div>
-        <div><strong id="helpShortcut">Alt + M</strong><span>Open the TabWheel help menu.</span></div>
-        <div><strong id="tagShortcut">Alt + Left Click</strong><span>Tag the current tab.</span></div>
-        <div><strong id="removeShortcut">Alt + Right Click</strong><span>Remove the current tab tag.</span></div>
-        <div><strong id="clearShortcut">Alt + Middle Click</strong><span>Confirm before clearing all current-window tags.</span></div>
+      <div class="reference-grid" aria-label="Shortcut reference">
+        <div><strong id="wheelShortcut">Alt + Wheel</strong><span>Cycle tabs using the selected tab order.</span></div>
+        <div><strong>Modifier + Left Click</strong><span>Open quick controls on pages where content scripts are available.</span></div>
+        <div><strong>Toolbar popup</strong><span>Open the same controls when page shortcuts are unavailable.</span></div>
       </div>
     </section>
 

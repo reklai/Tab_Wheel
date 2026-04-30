@@ -1,43 +1,36 @@
 import browser, { Tabs } from "webextension-polyfill";
 import {
-  MAX_TAGGED_TABS,
+  loadTabWheelSettings,
+  MAX_SCROLL_MEMORY_ENTRIES,
   TABWHEEL_STORAGE_KEYS,
 } from "../../common/contracts/tabWheel";
 import { resolveCycleTargetIndex } from "../../core/tabWheel/tabWheelCore";
 
-type TaggedTabsByWindowId = Record<string, TaggedTabEntry[]>;
+type ScrollMemoryByTabId = Record<string, TabWheelScrollMemoryEntry>;
 
-interface BadgeAction {
-  setBadgeText(details: { text: string; tabId?: number }): Promise<void>;
-  setBadgeBackgroundColor(details: { color: string; tabId?: number }): Promise<void>;
+interface MruCycleSession {
+  windowId: number;
+  tabIds: number[];
+  cursorIndex: number;
+  lastUsedAt: number;
 }
 
 export interface TabWheelDomain {
   ensureLoaded(): Promise<void>;
-  getCurrentState(tab?: Tabs.Tab): Promise<TabWheelCurrentState>;
-  list(windowId?: number): Promise<TaggedTabEntry[]>;
-  tagCurrent(tab?: Tabs.Tab, windowId?: number): Promise<TabWheelMutationResult>;
-  removeCurrent(tab?: Tabs.Tab, windowId?: number): Promise<TabWheelMutationResult>;
-  removeTab(tabId: number, windowId?: number): Promise<TabWheelMutationResult>;
-  clearWindow(windowId?: number): Promise<TabWheelMutationResult>;
-  activate(tabId: number, windowId?: number): Promise<TabWheelMutationResult>;
-  cycle(direction: "prev" | "next", tab?: Tabs.Tab): Promise<TabWheelMutationResult>;
-  saveScrollPosition(tabId: number, scrollX: number, scrollY: number): Promise<TabWheelMutationResult>;
+  getOverview(tab?: Tabs.Tab, windowId?: number): Promise<TabWheelOverview>;
+  cycle(direction: "prev" | "next", tab?: Tabs.Tab): Promise<TabWheelActionResult>;
+  saveScrollPosition(tabId: number, windowId: number, scrollX: number, scrollY: number): Promise<TabWheelActionResult>;
   registerLifecycleListeners(): void;
 }
 
-const TAGGED_BADGE_TEXT = "TAG";
-const TAGGED_BADGE_COLOR = "#32d74b";
+const MRU_SESSION_TIMEOUT_MS = 1400;
 
 function windowKey(windowId: number): string {
   return String(windowId);
 }
 
-function normalizeTitle(title: string | undefined, url: string | undefined): string {
-  const trimmedTitle = (title || "").trim();
-  if (trimmedTitle) return trimmedTitle;
-  const trimmedUrl = (url || "").trim();
-  return trimmedUrl || "Untitled";
+function tabKey(tabId: number): string {
+  return String(tabId);
 }
 
 function normalizeScroll(scrollX: number, scrollY: number): { scrollX: number; scrollY: number } {
@@ -47,9 +40,9 @@ function normalizeScroll(scrollX: number, scrollY: number): { scrollX: number; s
   };
 }
 
-function normalizeTaggedEntry(rawEntry: unknown): TaggedTabEntry | null {
+function normalizeScrollMemoryEntry(rawEntry: unknown): TabWheelScrollMemoryEntry | null {
   if (typeof rawEntry !== "object" || rawEntry === null) return null;
-  const entry = rawEntry as Partial<TaggedTabEntry>;
+  const entry = rawEntry as Partial<TabWheelScrollMemoryEntry>;
   const tabId = Number(entry.tabId);
   const windowId = Number(entry.windowId);
   if (!Number.isInteger(tabId) || tabId <= 0) return null;
@@ -58,105 +51,68 @@ function normalizeTaggedEntry(rawEntry: unknown): TaggedTabEntry | null {
   return {
     tabId,
     windowId,
-    url: typeof entry.url === "string" ? entry.url : "",
-    title: normalizeTitle(entry.title, entry.url),
-    pinned: entry.pinned === true,
     scrollX: scroll.scrollX,
     scrollY: scroll.scrollY,
-    createdAt: Number.isFinite(Number(entry.createdAt)) ? Number(entry.createdAt) : Date.now(),
     updatedAt: Number.isFinite(Number(entry.updatedAt)) ? Number(entry.updatedAt) : Date.now(),
   };
 }
 
-function normalizeTaggedTabsByWindow(rawValue: unknown): TaggedTabsByWindowId {
+function normalizeScrollMemory(rawValue: unknown): ScrollMemoryByTabId {
   if (typeof rawValue !== "object" || rawValue === null || Array.isArray(rawValue)) return {};
-  const normalized: TaggedTabsByWindowId = {};
-  for (const [key, rawEntries] of Object.entries(rawValue as Record<string, unknown>)) {
-    const windowId = Number(key);
-    if (!Number.isInteger(windowId) || windowId <= 0 || !Array.isArray(rawEntries)) continue;
-    const entries = rawEntries
-      .map(normalizeTaggedEntry)
-      .filter((entry): entry is TaggedTabEntry => !!entry)
-      .filter((entry) => entry.windowId === windowId)
-      .slice(0, MAX_TAGGED_TABS);
-    if (entries.length > 0) normalized[key] = entries;
+  const normalized: ScrollMemoryByTabId = {};
+  for (const [key, rawEntry] of Object.entries(rawValue as Record<string, unknown>)) {
+    const entry = normalizeScrollMemoryEntry(rawEntry);
+    if (!entry || key !== tabKey(entry.tabId)) continue;
+    normalized[key] = entry;
   }
   return normalized;
 }
 
+function trimScrollMemory(memory: ScrollMemoryByTabId): ScrollMemoryByTabId {
+  const entries = Object.values(memory)
+    .sort((left, right) => right.updatedAt - left.updatedAt)
+    .slice(0, MAX_SCROLL_MEMORY_ENTRIES);
+  return Object.fromEntries(entries.map((entry) => [tabKey(entry.tabId), entry]));
+}
+
+function getTabIndex(tab: Tabs.Tab): number {
+  return Number(tab.index) || 0;
+}
+
+function getEligibleTabs(tabs: Tabs.Tab[], settings: TabWheelSettings): Tabs.Tab[] {
+  const filtered = settings.skipPinnedTabs
+    ? tabs.filter((tab) => tab.pinned !== true)
+    : tabs.slice();
+  return filtered
+    .filter((tab) => tab.id != null)
+    .sort((left, right) => getTabIndex(left) - getTabIndex(right));
+}
+
+function sameTabOrder(left: number[], right: number[]): boolean {
+  return left.length === right.length && left.every((value, index) => value === right[index]);
+}
+
 export function createTabWheelDomain(): TabWheelDomain {
-  let taggedTabsByWindowId: TaggedTabsByWindowId = {};
+  let scrollMemoryByTabId: ScrollMemoryByTabId = {};
+  const mruTabIdsByWindowId = new Map<number, number[]>();
+  const suppressedCycleActivations = new Set<number>();
+  let mruCycleSession: MruCycleSession | null = null;
   let loaded = false;
 
   async function ensureLoaded(): Promise<void> {
     if (loaded) return;
-    const stored = await browser.storage.local.get(TABWHEEL_STORAGE_KEYS.taggedTabs);
-    taggedTabsByWindowId = normalizeTaggedTabsByWindow(
-      stored[TABWHEEL_STORAGE_KEYS.taggedTabs],
+    const stored = await browser.storage.local.get(TABWHEEL_STORAGE_KEYS.scrollMemory);
+    scrollMemoryByTabId = normalizeScrollMemory(
+      stored[TABWHEEL_STORAGE_KEYS.scrollMemory],
     );
     loaded = true;
   }
 
-  async function saveTaggedTabs(): Promise<void> {
+  async function saveScrollMemory(): Promise<void> {
+    scrollMemoryByTabId = trimScrollMemory(scrollMemoryByTabId);
     await browser.storage.local.set({
-      [TABWHEEL_STORAGE_KEYS.taggedTabs]: taggedTabsByWindowId,
+      [TABWHEEL_STORAGE_KEYS.scrollMemory]: scrollMemoryByTabId,
     });
-  }
-
-  function getBadgeAction(): BadgeAction | null {
-    const api = browser as unknown as { action?: BadgeAction; browserAction?: BadgeAction };
-    return api.action || api.browserAction || null;
-  }
-
-  function getTaggedTabIds(windowId?: number): Set<number> {
-    const ids = new Set<number>();
-    const entryLists = windowId != null
-      ? [taggedTabsByWindowId[windowKey(windowId)] || []]
-      : Object.values(taggedTabsByWindowId);
-    for (const entries of entryLists) {
-      for (const entry of entries) ids.add(entry.tabId);
-    }
-    return ids;
-  }
-
-  async function updateBadge(windowId?: number): Promise<void> {
-    await ensureLoaded();
-    const badge = getBadgeAction();
-    if (!badge) return;
-    const taggedTabIds = getTaggedTabIds(windowId);
-    const tabs = await browser.tabs.query(windowId != null ? { windowId } : {});
-
-    await badge.setBadgeText({ text: "" }).catch(() => {});
-    for (const tab of tabs) {
-      if (tab.id == null) continue;
-      await badge.setBadgeBackgroundColor({
-        tabId: tab.id,
-        color: TAGGED_BADGE_COLOR,
-      }).catch(() => {});
-      await badge.setBadgeText({
-        tabId: tab.id,
-        text: taggedTabIds.has(tab.id) ? TAGGED_BADGE_TEXT : "",
-      }).catch(() => {});
-    }
-  }
-
-  async function notifyWindowTagState(windowId: number): Promise<void> {
-    await ensureLoaded();
-    const entries = taggedTabsByWindowId[windowKey(windowId)] || [];
-    const taggedTabIds = new Set(entries.map((entry) => entry.tabId));
-    const tabs = await browser.tabs.query({ windowId });
-    await Promise.all(tabs.map(async (tab) => {
-      if (tab.id == null) return;
-      try {
-        await browser.tabs.sendMessage(tab.id, {
-          type: "TABWHEEL_TAG_STATE_CHANGED",
-          isTagged: taggedTabIds.has(tab.id),
-          count: entries.length,
-        });
-      } catch (_) {
-        // Restricted or unloaded pages cannot receive content messages.
-      }
-    }));
   }
 
   async function resolveActiveTab(tab?: Tabs.Tab, windowId?: number): Promise<Tabs.Tab | null> {
@@ -185,100 +141,6 @@ export function createTabWheelDomain(): TabWheelDomain {
     return await browser.tabs.query({ windowId });
   }
 
-  function updateEntryFromTab(entry: TaggedTabEntry, tab: Tabs.Tab): boolean {
-    let changed = false;
-    const nextUrl = tab.url || entry.url;
-    const nextTitle = normalizeTitle(tab.title, nextUrl);
-    const nextPinned = tab.pinned === true;
-    if (entry.url !== nextUrl) {
-      entry.url = nextUrl;
-      changed = true;
-    }
-    if (entry.title !== nextTitle) {
-      entry.title = nextTitle;
-      changed = true;
-    }
-    if (entry.pinned !== nextPinned) {
-      entry.pinned = nextPinned;
-      changed = true;
-    }
-    if (changed) entry.updatedAt = Date.now();
-    return changed;
-  }
-
-  async function reconcileWindow(windowId: number): Promise<Tabs.Tab[]> {
-    await ensureLoaded();
-    const key = windowKey(windowId);
-    const entries = taggedTabsByWindowId[key] || [];
-    const tabs = await getWindowTabs(windowId);
-    const tabsById = new Map<number, Tabs.Tab>();
-    for (const tab of tabs) {
-      if (tab.id != null) tabsById.set(tab.id, tab);
-    }
-
-    let changed = false;
-    const nextEntries: TaggedTabEntry[] = [];
-    for (const entry of entries) {
-      const tab = tabsById.get(entry.tabId);
-      if (!tab) {
-        changed = true;
-        continue;
-      }
-      if (updateEntryFromTab(entry, tab)) changed = true;
-      nextEntries.push(entry);
-    }
-
-    if (nextEntries.length === 0) {
-      if (taggedTabsByWindowId[key]) {
-        delete taggedTabsByWindowId[key];
-        changed = true;
-      }
-    } else {
-      taggedTabsByWindowId[key] = nextEntries.slice(0, MAX_TAGGED_TABS);
-    }
-
-    if (changed) await saveTaggedTabs();
-    await updateBadge(windowId);
-    return tabs;
-  }
-
-  function sortEntriesByTabOrder(entries: TaggedTabEntry[], tabs: Tabs.Tab[]): TaggedTabEntry[] {
-    const indexByTabId = new Map<number, number>();
-    for (const tab of tabs) {
-      if (tab.id != null) indexByTabId.set(tab.id, Number(tab.index) || 0);
-    }
-    return entries
-      .slice()
-      .sort((left, right) => {
-        const leftIndex = indexByTabId.get(left.tabId) ?? Number.MAX_SAFE_INTEGER;
-        const rightIndex = indexByTabId.get(right.tabId) ?? Number.MAX_SAFE_INTEGER;
-        return leftIndex - rightIndex;
-      });
-  }
-
-  async function list(windowId?: number): Promise<TaggedTabEntry[]> {
-    const resolvedWindowId = await resolveCurrentWindowId(windowId);
-    if (resolvedWindowId == null) return [];
-    const tabs = await reconcileWindow(resolvedWindowId);
-    const entries = taggedTabsByWindowId[windowKey(resolvedWindowId)] || [];
-    return sortEntriesByTabOrder(entries, tabs);
-  }
-
-  async function getCurrentState(tab?: Tabs.Tab): Promise<TabWheelCurrentState> {
-    await ensureLoaded();
-    if (!tab?.id || tab.windowId == null) {
-      return { isTagged: false, count: 0 };
-    }
-    await reconcileWindow(tab.windowId);
-    const entries = taggedTabsByWindowId[windowKey(tab.windowId)] || [];
-    const entry = entries.find((candidate) => candidate.tabId === tab.id);
-    return {
-      isTagged: !!entry,
-      count: entries.length,
-      ...(entry ? { entry } : {}),
-    };
-  }
-
   async function getScroll(tabId: number): Promise<ScrollData> {
     try {
       return (await browser.tabs.sendMessage(tabId, { type: "GET_SCROLL" })) as ScrollData;
@@ -287,298 +149,237 @@ export function createTabWheelDomain(): TabWheelDomain {
     }
   }
 
-  async function sendStatus(tabId: number | undefined, message: string): Promise<void> {
-    if (tabId == null) return;
-    try {
-      await browser.tabs.sendMessage(tabId, { type: "TABWHEEL_STATUS", message });
-    } catch (_) {
-      // Status is best-effort; restricted pages cannot receive content messages.
-    }
-  }
-
-  async function restoreScroll(tabId: number, scrollX: number, scrollY: number): Promise<void> {
-    const scroll = normalizeScroll(scrollX, scrollY);
-    if (!scroll.scrollX && !scroll.scrollY) return;
+  async function restoreScroll(tabId: number): Promise<boolean> {
+    const entry = scrollMemoryByTabId[tabKey(tabId)];
+    if (!entry || (!entry.scrollX && !entry.scrollY)) return false;
     const retryDelaysMs = [0, 80, 220, 500, 900, 1500, 2400, 3600];
     for (const delay of retryDelaysMs) {
       if (delay > 0) await new Promise((resolve) => setTimeout(resolve, delay));
       try {
         await browser.tabs.sendMessage(tabId, {
           type: "SET_SCROLL",
-          scrollX: scroll.scrollX,
-          scrollY: scroll.scrollY,
+          scrollX: entry.scrollX,
+          scrollY: entry.scrollY,
         });
-        return;
+        return true;
       } catch (_) {
         // Content script may be unavailable or not ready.
       }
     }
+    return false;
   }
 
-  async function tagCurrent(tab?: Tabs.Tab, windowId?: number): Promise<TabWheelMutationResult> {
-    await ensureLoaded();
-    const activeTab = await resolveActiveTab(tab, windowId);
-    if (!activeTab?.id || activeTab.windowId == null) {
-      return { ok: false, reason: "No active tab" };
-    }
-    const tabs = await reconcileWindow(activeTab.windowId);
-    const key = windowKey(activeTab.windowId);
-    const entries = taggedTabsByWindowId[key] || [];
-    const existing = entries.find((entry) => entry.tabId === activeTab.id);
-    const scroll = await getScroll(activeTab.id);
-    if (existing) {
-      existing.scrollX = scroll.scrollX || 0;
-      existing.scrollY = scroll.scrollY || 0;
-      updateEntryFromTab(existing, activeTab);
-      existing.updatedAt = Date.now();
-      await saveTaggedTabs();
-      await sendStatus(activeTab.id, "Already tagged");
-      await updateBadge(activeTab.windowId);
-      await notifyWindowTagState(activeTab.windowId);
-      return {
-        ok: true,
-        entry: existing,
-        count: entries.length,
-        alreadyTagged: true,
-      };
-    }
-    if (entries.length >= MAX_TAGGED_TABS) {
-      const reason = `TabWheel full (max ${MAX_TAGGED_TABS})`;
-      await sendStatus(activeTab.id, reason);
-      return { ok: false, reason, count: entries.length };
-    }
+  function rememberActivatedTab(windowId: number, tabId: number): void {
+    const current = mruTabIdsByWindowId.get(windowId) || [];
+    mruTabIdsByWindowId.set(windowId, [
+      tabId,
+      ...current.filter((candidate) => candidate !== tabId),
+    ]);
+  }
+
+  function getMruCandidateIds(windowId: number, eligibleTabs: Tabs.Tab[]): number[] {
+    const eligibleIds = eligibleTabs
+      .map((tab) => tab.id)
+      .filter((tabId): tabId is number => tabId != null);
+    const eligibleIdSet = new Set(eligibleIds);
+    const knownIds = (mruTabIdsByWindowId.get(windowId) || [])
+      .filter((tabId) => eligibleIdSet.has(tabId));
+    const knownIdSet = new Set(knownIds);
+    return [
+      ...knownIds,
+      ...eligibleIds.filter((tabId) => !knownIdSet.has(tabId)),
+    ];
+  }
+
+  function resolveMruTargetTab(
+    windowId: number,
+    activeTabId: number,
+    eligibleTabs: Tabs.Tab[],
+    direction: "prev" | "next",
+    wrapAround: boolean,
+  ): Tabs.Tab | null {
     const now = Date.now();
-    const entry: TaggedTabEntry = {
-      tabId: activeTab.id,
-      windowId: activeTab.windowId,
-      url: activeTab.url || "",
-      title: normalizeTitle(activeTab.title, activeTab.url),
-      pinned: activeTab.pinned === true,
-      scrollX: scroll.scrollX || 0,
-      scrollY: scroll.scrollY || 0,
-      createdAt: now,
-      updatedAt: now,
+    const candidateIds = getMruCandidateIds(windowId, eligibleTabs);
+    if (candidateIds.length === 0) return null;
+    if (candidateIds.length === 1) return eligibleTabs.find((tab) => tab.id === candidateIds[0]) || null;
+
+    const session = mruCycleSession;
+    const shouldReuseSession = session
+      && session.windowId === windowId
+      && now - session.lastUsedAt <= MRU_SESSION_TIMEOUT_MS
+      && sameTabOrder(session.tabIds, candidateIds);
+
+    const currentIndex = shouldReuseSession
+      ? session.cursorIndex
+      : Math.max(0, candidateIds.indexOf(activeTabId));
+    const offset = direction === "next" ? 1 : -1;
+    const nextIndex = currentIndex + offset;
+    const cursorIndex = nextIndex < 0
+      ? wrapAround ? candidateIds.length - 1 : currentIndex
+      : nextIndex >= candidateIds.length
+        ? wrapAround ? 0 : currentIndex
+        : nextIndex;
+
+    mruCycleSession = {
+      windowId,
+      tabIds: candidateIds,
+      cursorIndex,
+      lastUsedAt: now,
     };
-    taggedTabsByWindowId[key] = [...entries, entry];
-    await saveTaggedTabs();
-    const count = (taggedTabsByWindowId[key] || []).length;
-    await sendStatus(activeTab.id, `Tagged tab (${count}/${MAX_TAGGED_TABS})`);
-    await updateBadge(activeTab.windowId);
-    await notifyWindowTagState(activeTab.windowId);
-    void tabs;
-    return { ok: true, entry, count };
+
+    return eligibleTabs.find((tab) => tab.id === candidateIds[cursorIndex]) || null;
   }
 
-  async function removeCurrent(tab?: Tabs.Tab, windowId?: number): Promise<TabWheelMutationResult> {
-    await ensureLoaded();
-    const activeTab = await resolveActiveTab(tab, windowId);
-    if (!activeTab?.id || activeTab.windowId == null) {
-      return { ok: false, reason: "No active tab" };
-    }
-    await reconcileWindow(activeTab.windowId);
-    const key = windowKey(activeTab.windowId);
-    const entries = taggedTabsByWindowId[key] || [];
-    const nextEntries = entries.filter((entry) => entry.tabId !== activeTab.id);
-    if (nextEntries.length === entries.length) {
-      await sendStatus(activeTab.id, "Tab was not tagged");
-      return { ok: false, reason: "Tab was not tagged", count: entries.length };
-    }
-    if (nextEntries.length > 0) taggedTabsByWindowId[key] = nextEntries;
-    else delete taggedTabsByWindowId[key];
-    await saveTaggedTabs();
-    await sendStatus(activeTab.id, "Removed tag");
-    await updateBadge(activeTab.windowId);
-    await notifyWindowTagState(activeTab.windowId);
-    return { ok: true, count: nextEntries.length };
+  function resolveStripTargetTab(
+    activeTab: Tabs.Tab,
+    eligibleTabs: Tabs.Tab[],
+    direction: "prev" | "next",
+    wrapAround: boolean,
+  ): Tabs.Tab | null {
+    const targetIndex = resolveCycleTargetIndex(
+      eligibleTabs.map(getTabIndex),
+      getTabIndex(activeTab),
+      direction,
+      wrapAround,
+    );
+    return eligibleTabs.find((tab) => getTabIndex(tab) === targetIndex) || null;
   }
 
-  async function removeTab(
-    tabId: number,
-    windowId?: number,
-  ): Promise<TabWheelMutationResult> {
-    await ensureLoaded();
-    const resolvedWindowId = await resolveCurrentWindowId(windowId);
-    if (resolvedWindowId == null) return { ok: false, reason: "No current window" };
-    await reconcileWindow(resolvedWindowId);
-    const key = windowKey(resolvedWindowId);
-    const entries = taggedTabsByWindowId[key] || [];
-    const entry = entries.find((candidate) => candidate.tabId === tabId);
-    if (!entry) {
-      return { ok: false, reason: "Tab was not tagged", count: entries.length };
-    }
-    const nextEntries = entries.filter((candidate) => candidate.tabId !== tabId);
-    if (nextEntries.length > 0) taggedTabsByWindowId[key] = nextEntries;
-    else delete taggedTabsByWindowId[key];
-    await saveTaggedTabs();
-    await sendStatus(tabId, "Removed tag");
-    await updateBadge(resolvedWindowId);
-    await notifyWindowTagState(resolvedWindowId);
-    return { ok: true, entry, count: nextEntries.length };
-  }
-
-  async function clearWindow(windowId?: number): Promise<TabWheelMutationResult> {
-    await ensureLoaded();
-    const resolvedWindowId = await resolveCurrentWindowId(windowId);
-    if (resolvedWindowId == null) return { ok: false, reason: "No current window" };
-    const key = windowKey(resolvedWindowId);
-    const count = (taggedTabsByWindowId[key] || []).length;
-    delete taggedTabsByWindowId[key];
-    await saveTaggedTabs();
-    await updateBadge(resolvedWindowId);
-    await notifyWindowTagState(resolvedWindowId);
-    const [tab] = await browser.tabs.query({ active: true, windowId: resolvedWindowId });
-    await sendStatus(tab?.id, count > 0 ? `Cleared ${count} tags` : "No tagged tabs");
-    return { ok: true, count: 0 };
-  }
-
-  async function captureTaggedTabScroll(tab: Tabs.Tab): Promise<void> {
+  async function captureTabScroll(tab: Tabs.Tab): Promise<void> {
     if (tab.id == null || tab.windowId == null) return;
-    const key = windowKey(tab.windowId);
-    const entry = (taggedTabsByWindowId[key] || []).find((candidate) => candidate.tabId === tab.id);
-    if (!entry) return;
     const scroll = await getScroll(tab.id);
-    entry.scrollX = scroll.scrollX || 0;
-    entry.scrollY = scroll.scrollY || 0;
-    entry.updatedAt = Date.now();
-    await saveTaggedTabs();
+    const normalized = normalizeScroll(scroll.scrollX, scroll.scrollY);
+    scrollMemoryByTabId[tabKey(tab.id)] = {
+      tabId: tab.id,
+      windowId: tab.windowId,
+      scrollX: normalized.scrollX,
+      scrollY: normalized.scrollY,
+      updatedAt: Date.now(),
+    };
+    await saveScrollMemory();
+  }
+
+  async function getOverview(tab?: Tabs.Tab, windowId?: number): Promise<TabWheelOverview> {
+    await ensureLoaded();
+    const settings = await loadTabWheelSettings();
+    const resolvedWindowId = await resolveCurrentWindowId(windowId ?? tab?.windowId);
+    if (resolvedWindowId == null) {
+      return { activeIndex: 0, tabCount: 0, cycleOrder: settings.cycleOrder };
+    }
+    const activeTab = await resolveActiveTab(tab, resolvedWindowId);
+    const eligibleTabs = getEligibleTabs(await getWindowTabs(resolvedWindowId), settings);
+    const activeIndex = activeTab
+      ? eligibleTabs.findIndex((candidate) => candidate.id === activeTab.id)
+      : -1;
+    return {
+      activeIndex: activeIndex >= 0 ? activeIndex : 0,
+      tabCount: eligibleTabs.length,
+      cycleOrder: settings.cycleOrder,
+    };
   }
 
   async function cycle(
     direction: "prev" | "next",
     tab?: Tabs.Tab,
-  ): Promise<TabWheelMutationResult> {
+  ): Promise<TabWheelActionResult> {
     await ensureLoaded();
+    const settings = await loadTabWheelSettings();
     const activeTab = await resolveActiveTab(tab);
     if (!activeTab?.id || activeTab.windowId == null) {
       return { ok: false, reason: "No active tab" };
     }
-    const tabs = await reconcileWindow(activeTab.windowId);
-    if (tabs.length === 0) return { ok: false, reason: "No tabs" };
-    await captureTaggedTabScroll(activeTab);
-
-    const entries = sortEntriesByTabOrder(
-      taggedTabsByWindowId[windowKey(activeTab.windowId)] || [],
-      tabs,
-    );
-    const allIndices = tabs.map((candidate) => Number(candidate.index) || 0);
-    const taggedTabIds = new Set(entries.map((entry) => entry.tabId));
-    const taggedIndices = tabs
-      .filter((candidate) => candidate.id != null && taggedTabIds.has(candidate.id))
-      .map((candidate) => Number(candidate.index) || 0);
-    const targetIndex = resolveCycleTargetIndex(
-      allIndices,
-      taggedIndices,
-      Number(activeTab.index) || 0,
-      direction,
-    );
-    const targetTab = tabs.find((candidate) => Number(candidate.index) === targetIndex);
-    if (!targetTab?.id) return { ok: false, reason: "No target tab" };
-
-    await browser.tabs.update(targetTab.id, { active: true });
-    const targetEntry = entries.find((entry) => entry.tabId === targetTab.id);
-    if (targetEntry) {
-      await restoreScroll(targetTab.id, targetEntry.scrollX, targetEntry.scrollY);
+    const tabs = await getWindowTabs(activeTab.windowId);
+    const eligibleTabs = getEligibleTabs(tabs, settings);
+    if (eligibleTabs.length === 0) return { ok: false, reason: "No tabs" };
+    if (!eligibleTabs.some((candidate) => candidate.id === activeTab.id)) {
+      return { ok: false, reason: "Current tab is skipped" };
     }
-    await updateBadge(activeTab.windowId);
+
+    await captureTabScroll(activeTab);
+
+    const targetTab = settings.cycleOrder === "mru"
+      ? resolveMruTargetTab(activeTab.windowId, activeTab.id, eligibleTabs, direction, settings.wrapAround)
+      : resolveStripTargetTab(activeTab, eligibleTabs, direction, settings.wrapAround);
+    if (!targetTab?.id || targetTab.id === activeTab.id) {
+      return {
+        ok: false,
+        reason: "Edge of tab list",
+      };
+    }
+
+    suppressedCycleActivations.add(targetTab.id);
+    await browser.tabs.update(targetTab.id, { active: true });
+    await restoreScroll(targetTab.id);
     return {
       ok: true,
-      entry: targetEntry,
-      count: entries.length,
     };
-  }
-
-  async function activate(tabId: number, windowId?: number): Promise<TabWheelMutationResult> {
-    await ensureLoaded();
-    const resolvedWindowId = await resolveCurrentWindowId(windowId);
-    if (resolvedWindowId == null) return { ok: false, reason: "No current window" };
-    const entries = await list(resolvedWindowId);
-    const entry = entries.find((candidate) => candidate.tabId === tabId);
-    if (!entry) return { ok: false, reason: "Tagged tab not found" };
-    await browser.tabs.update(tabId, { active: true });
-    await restoreScroll(tabId, entry.scrollX, entry.scrollY);
-    await sendStatus(tabId, `Tagged ${entries.findIndex((candidate) => candidate.tabId === tabId) + 1}/${entries.length}`);
-    return { ok: true, entry, count: entries.length };
   }
 
   async function saveScrollPosition(
     tabId: number,
+    windowId: number,
     scrollX: number,
     scrollY: number,
-  ): Promise<TabWheelMutationResult> {
+  ): Promise<TabWheelActionResult> {
     await ensureLoaded();
     const scroll = normalizeScroll(scrollX, scrollY);
-    for (const entries of Object.values(taggedTabsByWindowId)) {
-      const entry = entries.find((candidate) => candidate.tabId === tabId);
-      if (!entry) continue;
-      if (entry.scrollX === scroll.scrollX && entry.scrollY === scroll.scrollY) {
-        return { ok: true, entry };
-      }
-      entry.scrollX = scroll.scrollX;
-      entry.scrollY = scroll.scrollY;
-      entry.updatedAt = Date.now();
-      await saveTaggedTabs();
-      return { ok: true, entry };
+    const key = tabKey(tabId);
+    const existing = scrollMemoryByTabId[key];
+    if (existing?.scrollX === scroll.scrollX && existing.scrollY === scroll.scrollY) {
+      return { ok: true };
     }
-    return { ok: false, reason: "Tab is not tagged" };
+    scrollMemoryByTabId[key] = {
+      tabId,
+      windowId,
+      scrollX: scroll.scrollX,
+      scrollY: scroll.scrollY,
+      updatedAt: Date.now(),
+    };
+    await saveScrollMemory();
+    return { ok: true };
   }
 
   function registerLifecycleListeners(): void {
     browser.tabs.onRemoved.addListener(async (tabId: number) => {
       await ensureLoaded();
-      let changed = false;
-      for (const [key, entries] of Object.entries(taggedTabsByWindowId)) {
-        const nextEntries = entries.filter((entry) => entry.tabId !== tabId);
-        if (nextEntries.length !== entries.length) {
-          changed = true;
-          if (nextEntries.length > 0) taggedTabsByWindowId[key] = nextEntries;
-          else delete taggedTabsByWindowId[key];
-        }
+      delete scrollMemoryByTabId[tabKey(tabId)];
+      for (const [windowId, tabIds] of mruTabIdsByWindowId) {
+        const nextTabIds = tabIds.filter((candidate) => candidate !== tabId);
+        if (nextTabIds.length > 0) mruTabIdsByWindowId.set(windowId, nextTabIds);
+        else mruTabIdsByWindowId.delete(windowId);
       }
-      if (changed) {
-        await saveTaggedTabs();
-        await updateBadge();
-      }
+      if (mruCycleSession?.tabIds.includes(tabId)) mruCycleSession = null;
+      suppressedCycleActivations.delete(tabId);
+      await saveScrollMemory();
     });
 
-    browser.tabs.onUpdated.addListener(async (tabId: number, changeInfo: Tabs.OnUpdatedChangeInfoType, tab: Tabs.Tab) => {
-      await ensureLoaded();
-      if (tab.windowId == null) return;
-      const entries = taggedTabsByWindowId[windowKey(tab.windowId)] || [];
-      const entry = entries.find((candidate) => candidate.tabId === tabId);
-      if (!entry) return;
-      if (changeInfo.url || changeInfo.title || typeof changeInfo.pinned === "boolean") {
-        updateEntryFromTab(entry, tab);
-        entry.updatedAt = Date.now();
-        await saveTaggedTabs();
+    browser.tabs.onActivated.addListener((activeInfo: Tabs.OnActivatedActiveInfoType) => {
+      if (suppressedCycleActivations.delete(activeInfo.tabId)) return;
+      rememberActivatedTab(activeInfo.windowId, activeInfo.tabId);
+      mruCycleSession = null;
+    });
+
+    browser.windows.onRemoved.addListener((windowId: number) => {
+      mruTabIdsByWindowId.delete(windowId);
+      if (mruCycleSession?.windowId === windowId) mruCycleSession = null;
+      for (const [key, entry] of Object.entries(scrollMemoryByTabId)) {
+        if (entry.windowId === windowId) delete scrollMemoryByTabId[key];
       }
-    });
-
-    browser.tabs.onActivated.addListener(async (activeInfo: Tabs.OnActivatedActiveInfoType) => {
-      await updateBadge(activeInfo.windowId);
-    });
-
-    browser.windows.onFocusChanged.addListener(async (windowId: number) => {
-      if (windowId <= 0) return;
-      await updateBadge(windowId);
+      void saveScrollMemory();
     });
 
     browser.runtime.onStartup.addListener(async () => {
-      taggedTabsByWindowId = {};
-      loaded = true;
-      await browser.storage.local.remove(TABWHEEL_STORAGE_KEYS.taggedTabs);
-      await updateBadge();
+      await ensureLoaded();
+      scrollMemoryByTabId = trimScrollMemory(scrollMemoryByTabId);
+      mruTabIdsByWindowId.clear();
+      mruCycleSession = null;
+      await saveScrollMemory();
     });
   }
 
   return {
     ensureLoaded,
-    getCurrentState,
-    list,
-    tagCurrent,
-    removeCurrent,
-    removeTab,
-    clearWindow,
-    activate,
+    getOverview,
     cycle,
     saveScrollPosition,
     registerLifecycleListeners,

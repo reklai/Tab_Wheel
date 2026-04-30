@@ -1,27 +1,32 @@
 import browser from "webextension-polyfill";
 
-export const MAX_TAGGED_TABS = 15;
+export const MAX_SCROLL_MEMORY_ENTRIES = 300;
 export const TABWHEEL_STORAGE_KEYS = {
-  taggedTabs: "tabWheelTaggedTabs",
   settings: "tabWheelSettings",
+  scrollMemory: "tabWheelScrollMemory",
 } as const;
 export const TABWHEEL_MODIFIER_KEYS: readonly TabWheelModifierKey[] = [
   "alt",
   "ctrl",
   "meta",
 ] as const;
-export const TABWHEEL_PANEL_KEY_OPTIONS = "abcdefghijklmnopqrstuvwxyz0123456789".split("");
+export const TABWHEEL_CYCLE_ORDERS: readonly TabWheelCycleOrder[] = ["strip", "mru"];
+export const MIN_WHEEL_SENSITIVITY = 0.5;
+export const MAX_WHEEL_SENSITIVITY = 2;
+export const MIN_WHEEL_COOLDOWN_MS = 60;
+export const MAX_WHEEL_COOLDOWN_MS = 400;
 
 export const DEFAULT_TABWHEEL_SETTINGS: TabWheelSettings = {
   invertScroll: false,
   gestureModifier: "alt",
   gestureWithShift: false,
-  panelModifier: "alt",
-  panelWithShift: false,
-  panelKey: "t",
-  helpModifier: "alt",
-  helpWithShift: false,
-  helpKey: "m",
+  allowGesturesInEditableFields: true,
+  cycleOrder: "strip",
+  skipPinnedTabs: false,
+  wrapAround: true,
+  wheelSensitivity: 1,
+  wheelCooldownMs: 140,
+  wheelAcceleration: true,
 };
 
 function normalizeModifierKey(
@@ -33,14 +38,29 @@ function normalizeModifierKey(
     : fallback;
 }
 
-function normalizeShortcutKey(value: unknown, fallback: string): string {
-  if (typeof value !== "string") return fallback;
-  const key = value.trim().toLowerCase();
-  return /^[a-z0-9]$/.test(key) ? key : fallback;
-}
-
 function normalizeShiftRequirement(value: unknown): boolean {
   return value === true;
+}
+
+function normalizeEnabledFlag(value: unknown, fallback: boolean): boolean {
+  return typeof value === "boolean" ? value : fallback;
+}
+
+function normalizeNumberInRange(
+  value: unknown,
+  fallback: number,
+  min: number,
+  max: number,
+): number {
+  const numeric = Number(value);
+  if (!Number.isFinite(numeric)) return fallback;
+  return Math.max(min, Math.min(max, numeric));
+}
+
+export function normalizeTabWheelCycleOrder(value: unknown): TabWheelCycleOrder {
+  return TABWHEEL_CYCLE_ORDERS.includes(value as TabWheelCycleOrder)
+    ? value as TabWheelCycleOrder
+    : DEFAULT_TABWHEEL_SETTINGS.cycleOrder;
 }
 
 export function normalizeTabWheelSettings(
@@ -57,23 +77,34 @@ export function normalizeTabWheelSettings(
       DEFAULT_TABWHEEL_SETTINGS.gestureModifier,
     ),
     gestureWithShift: normalizeShiftRequirement(settings.gestureWithShift),
-    panelModifier: normalizeModifierKey(
-      settings.panelModifier,
-      DEFAULT_TABWHEEL_SETTINGS.panelModifier,
+    allowGesturesInEditableFields: normalizeEnabledFlag(
+      settings.allowGesturesInEditableFields,
+      DEFAULT_TABWHEEL_SETTINGS.allowGesturesInEditableFields,
     ),
-    panelWithShift: normalizeShiftRequirement(settings.panelWithShift),
-    panelKey: normalizeShortcutKey(
-      settings.panelKey,
-      DEFAULT_TABWHEEL_SETTINGS.panelKey,
+    cycleOrder: normalizeTabWheelCycleOrder(settings.cycleOrder),
+    skipPinnedTabs: normalizeEnabledFlag(
+      settings.skipPinnedTabs,
+      DEFAULT_TABWHEEL_SETTINGS.skipPinnedTabs,
     ),
-    helpModifier: normalizeModifierKey(
-      settings.helpModifier,
-      DEFAULT_TABWHEEL_SETTINGS.helpModifier,
+    wrapAround: normalizeEnabledFlag(
+      settings.wrapAround,
+      DEFAULT_TABWHEEL_SETTINGS.wrapAround,
     ),
-    helpWithShift: normalizeShiftRequirement(settings.helpWithShift),
-    helpKey: normalizeShortcutKey(
-      settings.helpKey,
-      DEFAULT_TABWHEEL_SETTINGS.helpKey,
+    wheelSensitivity: normalizeNumberInRange(
+      settings.wheelSensitivity,
+      DEFAULT_TABWHEEL_SETTINGS.wheelSensitivity,
+      MIN_WHEEL_SENSITIVITY,
+      MAX_WHEEL_SENSITIVITY,
+    ),
+    wheelCooldownMs: normalizeNumberInRange(
+      settings.wheelCooldownMs,
+      DEFAULT_TABWHEEL_SETTINGS.wheelCooldownMs,
+      MIN_WHEEL_COOLDOWN_MS,
+      MAX_WHEEL_COOLDOWN_MS,
+    ),
+    wheelAcceleration: normalizeEnabledFlag(
+      settings.wheelAcceleration,
+      DEFAULT_TABWHEEL_SETTINGS.wheelAcceleration,
     ),
   };
 }
@@ -90,22 +121,6 @@ export function formatTabWheelModifierCombo(
 ): string {
   const baseModifier = formatTabWheelModifierKey(modifier);
   return withShift ? `${baseModifier} + Shift` : baseModifier;
-}
-
-export function formatTabWheelPanelKey(key: string): string {
-  return normalizeShortcutKey(key, DEFAULT_TABWHEEL_SETTINGS.panelKey).toUpperCase();
-}
-
-export function formatTabWheelPanelShortcut(settings: TabWheelSettings): string {
-  return `${formatTabWheelModifierCombo(settings.panelModifier, settings.panelWithShift)} + ${formatTabWheelPanelKey(settings.panelKey)}`;
-}
-
-export function formatTabWheelHelpKey(key: string): string {
-  return normalizeShortcutKey(key, DEFAULT_TABWHEEL_SETTINGS.helpKey).toUpperCase();
-}
-
-export function formatTabWheelHelpShortcut(settings: TabWheelSettings): string {
-  return `${formatTabWheelModifierCombo(settings.helpModifier, settings.helpWithShift)} + ${formatTabWheelHelpKey(settings.helpKey)}`;
 }
 
 export async function loadTabWheelSettings(): Promise<TabWheelSettings> {

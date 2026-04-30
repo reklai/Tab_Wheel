@@ -16,12 +16,14 @@ test("TabWheel storage keys are stable and isolated from legacy storage", () => 
   const domain = readText("src/lib/backgroundRuntime/domains/tabWheelDomain.ts");
   const migrations = readText("src/lib/common/utils/storageMigrations.ts");
 
-  assert.match(contract, /taggedTabs:\s*"tabWheelTaggedTabs"/);
+  assert.match(contract, /scrollMemory:\s*"tabWheelScrollMemory"/);
   assert.match(contract, /settings:\s*"tabWheelSettings"/);
   assert.doesNotMatch(contract, /tabWheelSessions|MAX_TABWHEEL_SESSIONS/);
-  assert.match(domain, /browser\.storage\.local\.get\(TABWHEEL_STORAGE_KEYS\.taggedTabs\)/);
-  assert.match(domain, /browser\.storage\.local\.set\(\{\s*\[TABWHEEL_STORAGE_KEYS\.taggedTabs\]/);
-  assert.match(migrations, /export const STORAGE_SCHEMA_VERSION = 3/);
+  assert.match(domain, /browser\.storage\.local\.get\(TABWHEEL_STORAGE_KEYS\.scrollMemory\)/);
+  assert.match(domain, /browser\.storage\.local\.set\(\{\s*\[TABWHEEL_STORAGE_KEYS\.scrollMemory\]/);
+  assert.match(migrations, /export const STORAGE_SCHEMA_VERSION = 6/);
   assert.match(migrations, /deleteKey\(migratedStorage,\s*"frecencyData"\)/);
+  assert.match(migrations, /deleteKey\(migratedStorage,\s*"tabWheelTaggedTabs"\)/);
+  assert.match(migrations, /deleteSettingKey\(migratedStorage,\s*"showCycleToast"\)/);
   assert.doesNotMatch(migrations, /tabManagerList|tabManagerSessions|anchorTagsByTabId|keybindings/);
 });

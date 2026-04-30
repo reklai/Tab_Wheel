@@ -8,24 +8,30 @@ export function resolveWheelDirection(
 }
 
 export function resolveCycleTargetIndex(
-  allTabIndices: number[],
-  taggedTabIndices: number[],
+  tabIndices: number[],
   currentTabIndex: number,
   direction: "prev" | "next",
+  wrapAround: boolean,
 ): number {
-  const candidates = taggedTabIndices.length > 0
-    ? taggedTabIndices.slice().sort((left, right) => left - right)
-    : allTabIndices.slice().sort((left, right) => left - right);
+  const candidates = tabIndices.slice().sort((left, right) => left - right);
 
   if (candidates.length === 0) return -1;
   if (candidates.length === 1) return candidates[0];
 
   if (direction === "next") {
-    return candidates.find((index) => index > currentTabIndex) ?? candidates[0];
+    const nextIndex = candidates.find((index) => index > currentTabIndex);
+    if (nextIndex != null) return nextIndex;
+    return wrapAround ? candidates[0] : currentTabIndex;
   }
 
   for (let i = candidates.length - 1; i >= 0; i--) {
     if (candidates[i] < currentTabIndex) return candidates[i];
   }
-  return candidates[candidates.length - 1];
+  return wrapAround ? candidates[candidates.length - 1] : currentTabIndex;
+}
+
+export function normalizeWheelDeltaY(event: Pick<WheelEvent, "deltaMode" | "deltaY">, pageHeight: number): number {
+  if (event.deltaMode === 1) return event.deltaY * 16;
+  if (event.deltaMode === 2) return event.deltaY * pageHeight;
+  return event.deltaY;
 }

@@ -25,14 +25,19 @@ test("store and privacy docs match current TabWheel limits", () => {
   assert.ok(store.includes("Firefox / Zen: TabWheel"));
   assert.ok(store.includes("Chrome: TabWheel"));
   assert.ok(store.includes("TagWheel") === false);
-  assert.ok(store.includes("Alt + T"));
-  assert.ok(store.includes("Alt + M"));
-  assert.ok(privacy.includes("up to 15 tabs"));
+  assert.ok(store.includes("Alt + Wheel"));
+  assert.ok(store.includes("modifier-wheel cycling"));
+  assert.ok(store.includes("recent-tab mode"));
+  assert.doesNotMatch(store, /Right Hold|Alt \+ Left Click|Alt \+ Middle Click|tagged|Tagged/);
+  assert.ok(privacy.includes("editable-field preference"));
+  assert.doesNotMatch(store, /Alt \+ T(?![a-z])/);
+  assert.doesNotMatch(store, /Alt \+ M(?!iddle)/);
+  assert.ok(privacy.includes("bounded to 300 entries"));
   assert.equal(store.includes("sidePanel"), false);
   assert.equal(privacy.includes("sidePanel"), false);
 });
 
 test("docs no longer advertise removed legacy features", () => {
   const combined = `${readText("README.md")}\n${readText("STORE.md")}\n${readText("PRIVACY.md")}`;
-  assert.doesNotMatch(combined, /Tab Manager|Anchor Tags|keybindings|frecency|ScrollRail|Harpoon-Tabs|sessions?/i);
+  assert.doesNotMatch(combined, /Tab Manager|Anchor Tags|keybindings|frecency|ScrollRail|Harpoon-Tabs|sessions?|tagged|tag tabs/i);
 });

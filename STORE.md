@@ -1,4 +1,4 @@
-# Store Reference — TabWheel
+# Store Reference - TabWheel
 
 ## Extension Names
 
@@ -7,27 +7,25 @@
 
 ## Summary (short, <=132 chars)
 
-Cycle tagged tabs with Alt plus the scroll wheel by default. Falls back to all tabs when nothing is tagged.
+Switch tabs quickly with Alt+Wheel, recent-tab mode, scroll memory, and wheel tuning.
 
 ## Description
 
-TabWheel lets you tag browser tabs and cycle only those tabs with `Alt + Wheel` by default. If no tabs are tagged, the same gesture cycles through all tabs from left to right, with wheel down moving to the next tab and wheel up moving to the previous tab.
+TabWheel lets you switch browser tabs with `Alt + Wheel` by default. Wheel down moves forward and wheel up moves backward unless you invert the direction. You can cycle by left-right browser tab order or most-recently-used order, include or skip pinned tabs, keep wrap-around enabled or stop at the tab-list edge, and tune sensitivity, cooldown, and burst acceleration.
 
-Use `Alt + T` to open the in-page tagged-tab panel, `Alt + M` to open help, `Alt + Left Click` to tag the current tab, `Alt + Right Click` to remove the current tab tag, and `Alt + Middle Click` to confirm clearing all tags in the current window. The options page can switch the base modifier between Alt, Ctrl, and Meta, require Shift in addition to that modifier, change the panel key, change the help key, and invert the wheel direction. Tagged tabs remember their scroll X/Y position when the page can run the content script.
+Use modifier + left click to open quick controls on pages where content scripts are available. The toolbar popup exposes the same controls for browser-reserved pages where page shortcuts may not run, such as `chrome://`, extension pages, browser stores, and devtools.
 
-The toolbar popup lists tagged tabs, opens settings, and opens the built-in help panel. The in-page panel also opens settings from its gear button and provides fuzzy search and per-row tag removal.
-
-Tagged tabs are marked with a favicon indicator where page access allows it, a toolbar badge fallback, and a small in-page tagged pill while the page is active.
+TabWheel can remember recent scroll positions and restore them when cycling back to a page. Scroll memory is stored locally and works only where the browser allows the content script to read and restore page scroll.
 
 ## Privacy
 
-No data leaves your browser. TabWheel stores tagged tabs, scroll positions, and settings locally through browser storage.
+No data leaves your browser. TabWheel stores settings and recent scroll positions locally through browser storage.
 
 ## Permissions
 
-- `tabs`: Read and activate tabs for cycling and tagging.
-- `storage`: Store tagged tabs, scroll positions, settings, and schema version locally.
-- `<all_urls>`: Run the content script on pages so wheel/click gestures and scroll memory can work.
+- `tabs`: Read and activate tabs for cycling.
+- `storage`: Store settings, scroll positions, and schema version locally.
+- `<all_urls>`: Run the content script on pages so modifier-wheel cycling and scroll memory can work.
 
 ## Browser Support
 

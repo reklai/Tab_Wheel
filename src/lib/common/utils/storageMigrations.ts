@@ -1,5 +1,6 @@
 const STORAGE_SCHEMA_VERSION_KEY = "storageSchemaVersion";
-export const STORAGE_SCHEMA_VERSION = 3;
+const TABWHEEL_SETTINGS_KEY = "tabWheelSettings";
+export const STORAGE_SCHEMA_VERSION = 6;
 
 type StorageSnapshot = Record<string, unknown>;
 
@@ -27,6 +28,30 @@ function deleteKey(storage: StorageSnapshot, key: string): boolean {
   return true;
 }
 
+function enableEditableFieldsByDefault(storage: StorageSnapshot): boolean {
+  const settings = storage[TABWHEEL_SETTINGS_KEY];
+  if (typeof settings !== "object" || settings === null || Array.isArray(settings)) {
+    storage[TABWHEEL_SETTINGS_KEY] = { allowGesturesInEditableFields: true };
+    return true;
+  }
+  const nextSettings = {
+    ...(settings as Record<string, unknown>),
+    allowGesturesInEditableFields: true,
+  };
+  const changed = (settings as Record<string, unknown>).allowGesturesInEditableFields !== true;
+  storage[TABWHEEL_SETTINGS_KEY] = nextSettings;
+  return changed;
+}
+
+function deleteSettingKey(storage: StorageSnapshot, key: string): boolean {
+  const settings = storage[TABWHEEL_SETTINGS_KEY];
+  if (typeof settings !== "object" || settings === null || Array.isArray(settings)) return false;
+  const nextSettings = { ...(settings as Record<string, unknown>) };
+  if (!deleteKey(nextSettings, key)) return false;
+  storage[TABWHEEL_SETTINGS_KEY] = nextSettings;
+  return true;
+}
+
 export function migrateStorageSnapshot(input: StorageSnapshot): StorageMigrationResult {
   const migratedStorage: StorageSnapshot = { ...input };
   const fromVersion = readSchemaVersion(input);
@@ -46,6 +71,16 @@ export function migrateStorageSnapshot(input: StorageSnapshot): StorageMigration
   }
   if (fromVersion === 2) {
     changed = deleteKey(migratedStorage, "frecencyData") || changed;
+  }
+  if (fromVersion < 4) {
+    changed = deleteKey(migratedStorage, "tabWheelTaggedTabs") || changed;
+    changed = deleteKey(migratedStorage, "tabWheelSessions") || changed;
+  }
+  if (fromVersion < 5) {
+    changed = enableEditableFieldsByDefault(migratedStorage) || changed;
+  }
+  if (fromVersion < 6) {
+    changed = deleteSettingKey(migratedStorage, "showCycleToast") || changed;
   }
 
   if (migratedStorage[STORAGE_SCHEMA_VERSION_KEY] !== STORAGE_SCHEMA_VERSION) {

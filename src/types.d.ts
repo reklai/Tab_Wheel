@@ -11,42 +11,37 @@ interface ScrollData {
   scrollY: number;
 }
 
-interface TaggedTabEntry {
+interface TabWheelScrollMemoryEntry {
   tabId: number;
   windowId: number;
-  url: string;
-  title: string;
-  pinned: boolean;
   scrollX: number;
   scrollY: number;
-  createdAt: number;
   updatedAt: number;
 }
 
 type TabWheelModifierKey = "alt" | "ctrl" | "meta";
+type TabWheelCycleOrder = "strip" | "mru";
 
 interface TabWheelSettings {
   invertScroll: boolean;
   gestureModifier: TabWheelModifierKey;
   gestureWithShift: boolean;
-  panelModifier: TabWheelModifierKey;
-  panelWithShift: boolean;
-  panelKey: string;
-  helpModifier: TabWheelModifierKey;
-  helpWithShift: boolean;
-  helpKey: string;
+  allowGesturesInEditableFields: boolean;
+  cycleOrder: TabWheelCycleOrder;
+  skipPinnedTabs: boolean;
+  wrapAround: boolean;
+  wheelSensitivity: number;
+  wheelCooldownMs: number;
+  wheelAcceleration: boolean;
 }
 
-interface TabWheelMutationResult {
+interface TabWheelActionResult {
   ok: boolean;
   reason?: string;
-  entry?: TaggedTabEntry;
-  count?: number;
-  alreadyTagged?: boolean;
 }
 
-interface TabWheelCurrentState {
-  isTagged: boolean;
-  count: number;
-  entry?: TaggedTabEntry;
+interface TabWheelOverview {
+  activeIndex: number;
+  tabCount: number;
+  cycleOrder: TabWheelCycleOrder;
 }

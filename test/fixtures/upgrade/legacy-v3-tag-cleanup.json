@@ -2,7 +2,11 @@
   "input": {
     "storageSchemaVersion": 3,
     "tabWheelSettings": {
-      "invertScroll": true
+      "invertScroll": true,
+      "showCycleToast": false
+    },
+    "tabWheelTaggedTabs": {
+      "1": []
     },
     "tabWheelSessions": [
       {
@@ -21,25 +25,11 @@
     ]
   },
   "expected": {
-    "storageSchemaVersion": 3,
+    "storageSchemaVersion": 6,
     "tabWheelSettings": {
-      "invertScroll": true
-    },
-    "tabWheelSessions": [
-      {
-        "name": "Research",
-        "savedAt": 1710000000000,
-        "entries": [
-          {
-            "url": "https://example.com/",
-            "title": "Example",
-            "pinned": false,
-            "scrollX": 0,
-            "scrollY": 120
-          }
-        ]
-      }
-    ]
+      "invertScroll": true,
+      "allowGesturesInEditableFields": true
+    }
   },
-  "expectedChanged": false
+  "expectedChanged": true
 }

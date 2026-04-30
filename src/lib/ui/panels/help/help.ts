@@ -1,10 +1,8 @@
-// TabWheel help overlay — read-only reference for the new gesture model.
+// TabWheel help overlay - read-only reference for wheel tab switching.
 
 import { escapeHtml } from "../../../common/utils/helpers";
 import {
-  formatTabWheelHelpShortcut,
   formatTabWheelModifierCombo,
-  formatTabWheelPanelShortcut,
   loadTabWheelSettings,
 } from "../../../common/contracts/tabWheel";
 import { openTabWheelOptions } from "../../../adapters/runtime/tabWheelApi";
@@ -28,50 +26,46 @@ const SCROLL_STEP = 80;
 
 function buildHelpSections(settings: TabWheelSettings): HelpSection[] {
   const gestureModifier = formatTabWheelModifierCombo(settings.gestureModifier, settings.gestureWithShift);
-  const panelShortcut = formatTabWheelPanelShortcut(settings);
-  const helpShortcut = formatTabWheelHelpShortcut(settings);
+  const editableFields = settings.allowGesturesInEditableFields ? "allowed" : "blocked";
   return [
     {
       title: "How To Use",
       layout: "centered",
       items: [
-        { value: `${gestureModifier} + Left Click tags the active tab` },
-        { value: `${gestureModifier} + Wheel cycles tagged tabs only` },
-        { value: `${panelShortcut} opens search, delete, and tag controls` },
-        { value: `${helpShortcut} opens this reference again` },
+        { value: `${gestureModifier} + Wheel cycles tabs in the current panel mode` },
+        { value: `${gestureModifier} + Left Click opens quick controls` },
+        { value: `Use quick controls to switch between left-right and recent cycling` },
+        { value: `The toolbar popup shows the same controls when page shortcuts are unavailable` },
       ],
     },
     {
-      title: "Gestures",
+      title: "Wheel Shortcut",
       items: [
         { label: "Cycle tabs", value: `${gestureModifier} + Wheel` },
-        { label: "Open tagged tabs panel", value: panelShortcut },
-        { label: "Open help", value: helpShortcut },
+        { label: "Quick controls", value: `${gestureModifier} + Left Click` },
+        { label: "Editable fields", value: editableFields },
         { label: "Wheel down", value: settings.invertScroll ? "previous tab" : "next tab" },
         { label: "Wheel up", value: settings.invertScroll ? "next tab" : "previous tab" },
-        { label: "Tag current tab", value: `${gestureModifier} + Left Click` },
-        { label: "Remove current tag", value: `${gestureModifier} + Right Click` },
-        { label: "Clear all tags", value: `${gestureModifier} + Middle Click, then Y` },
       ],
     },
     {
       title: "Cycling Rules",
       items: [
-        { label: "No tagged tabs", value: "cycle all tabs left to right" },
-        { label: "Tagged tabs exist", value: "cycle tagged tabs only" },
-        { label: "Maximum tags", value: "15 per window" },
-        { label: "Pinned tabs", value: "included" },
-        { label: "Shortcuts", value: "change in extension settings" },
-        { label: "Reserved shortcuts", value: "browser or OS shortcuts may not reach the page" },
+        { label: "Left-right", value: "cycle by visible browser tab order" },
+        { label: "Recent", value: "cycle by most recently used tabs" },
+        { label: "Pinned tabs", value: settings.skipPinnedTabs ? "skipped" : "included" },
+        { label: "Wrap around", value: settings.wrapAround ? "on" : "off" },
+        { label: "Sensitivity", value: `${settings.wheelSensitivity.toFixed(1)}x` },
+        { label: "Cooldown", value: `${Math.round(settings.wheelCooldownMs)}ms` },
       ],
     },
     {
       title: "Scroll Memory",
       items: [
-        { label: "Tracked data", value: "scroll X / Y per tagged tab" },
-        { label: "Saved when", value: "tagged page scrolls" },
-        { label: "Restored when", value: "a tagged tab is activated" },
-        { label: "Restricted pages", value: "can be tagged, but page scroll cannot be read" },
+        { label: "Tracked data", value: "scroll X / Y for recent tabs" },
+        { label: "Saved when", value: "a page scrolls" },
+        { label: "Restored when", value: "a remembered tab is activated" },
+        { label: "Restricted pages", value: "browser pages may block content scripts" },
       ],
     },
   ];
@@ -131,7 +125,7 @@ export async function openTabWheelHelpOverlay(): Promise<void> {
       </div>
       <div class="ht-help-body">
         ${buildSectionsHtml(buildHelpSections(settings))}
-        <div class="ht-help-tip">Tab bar clicks cannot be intercepted by browser content scripts; use the toolbar popup for pages where in-page gestures are unavailable.</div>
+        <div class="ht-help-tip">Browser-reserved pages may not allow content scripts; use the toolbar popup when page shortcuts are unavailable.</div>
       </div>
       <div class="ht-footer">
         ${footerRowHtml([

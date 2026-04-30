@@ -11,7 +11,7 @@ function readText(relativePath) {
 
 const OVERLAY_CSS_FILES = [
   "src/lib/ui/panels/help/help.css",
-  "src/lib/ui/panels/tabWheel/tabWheel.css",
+  "src/lib/ui/panels/quickControls/quickControls.css",
 ];
 
 test("store and privacy docs include local-only/no-telemetry policy", () => {
@@ -40,14 +40,12 @@ test("overlay css includes anti-glitch container baseline", () => {
   }
 });
 
-test("TabWheel search uses weak white active states and yellow match highlights", () => {
-  const css = readText("src/lib/ui/panels/tabWheel/tabWheel.css");
-  assert.match(css, /\.ht-tabwheel-search\.is-searching/);
-  assert.match(css, /\.ht-tabwheel-row-shell\.is-search-match/);
-  assert.match(css, /\.ht-tabwheel-row:focus/);
-  assert.match(css, /\.ht-tabwheel-highlight/);
-  assert.match(css, /rgba\(255,255,255,/);
-  assert.match(css, /rgba\(255,214,10,/);
-  assert.doesNotMatch(css, /\.ht-tabwheel-row:focus \{ outline: 1px solid var\(--ht-color-accent\)/);
+test("quick controls use restrained dark controls and blue accents", () => {
+  const css = readText("src/lib/ui/panels/quickControls/quickControls.css");
+  assert.match(css, /\.ht-quick-controls-container/);
+  assert.match(css, /\.ht-quick-grid/);
+  assert.match(css, /\.ht-quick-row/);
+  assert.match(css, /\.ht-quick-range/);
+  assert.match(css, /var\(--ht-color-/);
   assert.doesNotMatch(css, /rgba\(50,215,75,/);
 });
