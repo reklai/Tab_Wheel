@@ -170,3 +170,7 @@ release/                   # generated release artifacts; not source
 - [PRIVACY.md](./PRIVACY.md): privacy policy.
 - [RELEASE.md](./RELEASE.md): release notes and packaging notes.
 - [CONTRIBUTING.md](./CONTRIBUTING.md): contributor workflow.
+
+## License
+
+TabWheel is licensed under the [MIT License](./LICENSE).

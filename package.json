@@ -3,6 +3,7 @@
   "version": "1.0.1",
   "private": true,
   "description": "Mouse scroll wheel tab switcher with tagging, cycle modes, and local-only memory",
+  "license": "MIT",
   "scripts": {
     "build": "node esBuildConfig/build.mjs",
     "build:firefox": "node esBuildConfig/build.mjs --target firefox",
