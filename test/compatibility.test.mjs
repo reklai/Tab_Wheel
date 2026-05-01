@@ -39,6 +39,16 @@ test("manifests use TabWheel names and titles", () => {
   assert.equal(v3.action.default_title, "TabWheel");
 });
 
+test("manifests are versioned for the 1.0.0 public release", () => {
+  const v2 = readJson("esBuildConfig/manifest_v2.json");
+  const v3 = readJson("esBuildConfig/manifest_v3.json");
+  const packageJson = readJson("package.json");
+
+  assert.equal(packageJson.version, "1.0.0");
+  assert.equal(v2.version, packageJson.version);
+  assert.equal(v3.version, packageJson.version);
+});
+
 test("manifests do not expose native side panel/sidebar surfaces", () => {
   const v2 = readJson("esBuildConfig/manifest_v2.json");
   const v3 = readJson("esBuildConfig/manifest_v3.json");

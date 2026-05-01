@@ -42,6 +42,10 @@ function cycleScopeLabel(scope: TabWheelCycleScope): string {
 
 const UNAVAILABLE_GESTURES_MESSAGE = "Page gestures unavailable here; popup buttons still work.";
 
+interface RenderStateOptions {
+  announceUnavailable?: boolean;
+}
+
 function setSelectOptions(select: HTMLSelectElement, values: readonly string[], selected: string, label: (value: string) => string): void {
   select.innerHTML = values
     .map((value) => `<option value="${value}" ${value === selected ? "selected" : ""}>${label(value)}</option>`)
@@ -53,7 +57,7 @@ document.addEventListener("DOMContentLoaded", async () => {
   const shortcutStatusEl = document.getElementById("shortcutStatus")!;
   const toastEl = document.getElementById("popupToast")!;
   const titlebarTextEl = document.getElementById("titlebarText")!;
-  const reloadTabBtn = document.getElementById("reloadTabBtn") as HTMLButtonElement;
+  const refreshTabWheelBtn = document.getElementById("refreshTabWheelBtn") as HTMLButtonElement;
   const scopeLabel = document.getElementById("scopeLabel")!;
   const tagCountLabel = document.getElementById("tagCountLabel")!;
   const tagCurrentBtn = document.getElementById("tagCurrentBtn") as HTMLButtonElement;
@@ -194,7 +198,7 @@ document.addEventListener("DOMContentLoaded", async () => {
     }
   }
 
-  function renderState(): void {
+  function renderState(options: RenderStateOptions = {}): void {
     const gesture = formatTabWheelModifierCombo(settings.gestureModifier, settings.gestureWithShift);
     const cycleScope = overview?.cycleScope || settings.cycleScope;
     shortcutEl.textContent = `${gesture} + Wheel`;
@@ -209,7 +213,7 @@ document.addEventListener("DOMContentLoaded", async () => {
       ? "Scroll switches tabs. Left click adds this tab. Right click changes mode."
       : "Use popup buttons when page shortcuts are unavailable";
     if (overview?.contentScriptStatus === "unavailable") {
-      showStatus(UNAVAILABLE_GESTURES_MESSAGE, true);
+      if (options.announceUnavailable) showStatus(UNAVAILABLE_GESTURES_MESSAGE, true);
     } else if (toastEl.textContent === UNAVAILABLE_GESTURES_MESSAGE) {
       hideStatus();
     }
@@ -248,11 +252,11 @@ document.addEventListener("DOMContentLoaded", async () => {
     wheelCooldownValue.textContent = `Switch delay: ${Math.round(settings.wheelCooldownMs)}ms`;
   }
 
-  async function refreshAll(): Promise<void> {
+  async function refreshAll(options: RenderStateOptions = {}): Promise<void> {
     settings = await loadTabWheelSettings();
     await refreshOverview();
     renderSettings();
-    renderState();
+    renderState(options);
   }
 
   async function persist(nextSettings: TabWheelSettings): Promise<void> {
@@ -286,7 +290,7 @@ document.addEventListener("DOMContentLoaded", async () => {
   }
 
   async function refreshCurrentTabWheelState(): Promise<void> {
-    reloadTabBtn.disabled = true;
+    refreshTabWheelBtn.disabled = true;
     try {
       const result = await refreshCurrentTabWheel();
       settings = await loadTabWheelSettings();
@@ -298,7 +302,7 @@ document.addEventListener("DOMContentLoaded", async () => {
       await refreshAll();
       showStatus("TabWheel refresh failed");
     } finally {
-      reloadTabBtn.disabled = false;
+      refreshTabWheelBtn.disabled = false;
     }
   }
 
@@ -377,7 +381,7 @@ document.addEventListener("DOMContentLoaded", async () => {
     void runPopupCycle("next");
   });
 
-  reloadTabBtn.addEventListener("click", () => {
+  refreshTabWheelBtn.addEventListener("click", () => {
     void refreshCurrentTabWheelState();
   });
 
@@ -409,5 +413,5 @@ document.addEventListener("DOMContentLoaded", async () => {
     window.close();
   });
 
-  await refreshAll();
+  await refreshAll({ announceUnavailable: true });
 });

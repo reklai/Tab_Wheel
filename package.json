@@ -1,8 +1,8 @@
 {
   "name": "tabwheel",
-  "version": "2.2.1",
+  "version": "1.0.0",
   "private": true,
-  "description": "Browser extension for fast tab switching with Alt plus the scroll wheel",
+  "description": "Reliable mouse-first tab switching with wheel gestures and local-only memory",
   "scripts": {
     "build": "node esBuildConfig/build.mjs",
     "build:firefox": "node esBuildConfig/build.mjs --target firefox",
@@ -16,6 +16,7 @@
     "verify:compat": "node esBuildConfig/verifyCompat.mjs",
     "verify:upgrade": "node esBuildConfig/verifyUpgrade.mjs",
     "verify:store": "node esBuildConfig/verifyStore.mjs",
+    "release:package": "node esBuildConfig/packageRelease.mjs",
     "ci": "npm run lint && npm run test && npm run typecheck && npm run verify:compat && npm run verify:upgrade && npm run verify:store && npm run build:firefox && npm run build:chrome",
     "clean": "rm -rf dist"
   },

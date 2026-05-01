@@ -304,8 +304,7 @@ export function getBaseStyles(): string {
 
     /* Keep every overlay shell truly centered, even if panel-specific
        rules regress or are partially overridden. */
-    .ht-help-container,
-    .ht-quick-controls-container {
+    .ht-help-container {
       position: fixed !important;
       top: 50% !important;
       left: 50% !important;

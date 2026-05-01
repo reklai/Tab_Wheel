@@ -2,6 +2,60 @@ import browser from "webextension-polyfill";
 import { TabWheelDomain } from "../domains/tabWheelDomain";
 import { RuntimeMessageHandler, UNHANDLED } from "./runtimeRouter";
 
+const MAX_FAVICON_BYTES = 512 * 1024;
+
+function arrayBufferToBase64(buffer: ArrayBuffer): string {
+  const bytes = new Uint8Array(buffer);
+  const chunkSize = 0x8000;
+  let binary = "";
+  for (let index = 0; index < bytes.length; index += chunkSize) {
+    binary += String.fromCharCode(...bytes.subarray(index, index + chunkSize));
+  }
+  return btoa(binary);
+}
+
+async function fetchFaviconData(href: string): Promise<TabWheelFaviconFetchResult> {
+  let parsedUrl: URL;
+  try {
+    parsedUrl = new URL(href);
+  } catch (_) {
+    return { ok: false, reason: "Invalid favicon URL" };
+  }
+
+  if (parsedUrl.protocol === "data:") {
+    return parsedUrl.href.startsWith("data:image/")
+      ? { ok: true, dataUrl: parsedUrl.href }
+      : { ok: false, reason: "Unsupported favicon data URL" };
+  }
+
+  if (parsedUrl.protocol !== "http:" && parsedUrl.protocol !== "https:") {
+    return { ok: false, reason: "Unsupported favicon URL" };
+  }
+
+  try {
+    const response = await fetch(parsedUrl.href, {
+      cache: "force-cache",
+      credentials: "omit",
+    });
+    if (!response.ok) return { ok: false, reason: "Favicon fetch failed" };
+
+    const blob = await response.blob();
+    if (blob.size <= 0 || blob.size > MAX_FAVICON_BYTES) {
+      return { ok: false, reason: "Favicon size unsupported" };
+    }
+
+    const mimeType = blob.type || response.headers.get("content-type") || "image/x-icon";
+    if (!mimeType.toLowerCase().startsWith("image/")) {
+      return { ok: false, reason: "Favicon type unsupported" };
+    }
+
+    const base64 = arrayBufferToBase64(await blob.arrayBuffer());
+    return { ok: true, dataUrl: `data:${mimeType};base64,${base64}` };
+  } catch (_) {
+    return { ok: false, reason: "Favicon fetch failed" };
+  }
+}
+
 async function openHelpInActiveTab(): Promise<TabWheelActionResult> {
   const [tab] = await browser.tabs.query({ active: true, currentWindow: true });
   if (tab?.id == null) {
@@ -63,6 +117,9 @@ export function createTabWheelMessageHandler(
         return await domain.setCycleScope(message.cycleScope, sender.tab, message.windowId, {
           suppressPageStatus: message.suppressPageStatus,
         });
+
+      case "TABWHEEL_FETCH_FAVICON":
+        return await fetchFaviconData(message.href);
 
       case "TABWHEEL_SAVE_SCROLL_POSITION": {
         const tabId = sender.tab?.id;

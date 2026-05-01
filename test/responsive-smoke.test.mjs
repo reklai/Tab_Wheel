@@ -12,7 +12,6 @@ function readText(pathFromRoot) {
 test("in-page overlays include mobile tightening for small devices", () => {
   for (const file of [
     "src/lib/ui/panels/help/help.css",
-    "src/lib/ui/panels/quickControls/quickControls.css",
   ]) {
     const css = readText(file);
     assert.match(css, /@media \(max-width:/);

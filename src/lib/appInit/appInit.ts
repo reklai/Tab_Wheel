@@ -13,6 +13,7 @@ import { dismissPanel } from "../common/utils/panelHost";
 import { normalizeWheelDelta, resolveWheelDirection } from "../core/tabWheel/tabWheelCore";
 import {
   cycleTabWheel,
+  fetchTabWheelFaviconData,
   getTabWheelOverviewWithRetry,
   saveTabWheelScrollPosition,
   toggleCurrentTabWheelTag,
@@ -34,6 +35,12 @@ const MIN_ACCELERATED_COOLDOWN_MS = 80;
 const OVERSHOOT_GUARD_MS = 260;
 const STATUS_TIMEOUT_MS = 1500;
 const TAGGED_PILL_ID = "tw-tagged-pill";
+const TAGGED_FAVICON_ATTR = "data-tabwheel-tagged-favicon";
+const TAGGED_FAVICON_RESTORE_ATTR = "data-tabwheel-favicon-restore";
+const TAGGED_INDICATOR_DEBOUNCE_MS = 90;
+const TAGGED_FAVICON_SIZE_PX = 64;
+const TAGGED_FAVICON_LOAD_TIMEOUT_MS = 1200;
+const MAX_ORIGINAL_FAVICON_CACHE_ENTRIES = 20;
 const STATUS_ID = "tw-status-indicator";
 const MOUSE_GESTURE_CLAIM_MS = 900;
 type TabWheelEventModifierKey = TabWheelModifierKey | "shift";
@@ -99,6 +106,10 @@ function isTopFrame(): boolean {
   }
 }
 
+function cycleScopeLabel(cycleScope: TabWheelCycleScope): string {
+  return cycleScope === "tagged" ? "Wheel List" : "General";
+}
+
 export function initApp(): void {
   if (window.__tabWheelCleanup) {
     window.__tabWheelCleanup();
@@ -117,16 +128,29 @@ export function initApp(): void {
   let wheelBurstCount = 0;
   let overshootGuardDirection: "prev" | "next" | null = null;
   let overshootGuardUntil = 0;
+  let areSettingsLoaded = false;
+  let taggedIndicatorRenderTimer = 0;
   let isTaggedIndicatorActive = false;
+  let activeTaggedCycleScope: TabWheelCycleScope = settings.cycleScope;
+  const originalFaviconHrefByPageUrl = new Map<string, string>();
+  let lastTaggedFaviconHref = "";
+  let lastTaggedFaviconSourceHref = "";
+  let taggedFaviconRenderId = 0;
+  let faviconObserver: MutationObserver | null = null;
+  let faviconObserverTarget: Node | null = null;
   let claimedMouseGesture: {
-    action: TabWheelMouseGestureAction;
     button: number;
     startedAt: number;
   } | null = null;
 
-  void loadTabWheelSettings().then((loadedSettings) => {
-    settings = loadedSettings;
-  });
+  void loadTabWheelSettings()
+    .then((loadedSettings) => {
+      settings = loadedSettings;
+      activeTaggedCycleScope = loadedSettings.cycleScope;
+    })
+    .finally(() => {
+      areSettingsLoaded = true;
+    });
 
   function showStatus(message: string): void {
     let status = document.getElementById(STATUS_ID);
@@ -165,16 +189,225 @@ export function initApp(): void {
     }, STATUS_TIMEOUT_MS);
   }
 
+  function getIconLinks(includeTaggedFavicon: boolean): HTMLLinkElement[] {
+    return Array.from(document.querySelectorAll<HTMLLinkElement>("link[rel]"))
+      .filter((link) => link.relList.contains("icon"))
+      .filter((link) => includeTaggedFavicon || link.getAttribute(TAGGED_FAVICON_ATTR) !== "true");
+  }
+
+  function resolveFaviconHref(rawHref: string): string {
+    try {
+      return new URL(rawHref, document.baseURI).href;
+    } catch (_) {
+      return rawHref;
+    }
+  }
+
+  function getCurrentFaviconHref(): string {
+    const iconLinks = getIconLinks(false);
+    for (let index = iconLinks.length - 1; index >= 0; index -= 1) {
+      const rawHref = iconLinks[index]?.getAttribute("href");
+      if (rawHref) return resolveFaviconHref(rawHref);
+    }
+    return "";
+  }
+
+  function getDefaultFaviconHref(): string {
+    try {
+      return new URL("/favicon.ico", window.location.origin).href;
+    } catch (_) {
+      return "";
+    }
+  }
+
+  function getFaviconCacheKey(): string {
+    return window.location.href;
+  }
+
+  function cacheOriginalFaviconHref(pageUrl: string, originalHref: string): void {
+    if (!pageUrl || !originalHref) return;
+    if (originalFaviconHrefByPageUrl.has(pageUrl)) {
+      originalFaviconHrefByPageUrl.delete(pageUrl);
+    }
+    originalFaviconHrefByPageUrl.set(pageUrl, originalHref);
+    while (originalFaviconHrefByPageUrl.size > MAX_ORIGINAL_FAVICON_CACHE_ENTRIES) {
+      const oldestPageUrl = originalFaviconHrefByPageUrl.keys().next().value;
+      if (!oldestPageUrl) break;
+      originalFaviconHrefByPageUrl.delete(oldestPageUrl);
+    }
+  }
+
+  function getCachedOriginalFaviconHref(pageUrl: string): string {
+    return originalFaviconHrefByPageUrl.get(pageUrl) || "";
+  }
+
+  function removeCachedOriginalFaviconHref(pageUrl: string): void {
+    originalFaviconHrefByPageUrl.delete(pageUrl);
+  }
+
+  function loadTaggedFaviconImage(originalHref: string): Promise<HTMLImageElement | null> {
+    return new Promise((resolve) => {
+      const image = new Image();
+      let hasSettled = false;
+      const timeout = window.setTimeout(() => settle(null), TAGGED_FAVICON_LOAD_TIMEOUT_MS);
+
+      function settle(result: HTMLImageElement | null): void {
+        if (hasSettled) return;
+        hasSettled = true;
+        window.clearTimeout(timeout);
+        image.onload = null;
+        image.onerror = null;
+        resolve(result);
+      }
+
+      image.onload = () => settle(image);
+      image.onerror = () => settle(null);
+      if (originalHref.startsWith("http://") || originalHref.startsWith("https://")) {
+        image.crossOrigin = "anonymous";
+      }
+      image.decoding = "async";
+      image.src = originalHref;
+    });
+  }
+
+  async function buildTaggedFaviconHref(originalHref: string): Promise<string | null> {
+    if (!originalHref) return null;
+    const fetchedFavicon = await fetchTabWheelFaviconData(originalHref).catch(() => null);
+    const sourceHref = fetchedFavicon?.ok && fetchedFavicon.dataUrl
+      ? fetchedFavicon.dataUrl
+      : originalHref;
+    const image = await loadTaggedFaviconImage(sourceHref);
+    if (!image) return null;
+
+    const canvas = document.createElement("canvas");
+    canvas.width = TAGGED_FAVICON_SIZE_PX;
+    canvas.height = TAGGED_FAVICON_SIZE_PX;
+    const context = canvas.getContext("2d");
+    if (!context) return null;
+
+    const sourceWidth = image.naturalWidth || image.width || TAGGED_FAVICON_SIZE_PX;
+    const sourceHeight = image.naturalHeight || image.height || TAGGED_FAVICON_SIZE_PX;
+    const scale = Math.min(TAGGED_FAVICON_SIZE_PX / sourceWidth, TAGGED_FAVICON_SIZE_PX / sourceHeight);
+    const width = sourceWidth * scale;
+    const height = sourceHeight * scale;
+    const x = (TAGGED_FAVICON_SIZE_PX - width) / 2;
+    const y = (TAGGED_FAVICON_SIZE_PX - height) / 2;
+
+    context.clearRect(0, 0, TAGGED_FAVICON_SIZE_PX, TAGGED_FAVICON_SIZE_PX);
+    context.drawImage(image, x, y, width, height);
+    context.beginPath();
+    context.fillStyle = "rgba(16, 18, 20, 0.88)";
+    context.arc(50, 14, 11, 0, Math.PI * 2);
+    context.fill();
+    context.beginPath();
+    context.fillStyle = "#32d74b";
+    context.arc(50, 14, 6.25, 0, Math.PI * 2);
+    context.fill();
+
+    try {
+      return canvas.toDataURL("image/png");
+    } catch (_) {
+      return null;
+    }
+  }
+
+  function removeFaviconRestoreLinks(): void {
+    document
+      .querySelectorAll<HTMLLinkElement>(`link[${TAGGED_FAVICON_RESTORE_ATTR}="true"]`)
+      .forEach((link) => link.remove());
+  }
+
+  function restoreOriginalFavicon(originalHref: string): void {
+    const head = document.head;
+    if (!head || !originalHref) return;
+    removeFaviconRestoreLinks();
+    const link = document.createElement("link");
+    link.setAttribute(TAGGED_FAVICON_RESTORE_ATTR, "true");
+    link.rel = "icon";
+    link.href = originalHref;
+    head.appendChild(link);
+  }
+
+  function removeTaggedFavicon(): void {
+    taggedFaviconRenderId += 1;
+    const pageUrl = getFaviconCacheKey();
+    const originalHref = getCachedOriginalFaviconHref(pageUrl)
+      || lastTaggedFaviconSourceHref
+      || getCurrentFaviconHref()
+      || getDefaultFaviconHref();
+    document
+      .querySelectorAll<HTMLLinkElement>(`link[${TAGGED_FAVICON_ATTR}="true"]`)
+      .forEach((link) => link.remove());
+    removeCachedOriginalFaviconHref(pageUrl);
+    lastTaggedFaviconHref = "";
+    lastTaggedFaviconSourceHref = "";
+    restoreOriginalFavicon(originalHref);
+  }
+
+  function ensureTaggedFavicon(): void {
+    const head = document.head;
+    if (!head) return;
+    const pageUrl = getFaviconCacheKey();
+    const originalHref = getCurrentFaviconHref() || getDefaultFaviconHref();
+    if (!originalHref) return;
+    cacheOriginalFaviconHref(pageUrl, originalHref);
+    removeFaviconRestoreLinks();
+    const existingLink = document.querySelector<HTMLLinkElement>(`link[${TAGGED_FAVICON_ATTR}="true"]`);
+    if (existingLink && lastTaggedFaviconSourceHref === originalHref && lastTaggedFaviconHref) {
+      if (existingLink.parentElement !== head) head.appendChild(existingLink);
+      const iconLinks = getIconLinks(true);
+      if (iconLinks[iconLinks.length - 1] !== existingLink) head.appendChild(existingLink);
+      return;
+    }
+
+    const renderId = ++taggedFaviconRenderId;
+    void buildTaggedFaviconHref(originalHref).then((faviconHref) => {
+      if (renderId !== taggedFaviconRenderId || !isTaggedIndicatorActive) return;
+      if (!faviconHref) {
+        removeTaggedFavicon();
+        return;
+      }
+
+      const nextHead = document.head;
+      if (!nextHead) return;
+      let link = document.querySelector<HTMLLinkElement>(`link[${TAGGED_FAVICON_ATTR}="true"]`);
+      if (!link) {
+        link = document.createElement("link");
+        link.setAttribute(TAGGED_FAVICON_ATTR, "true");
+        link.rel = "icon";
+        link.type = "image/png";
+        link.setAttribute("sizes", `${TAGGED_FAVICON_SIZE_PX}x${TAGGED_FAVICON_SIZE_PX}`);
+      }
+      if (lastTaggedFaviconHref !== faviconHref || link.getAttribute("href") !== faviconHref) {
+        link.href = faviconHref;
+        lastTaggedFaviconHref = faviconHref;
+        lastTaggedFaviconSourceHref = originalHref;
+      }
+      if (link.parentElement !== nextHead) nextHead.appendChild(link);
+      const iconLinks = getIconLinks(true);
+      if (iconLinks[iconLinks.length - 1] !== link) nextHead.appendChild(link);
+    });
+  }
+
   function removeTaggedPill(): void {
     document.getElementById(TAGGED_PILL_ID)?.remove();
   }
 
-  function ensureTaggedPill(): void {
-    if (document.getElementById(TAGGED_PILL_ID)) return;
+  function updateTaggedPillLabel(pill: HTMLElement, cycleScope: TabWheelCycleScope): void {
+    const label = pill.querySelector<HTMLElement>(".tw-tagged-label");
+    if (label) label.textContent = `In-Wheel List (Cycle Mode: ${cycleScopeLabel(cycleScope)})`;
+  }
+
+  function ensureTaggedPill(cycleScope: TabWheelCycleScope): void {
+    const existingPill = document.getElementById(TAGGED_PILL_ID);
+    if (existingPill) {
+      updateTaggedPillLabel(existingPill, cycleScope);
+      return;
+    }
     const pill = document.createElement("div");
     pill.id = TAGGED_PILL_ID;
     pill.setAttribute("aria-hidden", "true");
-    pill.innerHTML = '<span class="tw-tagged-dot"></span><span>Wheel List</span>';
+    pill.innerHTML = '<span class="tw-tagged-dot"></span><span class="tw-tagged-label"></span>';
     pill.style.cssText = [
       "position:fixed",
       "top:clamp(8px,1.5vh,14px)",
@@ -211,22 +444,57 @@ export function initApp(): void {
         "flex:0 0 auto",
       ].join(";");
     }
+    updateTaggedPillLabel(pill, cycleScope);
     document.documentElement.appendChild(pill);
   }
 
-  function applyTaggedIndicators(isTagged: boolean): void {
+  function scheduleTaggedIndicatorRender(): void {
+    if (taggedIndicatorRenderTimer) window.clearTimeout(taggedIndicatorRenderTimer);
+    taggedIndicatorRenderTimer = window.setTimeout(() => {
+      taggedIndicatorRenderTimer = 0;
+      applyTaggedIndicators(isTaggedIndicatorActive, activeTaggedCycleScope);
+    }, TAGGED_INDICATOR_DEBOUNCE_MS);
+  }
+
+  function observeFaviconChanges(): void {
+    const target = document.head || document.documentElement;
+    if (!target || faviconObserverTarget === target) return;
+    faviconObserver?.disconnect();
+    faviconObserverTarget = target;
+    faviconObserver = new MutationObserver(() => {
+      if (!isTaggedIndicatorActive) return;
+      observeFaviconChanges();
+      scheduleTaggedIndicatorRender();
+    });
+    faviconObserver.observe(target, target === document.head
+      ? { childList: true, subtree: true, attributes: true, attributeFilter: ["href", "rel"] }
+      : { childList: true });
+  }
+
+  function stopFaviconObserver(): void {
+    faviconObserver?.disconnect();
+    faviconObserver = null;
+    faviconObserverTarget = null;
+  }
+
+  function applyTaggedIndicators(isTagged: boolean, cycleScope: TabWheelCycleScope = settings.cycleScope): void {
     isTaggedIndicatorActive = isTagged;
+    activeTaggedCycleScope = cycleScope;
     if (!isTagged) {
       removeTaggedPill();
+      removeTaggedFavicon();
+      stopFaviconObserver();
       return;
     }
-    ensureTaggedPill();
+    ensureTaggedPill(cycleScope);
+    observeFaviconChanges();
+    ensureTaggedFavicon();
   }
 
   async function refreshTaggedIndicators(): Promise<void> {
     try {
       const overview = await getTabWheelOverviewWithRetry();
-      applyTaggedIndicators(overview.isCurrentTagged);
+      applyTaggedIndicators(overview.isCurrentTagged, overview.cycleScope);
     } catch (_) {
       applyTaggedIndicators(false);
     }
@@ -295,12 +563,14 @@ export function initApp(): void {
   }
 
   function isKeyboardWheelEvent(event: WheelEvent): boolean {
-    return event.isTrusted
+    return areSettingsLoaded
+      && event.isTrusted
       && isTabWheelModifier(event, settings.gestureModifier, settings.gestureWithShift)
       && !isGestureBlockedTarget(event.target);
   }
 
   function resolveMouseGestureAction(event: MouseEvent): TabWheelMouseGestureAction | null {
+    if (!areSettingsLoaded) return null;
     if (!event.isTrusted) return null;
     if (!isTabWheelModifier(event, settings.gestureModifier, settings.gestureWithShift)) return null;
     if (isGestureBlockedTarget(event.target)) return null;
@@ -325,12 +595,15 @@ export function initApp(): void {
 
   function runMouseGestureAction(action: TabWheelMouseGestureAction): void {
     if (action === "tag") {
-      void toggleCurrentTabWheelTag().catch(() => showStatus("Tag failed"));
+      void toggleCurrentTabWheelTag()
+        .then((result) => {
+          if (!result.ok || typeof result.isCurrentTagged !== "boolean") return;
+          applyTaggedIndicators(result.isCurrentTagged, result.cycleScope || settings.cycleScope);
+        })
+        .catch(() => showStatus("Tag failed"));
       return;
     }
-    void toggleTabWheelCycleScope().then((result) => {
-      if (!result.ok && result.reason) showStatus(result.reason);
-    }).catch(() => showStatus("Mode switch failed"));
+    void toggleTabWheelCycleScope().catch(() => showStatus("Mode switch failed"));
   }
 
   function getTabCycleWheelDelta(event: WheelEvent): number {
@@ -391,7 +664,6 @@ export function initApp(): void {
 
     if (isMouseGestureStartEvent(event) || event.type === "click" || event.type === "contextmenu") {
       claimedMouseGesture = {
-        action,
         button: event.button,
         startedAt: Date.now(),
       };
@@ -407,11 +679,13 @@ export function initApp(): void {
     const settingsChange = changes[TABWHEEL_STORAGE_KEYS.settings];
     if (settingsChange) {
       settings = normalizeTabWheelSettings(settingsChange.newValue);
+      activeTaggedCycleScope = settings.cycleScope;
       wheelAccumulator = 0;
       wheelBurstCount = 0;
       overshootGuardDirection = null;
       overshootGuardUntil = 0;
       claimedMouseGesture = null;
+      if (isTaggedIndicatorActive) applyTaggedIndicators(true, settings.cycleScope);
     }
   }
 
@@ -436,7 +710,7 @@ export function initApp(): void {
         showStatus(receivedMessage.message);
         return Promise.resolve({ ok: true });
       case "TABWHEEL_TAG_STATE_CHANGED":
-        applyTaggedIndicators(receivedMessage.isTagged);
+        applyTaggedIndicators(receivedMessage.isTagged, receivedMessage.cycleScope);
         return Promise.resolve({ ok: true });
       case "OPEN_TABWHEEL_HELP":
         void openTabWheelHelpOverlay();
@@ -504,6 +778,8 @@ export function initApp(): void {
     }
     if (scrollSaveTimer) window.clearTimeout(scrollSaveTimer);
     if (statusTimer) window.clearTimeout(statusTimer);
+    if (taggedIndicatorRenderTimer) window.clearTimeout(taggedIndicatorRenderTimer);
+    document.getElementById(STATUS_ID)?.remove();
     applyTaggedIndicators(false);
     dismissPanel();
   };

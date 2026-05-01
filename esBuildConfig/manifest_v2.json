@@ -1,8 +1,8 @@
 {
   "manifest_version": 2,
   "name": "TabWheel",
-  "version": "2.2.1",
-  "description": "Switch tabs with Alt + Wheel, Wheel List mode, tuning, and local-only scroll memory.",
+  "version": "1.0.0",
+  "description": "Reliable tab switching with Alt + Wheel, Wheel List mode, tuning, and scroll memory.",
   "browser_specific_settings": {
     "gecko": {
       "id": "@tabwheel.reklai",

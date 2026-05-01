@@ -11,7 +11,6 @@ function readText(relativePath) {
 
 const OVERLAY_CSS_FILES = [
   "src/lib/ui/panels/help/help.css",
-  "src/lib/ui/panels/quickControls/quickControls.css",
 ];
 
 test("store and privacy docs include local-only/no-telemetry policy", () => {
@@ -26,6 +25,7 @@ test("package scripts expose engineering guardrail chain", () => {
   assert.equal(packageJson.scripts.lint, "node esBuildConfig/lint.mjs");
   assert.equal(packageJson.scripts.test, "node --test test/*.test.mjs");
   assert.equal(packageJson.scripts["verify:store"], "node esBuildConfig/verifyStore.mjs");
+  assert.equal(packageJson.scripts["release:package"], "node esBuildConfig/packageRelease.mjs");
   assert.match(packageJson.scripts.ci, /\bnpm run lint\b/);
   assert.match(packageJson.scripts.ci, /\bnpm run test\b/);
   assert.match(packageJson.scripts.ci, /\bnpm run verify:compat\b/);
@@ -38,14 +38,4 @@ test("overlay css includes anti-glitch container baseline", () => {
     assert.match(css, /backface-visibility:\s*hidden/);
     assert.match(css, /will-change:\s*transform/);
   }
-});
-
-test("quick controls use restrained dark controls and blue accents", () => {
-  const css = readText("src/lib/ui/panels/quickControls/quickControls.css");
-  assert.match(css, /\.ht-quick-controls-container/);
-  assert.match(css, /\.ht-quick-grid/);
-  assert.match(css, /\.ht-quick-row/);
-  assert.match(css, /\.ht-quick-range/);
-  assert.match(css, /var\(--ht-color-/);
-  assert.doesNotMatch(css, /rgba\(50,215,75,/);
 });

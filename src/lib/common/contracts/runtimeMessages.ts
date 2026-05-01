@@ -20,6 +20,7 @@ export type BackgroundRuntimeMessage =
   | { type: "TABWHEEL_ACTIVATE_TAGGED_TAB"; tabId: number; windowId?: number }
   | { type: "TABWHEEL_TOGGLE_CYCLE_SCOPE"; windowId?: number }
   | { type: "TABWHEEL_SET_CYCLE_SCOPE"; cycleScope: TabWheelCycleScope; windowId?: number; suppressPageStatus?: boolean }
+  | { type: "TABWHEEL_FETCH_FAVICON"; href: string }
   | { type: "TABWHEEL_SAVE_SCROLL_POSITION"; scrollX: number; scrollY: number }
   | { type: "TABWHEEL_OPEN_HELP" }
   | { type: "TABWHEEL_OPEN_OPTIONS" };

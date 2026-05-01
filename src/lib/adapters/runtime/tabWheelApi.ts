@@ -93,6 +93,13 @@ export function setTabWheelCycleScope(
   });
 }
 
+export function fetchTabWheelFaviconData(href: string): Promise<TabWheelFaviconFetchResult> {
+  return sendRuntimeMessage<TabWheelFaviconFetchResult>({
+    type: "TABWHEEL_FETCH_FAVICON",
+    href,
+  });
+}
+
 export function saveTabWheelScrollPosition(
   scrollX: number,
   scrollY: number,

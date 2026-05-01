@@ -57,7 +57,12 @@ interface TabWheelActionResult {
   entry?: TabWheelTaggedTabEntry;
   count?: number;
   alreadyTagged?: boolean;
+  isCurrentTagged?: boolean;
   cycleScope?: TabWheelCycleScope;
+}
+
+interface TabWheelFaviconFetchResult extends TabWheelActionResult {
+  dataUrl?: string;
 }
 
 interface TabWheelRefreshResult extends TabWheelActionResult {

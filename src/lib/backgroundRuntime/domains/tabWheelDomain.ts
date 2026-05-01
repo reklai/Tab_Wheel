@@ -615,11 +615,20 @@ export function createTabWheelDomain(): TabWheelDomain {
       };
     }
 
-    await pingContentScript(activeTab);
+    const wasReady = await pingContentScript(activeTab);
     const injection = await injectContentScriptIntoTab(activeTab);
     if (injection !== "injected") {
-      contentScriptReadyUrlsByTabId.delete(activeTab.id);
       const overview = await getOverview(activeTab, activeTab.windowId);
+      if (wasReady || overview.contentScriptStatus === "ready") {
+        await notifyWindowTagState(activeTab.windowId);
+        return {
+          ok: true,
+          overview,
+          contentScriptStatus: overview.contentScriptStatus,
+          injected: false,
+        };
+      }
+      contentScriptReadyUrlsByTabId.delete(activeTab.id);
       return {
         ok: false,
         reason: "TabWheel cannot run on this page.",
@@ -666,12 +675,19 @@ export function createTabWheelDomain(): TabWheelDomain {
       else delete wheelListByWindowId[key];
       await saveWheelList();
       const settings = await loadTabWheelSettings();
+      let cycleScope = settings.cycleScope;
       if (settings.cycleScope === "tagged" && nextEntries.length === 0) {
-        await saveCycleScope("general");
+        cycleScope = (await saveCycleScope("general")).cycleScope;
       }
       await sendStatus(activeTab.id, `Removed from Wheel List (${nextEntries.length})`);
       await notifyWindowTagState(activeTab.windowId);
-      return { ok: true, entry: existing, count: nextEntries.length };
+      return {
+        ok: true,
+        entry: existing,
+        count: nextEntries.length,
+        isCurrentTagged: false,
+        cycleScope,
+      };
     }
 
     if (entries.length >= MAX_WHEEL_LIST_TABS) {
@@ -693,9 +709,16 @@ export function createTabWheelDomain(): TabWheelDomain {
     wheelListByWindowId[key] = [...entries, entry];
     await saveWheelList();
     const count = (wheelListByWindowId[key] || []).length;
+    const settings = await loadTabWheelSettings();
     await sendStatus(activeTab.id, `Added to Wheel List (${count})`);
     await notifyWindowTagState(activeTab.windowId);
-    return { ok: true, entry, count };
+    return {
+      ok: true,
+      entry,
+      count,
+      isCurrentTagged: true,
+      cycleScope: settings.cycleScope,
+    };
   }
 
   async function removeTaggedTab(tabId: number, windowId?: number): Promise<TabWheelActionResult> {

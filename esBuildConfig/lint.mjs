@@ -16,12 +16,10 @@ const BANNED_UI_PACKAGES = [
 
 const OVERLAY_TS_FILES = [
   "src/lib/ui/panels/help/help.ts",
-  "src/lib/ui/panels/quickControls/quickControls.ts",
 ];
 
 const OVERLAY_CSS_FILES = [
   "src/lib/ui/panels/help/help.css",
-  "src/lib/ui/panels/quickControls/quickControls.css",
 ];
 
 const DISALLOWED_IDENTIFIER_PATTERNS = [
