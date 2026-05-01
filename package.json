@@ -1,6 +1,6 @@
 {
   "name": "tabwheel",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "private": true,
   "description": "Mouse scroll wheel tab switcher with tagging, cycle modes, and local-only memory",
   "scripts": {

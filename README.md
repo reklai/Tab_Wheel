@@ -96,9 +96,9 @@ npm run release:package
 
 Generated output:
 
-- `release/tabwheel-chrome-v1.0.0.zip`
-- `release/tabwheel-firefox-v1.0.0.xpi`
-- `release/tabwheel-source-v1.0.0.zip`
+- `release/tabwheel-chrome-v1.0.1.zip`
+- `release/tabwheel-firefox-v1.0.1.xpi`
+- `release/tabwheel-source-v1.0.1.zip`
 
 ## Project Structure
 
