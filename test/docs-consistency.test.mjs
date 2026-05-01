@@ -28,10 +28,12 @@ test("store and privacy docs match current TabWheel limits", () => {
   assert.ok(store.includes("Alt + Wheel"));
   assert.ok(store.includes("modifier-wheel cycling"));
   assert.ok(store.includes("Wheel List mode"));
-  assert.ok(store.includes("Alt + Left Click"));
-  assert.ok(store.includes("Alt + Right Click"));
+  assert.ok(store.includes("Alt + Left Hold"));
+  assert.ok(store.includes("Alt + Right Hold"));
+  assert.ok(store.includes("Alt + Middle Click"));
+  assert.ok(store.includes("in-page command panel"));
   assert.ok(store.includes("Previous / Next"));
-  assert.doesNotMatch(store, /Right Hold|Alt \+ Middle Click|MRU|most-recently-used/);
+  assert.doesNotMatch(store, /MRU|most-recently-used/);
   assert.ok(privacy.includes("editable-field preference"));
   assert.ok(privacy.includes("page URLs used only to validate scroll restore"));
   assert.ok(privacy.includes("tabWheelWheelList"));

@@ -52,7 +52,6 @@ export const DEFAULT_TABWHEEL_SETTINGS: TabWheelSettings = {
   allowGesturesInEditableFields: true,
   cycleScope: "general",
   skipPinnedTabs: false,
-  wrapAround: true,
   wheelPreset: "balanced",
   wheelSensitivity: 1,
   wheelCooldownMs: 160,
@@ -153,10 +152,6 @@ export function normalizeTabWheelSettings(
     skipPinnedTabs: normalizeEnabledFlag(
       settings.skipPinnedTabs,
       DEFAULT_TABWHEEL_SETTINGS.skipPinnedTabs,
-    ),
-    wrapAround: normalizeEnabledFlag(
-      settings.wrapAround,
-      DEFAULT_TABWHEEL_SETTINGS.wrapAround,
     ),
     wheelPreset: normalizeWheelPreset(settings.wheelPreset),
     wheelSensitivity: normalizeNumberInRange(

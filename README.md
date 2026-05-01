@@ -5,9 +5,10 @@ TabWheel is a browser extension for switching tabs with the mouse scroll wheel. 
 It is built for a small, reliable workflow:
 
 - `Alt + Wheel`: switch tabs.
-- `Alt + Left Click`: tag or untag the current tab for the Wheel List.
-- `Alt + Right Click`: switch between General cycling and Wheel List cycling.
-- Toolbar popup: manage tagged tabs, change mode, tune wheel behavior, and use Previous / Next fallback controls.
+- `Alt + Left Hold`: swipe left to tag/untag the current tab or right to switch cycle mode.
+- `Alt + Right Hold`: swipe up for last recent, down-left to close current, or down-right for a new tab.
+- `Alt + Middle Click`: open the in-page command panel.
+- Toolbar popup: manage the Wheel List, change mode, tune wheel behavior, and use tab action fallback controls.
 
 ## Features
 
@@ -16,11 +17,12 @@ It is built for a small, reliable workflow:
 - General mode for normal tab-order cycling.
 - Wheel List mode for cycling only tagged tabs.
 - Precise, Balanced, Fast, and Custom wheel presets.
-- Sensitivity, cooldown, acceleration, horizontal wheel, wrap-around, pinned-tab, and overshoot guard settings.
+- Sensitivity, cooldown, acceleration, horizontal wheel, pinned-tab, and overshoot guard settings.
 - Scroll memory for restoring recent scroll X/Y positions when returning to the same URL.
 - Editable-field setting for wheel-cycling inside text boxes, search fields, and editors/docs.
 - Subtle in-page Wheel List indicator for tagged tabs.
 - Best-effort favicon badge for tagged tabs when the browser allows safe favicon composition.
+- Hold-based mini choice wheels for tagging, mode switching, new tab, close tab, and last-recent tab actions.
 - Popup Refresh action that reconnects TabWheel on the current page without reloading it.
 
 ## Browser Support
@@ -28,7 +30,7 @@ It is built for a small, reliable workflow:
 - Chrome and Chromium-based browsers use the Manifest V3 build.
 - Firefox and Zen Browser use the Manifest V2 build.
 
-Browser UI pages, extension pages, browser stores, devtools, PDF viewers, and some restricted pages may block content scripts. The popup Previous / Next buttons remain available as a fallback where the toolbar popup can run.
+Browser UI pages, extension pages, browser stores, devtools, PDF viewers, and some restricted pages may block content scripts. The toolbar popup and in-page command panel controls remain available for Previous / Next and tab action fallbacks where extension popups can run.
 
 ## Privacy
 
@@ -116,16 +118,16 @@ src/
     toolbarPopup/
       toolbarPopup.html  # browser action popup markup
       toolbarPopup.css   # popup layout, responsive controls, Wheel List styles
-      toolbarPopup.ts    # popup state, fallback actions, tagging, mode switching, refresh
+      toolbarPopup.ts    # popup bootstrap; mounts the shared popup controller
   lib/
     appInit/
-      appInit.ts         # page-side listeners, indicators, scroll memory, help overlay trigger
+      appInit.ts         # page-side listeners, hold gestures, indicators, scroll memory, popup/help triggers
     adapters/runtime/
       runtimeClient.ts   # typed runtime messaging helpers and retry behavior
       tabWheelApi.ts     # content/popup API wrappers around runtime messages
     backgroundRuntime/
       domains/
-        tabWheelDomain.ts        # tab cycling, Wheel List, scroll memory, refresh/injection logic
+        tabWheelDomain.ts        # tab cycling, Wheel List, scroll memory, recent/new/close tab actions
       handlers/
         runtimeRouter.ts         # shared runtime message routing
         tabWheelMessageHandler.ts # TabWheel message handler and favicon fetch helper
@@ -142,6 +144,8 @@ src/
       tabWheel/
         tabWheelCore.ts    # pure wheel delta normalization and tab target math
     ui/
+      popup/
+        tabWheelPopup.ts # shared toolbar/in-page popup controller and overlay
       panels/
         help/
           help.ts          # in-page help overlay

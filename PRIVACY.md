@@ -11,11 +11,13 @@ TabWheel does not collect, transmit, or share any user data. Everything stays in
 
 Legacy storage keys from earlier builds may remain in a browser profile until migration runs, but the TabWheel runtime does not use them.
 
+Last-recent tab history is kept in memory only and is not stored.
+
 ## Permissions
 
 | Permission | Purpose |
 | --- | --- |
-| `tabs` | Read and activate browser tabs for cycling and Wheel List actions |
+| `tabs` | Read, create, close, and activate browser tabs for cycling, Wheel List, new-tab, close-tab, and last-recent actions |
 | `storage` | Save settings, Wheel List entries, scroll positions, and schema version locally |
 | `scripting` | Chrome-only: activate or refresh the content script on normal web tabs after install, update, or popup Refresh |
 | `<all_urls>` | Run the content script where supported so modifier-wheel cycling and scroll memory work |

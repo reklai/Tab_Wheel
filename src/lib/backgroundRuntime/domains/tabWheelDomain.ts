@@ -31,6 +31,9 @@ export interface TabWheelDomain {
   activateTaggedTab(tabId: number, windowId?: number): Promise<TabWheelActionResult>;
   toggleCycleScope(tab?: Tabs.Tab, windowId?: number): Promise<TabWheelActionResult>;
   setCycleScope(cycleScope: TabWheelCycleScope, tab?: Tabs.Tab, windowId?: number, options?: TabWheelStatusOptions): Promise<TabWheelActionResult>;
+  openNewTabNextToCurrent(tab?: Tabs.Tab, windowId?: number): Promise<TabWheelActionResult>;
+  activateLastRecentTab(tab?: Tabs.Tab, windowId?: number): Promise<TabWheelActionResult>;
+  closeCurrentTabAndActivateLastRecent(tab?: Tabs.Tab, windowId?: number): Promise<TabWheelActionResult>;
   saveScrollPosition(tabId: number, windowId: number, url: string | undefined, scrollX: number, scrollY: number): Promise<TabWheelActionResult>;
   markContentScriptReady(tab?: Tabs.Tab): TabWheelActionResult;
   registerLifecycleListeners(): void;
@@ -192,6 +195,7 @@ export function createTabWheelDomain(): TabWheelDomain {
   let scrollMemoryByTabId: ScrollMemoryByTabId = {};
   let wheelListByWindowId: WheelListByWindowId = {};
   const contentScriptReadyUrlsByTabId = new Map<number, string>();
+  const recentTabIdsByWindowId = new Map<number, number[]>();
   let loaded = false;
 
   async function ensureLoaded(): Promise<void> {
@@ -244,6 +248,36 @@ export function createTabWheelDomain(): TabWheelDomain {
 
   async function getWindowTabs(windowId: number): Promise<Tabs.Tab[]> {
     return await browser.tabs.query({ windowId });
+  }
+
+  function rememberActivatedTab(windowId: number, tabId: number): void {
+    const existing = recentTabIdsByWindowId.get(windowId) || [];
+    recentTabIdsByWindowId.set(
+      windowId,
+      [tabId, ...existing.filter((candidate) => candidate !== tabId)].slice(0, 25),
+    );
+  }
+
+  function forgetRecentTab(tabId: number): void {
+    for (const [windowId, tabIds] of recentTabIdsByWindowId) {
+      const nextTabIds = tabIds.filter((candidate) => candidate !== tabId);
+      if (nextTabIds.length > 0) recentTabIdsByWindowId.set(windowId, nextTabIds);
+      else recentTabIdsByWindowId.delete(windowId);
+    }
+  }
+
+  async function resolveLastRecentTab(windowId: number, activeTabId?: number): Promise<Tabs.Tab | null> {
+    const tabIds = recentTabIdsByWindowId.get(windowId) || [];
+    for (const tabId of tabIds) {
+      if (tabId === activeTabId) continue;
+      try {
+        const tab = await browser.tabs.get(tabId);
+        if (tab.id != null && tab.windowId === windowId) return tab;
+      } catch (_) {
+        forgetRecentTab(tabId);
+      }
+    }
+    return null;
   }
 
   function sortEntriesByTabOrder(entries: TabWheelTaggedTabEntry[], tabs: Tabs.Tab[]): TabWheelTaggedTabEntry[] {
@@ -548,13 +582,11 @@ export function createTabWheelDomain(): TabWheelDomain {
     activeTab: Tabs.Tab,
     candidateTabs: Tabs.Tab[],
     direction: "prev" | "next",
-    wrapAround: boolean,
   ): Tabs.Tab | null {
     const targetIndex = resolveCycleTargetIndex(
       candidateTabs.map(getTabIndex),
       getTabIndex(activeTab),
       direction,
-      wrapAround,
     );
     return candidateTabs.find((tab) => getTabIndex(tab) === targetIndex) || null;
   }
@@ -584,7 +616,7 @@ export function createTabWheelDomain(): TabWheelDomain {
       return { ok: false, reason: "Current tab is skipped" };
     }
 
-    const targetTab = resolveStripTargetTab(activeTab, candidateTabs, direction, settings.wrapAround);
+    const targetTab = resolveStripTargetTab(activeTab, candidateTabs, direction);
     if (!targetTab?.id || targetTab.id === activeTab.id) {
       return { ok: false, reason: "Edge of tab list" };
     }
@@ -798,6 +830,49 @@ export function createTabWheelDomain(): TabWheelDomain {
     return await setCycleScope(settings.cycleScope === "tagged" ? "general" : "tagged", tab, windowId);
   }
 
+  async function openNewTabNextToCurrent(tab?: Tabs.Tab, windowId?: number): Promise<TabWheelActionResult> {
+    await ensureLoaded();
+    const activeTab = await resolveActiveTab(tab, windowId);
+    if (!activeTab?.id || activeTab.windowId == null) return { ok: false, reason: "No active tab" };
+    await captureTabScroll(activeTab);
+    await browser.tabs.create({
+      active: true,
+      index: getTabIndex(activeTab) + 1,
+      windowId: activeTab.windowId,
+    });
+    return { ok: true };
+  }
+
+  async function activateLastRecentTab(tab?: Tabs.Tab, windowId?: number): Promise<TabWheelActionResult> {
+    await ensureLoaded();
+    const activeTab = await resolveActiveTab(tab, windowId);
+    if (!activeTab?.id || activeTab.windowId == null) return { ok: false, reason: "No active tab" };
+    const targetTab = await resolveLastRecentTab(activeTab.windowId, activeTab.id);
+    if (!targetTab?.id) return { ok: false, reason: "No recent tab" };
+    await captureTabScroll(activeTab);
+    await browser.tabs.update(targetTab.id, { active: true });
+    await restoreScroll(targetTab);
+    return { ok: true };
+  }
+
+  async function closeCurrentTabAndActivateLastRecent(tab?: Tabs.Tab, windowId?: number): Promise<TabWheelActionResult> {
+    await ensureLoaded();
+    const activeTab = await resolveActiveTab(tab, windowId);
+    if (!activeTab?.id || activeTab.windowId == null) return { ok: false, reason: "No active tab" };
+    const targetTab = await resolveLastRecentTab(activeTab.windowId, activeTab.id);
+    await captureTabScroll(activeTab);
+    await browser.tabs.remove(activeTab.id);
+    if (targetTab?.id) {
+      try {
+        await browser.tabs.update(targetTab.id, { active: true });
+        await restoreScroll(targetTab);
+      } catch (_) {
+        // The close still succeeded; browser default activation is an acceptable fallback.
+      }
+    }
+    return { ok: true };
+  }
+
   async function saveScrollPosition(
     tabId: number,
     windowId: number,
@@ -835,6 +910,7 @@ export function createTabWheelDomain(): TabWheelDomain {
       await ensureLoaded();
       delete scrollMemoryByTabId[tabKey(tabId)];
       contentScriptReadyUrlsByTabId.delete(tabId);
+      forgetRecentTab(tabId);
       let changed = false;
       const affectedWindowIds = new Set<number>();
       for (const [key, entries] of Object.entries(wheelListByWindowId)) {
@@ -851,6 +927,10 @@ export function createTabWheelDomain(): TabWheelDomain {
         for (const windowId of affectedWindowIds) await notifyWindowTagState(windowId);
       }
       await saveScrollMemory();
+    });
+
+    browser.tabs.onActivated.addListener((activeInfo: { tabId: number; windowId: number }) => {
+      rememberActivatedTab(activeInfo.windowId, activeInfo.tabId);
     });
 
     browser.tabs.onUpdated.addListener((tabId: number, changeInfo: { url?: string }, tab: Tabs.Tab) => {
@@ -872,6 +952,7 @@ export function createTabWheelDomain(): TabWheelDomain {
       void (async () => {
         await ensureLoaded();
         delete wheelListByWindowId[windowKey(windowId)];
+        recentTabIdsByWindowId.delete(windowId);
         for (const [key, entry] of Object.entries(scrollMemoryByTabId)) {
           if (entry.windowId === windowId) delete scrollMemoryByTabId[key];
         }
@@ -885,6 +966,7 @@ export function createTabWheelDomain(): TabWheelDomain {
       scrollMemoryByTabId = trimScrollMemory(scrollMemoryByTabId);
       wheelListByWindowId = {};
       contentScriptReadyUrlsByTabId.clear();
+      recentTabIdsByWindowId.clear();
       await saveScrollMemory();
       await browser.storage.local.remove(TABWHEEL_STORAGE_KEYS.wheelList);
       const settings = await loadTabWheelSettings();
@@ -905,6 +987,9 @@ export function createTabWheelDomain(): TabWheelDomain {
     activateTaggedTab,
     toggleCycleScope,
     setCycleScope,
+    openNewTabNextToCurrent,
+    activateLastRecentTab,
+    closeCurrentTabAndActivateLastRecent,
     saveScrollPosition,
     markContentScriptReady,
     registerLifecycleListeners,

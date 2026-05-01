@@ -38,12 +38,18 @@
         <button id="nextTabBtn" type="button">Next tab</button>
       </div>
 
+      <div class="quick-tab-row" aria-label="Tab action fallback controls">
+        <button id="newTabBtn" type="button">New tab</button>
+        <button id="lastRecentTabBtn" type="button">Last recent</button>
+        <button id="closeCurrentTabBtn" type="button">Close current</button>
+      </div>
+
       <section class="list-section" id="wheelListSection" aria-label="Wheel List tabs">
         <div class="list-header">
           <button class="list-toggle" id="wheelListToggle" type="button" aria-expanded="false" aria-controls="taggedTabsList">
             <span>
               <strong>Wheel List</strong>
-              <small id="tagCountLabel">0/15 tagged</small>
+              <small id="tagCountLabel">0/15 tagged tabs</small>
             </span>
             <span class="summary-toggle-label">
               <span class="summary-toggle-text"></span>
@@ -64,7 +70,7 @@
           <select id="wheelPreset"></select>
         </label>
         <label class="control-row" title="Base key for cycling and gestures.">
-          <span><strong>Modifier</strong><small>Hold this key while scrolling or clicking</small></span>
+          <span><strong>Modifier</strong><small>Hold this key while scrolling, holding, or middle-clicking</small></span>
           <select id="gestureModifier"></select>
         </label>
         <label class="control-row" title="Add Shift to the selected modifier before gestures are active.">
@@ -78,10 +84,6 @@
         <label class="control-row" title="Keep pinned utility tabs out of the cycling path.">
           <span><strong>Skip pinned</strong><small>Leave pinned tabs out of cycling</small></span>
           <input id="skipPinnedTabs" type="checkbox" />
-        </label>
-        <label class="control-row" title="At the first or last tab, continue from the opposite edge.">
-          <span><strong>Wrap around</strong><small>Continue from last to first tab</small></span>
-          <input id="wrapAround" type="checkbox" />
         </label>
         <label class="control-row" title="Shortens the cooldown during repeated wheel bursts.">
           <span><strong>Acceleration</strong><small>Speed up intentional wheel bursts</small></span>

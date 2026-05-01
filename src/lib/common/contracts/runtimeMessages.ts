@@ -20,6 +20,9 @@ export type BackgroundRuntimeMessage =
   | { type: "TABWHEEL_ACTIVATE_TAGGED_TAB"; tabId: number; windowId?: number }
   | { type: "TABWHEEL_TOGGLE_CYCLE_SCOPE"; windowId?: number }
   | { type: "TABWHEEL_SET_CYCLE_SCOPE"; cycleScope: TabWheelCycleScope; windowId?: number; suppressPageStatus?: boolean }
+  | { type: "TABWHEEL_OPEN_NEW_TAB_NEXT_TO_CURRENT"; windowId?: number }
+  | { type: "TABWHEEL_ACTIVATE_LAST_RECENT_TAB"; windowId?: number }
+  | { type: "TABWHEEL_CLOSE_CURRENT_TAB_AND_ACTIVATE_LAST_RECENT"; windowId?: number }
   | { type: "TABWHEEL_FETCH_FAVICON"; href: string }
   | { type: "TABWHEEL_SAVE_SCROLL_POSITION"; scrollX: number; scrollY: number }
   | { type: "TABWHEEL_OPEN_HELP" }

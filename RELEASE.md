@@ -19,9 +19,10 @@ npm run release:package
 Initial public release focused on reliability over surface area:
 
 - Modifier-wheel tab cycling on normal web pages.
-- Wheel List tagging with modifier + left click.
-- General/Wheel List mode switching with modifier + right click.
-- Popup Previous / Next fallback for restricted pages.
+- Wheel List tagging and cycle-mode switching with modifier + left hold choice wheel.
+- Last-recent, close-current, and new-tab actions with modifier + right hold choice wheel.
+- In-page command panel from the current page with modifier + middle click.
+- Popup Previous / Next and tab action fallbacks for restricted pages.
 - Popup Refresh action that reconnects TabWheel without reloading the page.
 - Local-only scroll memory with URL validation.
 - Wheel presets, sensitivity, cooldown, horizontal wheel support, safe overshoot guard, and optional acceleration.

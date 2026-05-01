@@ -28,7 +28,6 @@ document.addEventListener("DOMContentLoaded", async () => {
   const gestureModifierSelect = document.getElementById("gestureModifier") as HTMLSelectElement;
   const gestureWithShiftInput = document.getElementById("gestureWithShift") as HTMLInputElement;
   const skipPinnedTabsInput = document.getElementById("skipPinnedTabs") as HTMLInputElement;
-  const wrapAroundInput = document.getElementById("wrapAround") as HTMLInputElement;
   const wheelPresetSelect = document.getElementById("wheelPreset") as HTMLSelectElement;
   const wheelAccelerationInput = document.getElementById("wheelAcceleration") as HTMLInputElement;
   const horizontalWheelInput = document.getElementById("horizontalWheel") as HTMLInputElement;
@@ -75,7 +74,6 @@ document.addEventListener("DOMContentLoaded", async () => {
       gestureModifier: gestureModifierSelect.value as TabWheelModifierKey,
       gestureWithShift: gestureWithShiftInput.checked,
       skipPinnedTabs: skipPinnedTabsInput.checked,
-      wrapAround: wrapAroundInput.checked,
       wheelPreset: wheelPresetSelect.value as TabWheelPreset,
       wheelAcceleration: wheelAccelerationInput.checked,
       horizontalWheel: horizontalWheelInput.checked,
@@ -97,7 +95,6 @@ document.addEventListener("DOMContentLoaded", async () => {
     gestureModifierSelect.value = settings.gestureModifier;
     gestureWithShiftInput.checked = settings.gestureWithShift;
     skipPinnedTabsInput.checked = settings.skipPinnedTabs;
-    wrapAroundInput.checked = settings.wrapAround;
     wheelPresetSelect.value = settings.wheelPreset;
     wheelAccelerationInput.checked = settings.wheelAcceleration;
     horizontalWheelInput.checked = settings.horizontalWheel;
@@ -112,8 +109,8 @@ document.addEventListener("DOMContentLoaded", async () => {
     wheelCooldownValue.textContent = `${Math.round(settings.wheelCooldownMs)}ms`;
     invertScrollHelp.textContent = `${gestureModifier} + wheel down/right becomes previous, and ${gestureModifier} + wheel up/left becomes next.`;
     wheelShortcut.textContent = `${gestureModifier} + Wheel`;
-    tagShortcut.textContent = `${gestureModifier} + Left Click`;
-    scopeShortcut.textContent = `${gestureModifier} + Right Click`;
+    tagShortcut.textContent = `${gestureModifier} + Left Hold`;
+    scopeShortcut.textContent = `${gestureModifier} + Right Hold`;
   }
 
   async function persist(nextSettings: TabWheelSettings): Promise<void> {
@@ -139,7 +136,6 @@ document.addEventListener("DOMContentLoaded", async () => {
   gestureModifierSelect.addEventListener("change", () => void saveSettings());
   gestureWithShiftInput.addEventListener("change", () => void saveSettings());
   skipPinnedTabsInput.addEventListener("change", () => void saveSettings());
-  wrapAroundInput.addEventListener("change", () => void saveSettings());
   wheelAccelerationInput.addEventListener("change", () => void saveSettings());
   horizontalWheelInput.addEventListener("change", () => void saveSettings());
   overshootGuardInput.addEventListener("change", () => void saveSettings());

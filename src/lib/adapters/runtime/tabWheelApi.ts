@@ -93,6 +93,27 @@ export function setTabWheelCycleScope(
   });
 }
 
+export function openNewTabNextToCurrentTabWheel(windowId?: number): Promise<TabWheelActionResult> {
+  return sendRuntimeMessage<TabWheelActionResult>({
+    type: "TABWHEEL_OPEN_NEW_TAB_NEXT_TO_CURRENT",
+    windowId,
+  });
+}
+
+export function activateLastRecentTabWheelTab(windowId?: number): Promise<TabWheelActionResult> {
+  return sendRuntimeMessage<TabWheelActionResult>({
+    type: "TABWHEEL_ACTIVATE_LAST_RECENT_TAB",
+    windowId,
+  });
+}
+
+export function closeCurrentTabWheelTabAndActivateLastRecent(windowId?: number): Promise<TabWheelActionResult> {
+  return sendRuntimeMessage<TabWheelActionResult>({
+    type: "TABWHEEL_CLOSE_CURRENT_TAB_AND_ACTIVATE_LAST_RECENT",
+    windowId,
+  });
+}
+
 export function fetchTabWheelFaviconData(href: string): Promise<TabWheelFaviconFetchResult> {
   return sendRuntimeMessage<TabWheelFaviconFetchResult>({
     type: "TABWHEEL_FETCH_FAVICON",

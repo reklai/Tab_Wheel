@@ -34,17 +34,11 @@ test("tabWheelCore resolves wheel direction with optional invert", async () => {
 test("tabWheelCore cycles left-right indices with wrap enabled", async () => {
   const core = await loadTabWheelCoreModule();
 
-  assert.equal(core.resolveCycleTargetIndex([0, 1, 2], 1, "next", true), 2);
-  assert.equal(core.resolveCycleTargetIndex([0, 1, 2], 0, "prev", true), 2);
-});
-
-test("tabWheelCore holds at left-right edges when wrap is disabled", async () => {
-  const core = await loadTabWheelCoreModule();
-
-  assert.equal(core.resolveCycleTargetIndex([0, 1, 2], 2, "next", false), 2);
-  assert.equal(core.resolveCycleTargetIndex([0, 1, 2], 0, "prev", false), 0);
-  assert.equal(core.resolveCycleTargetIndex([0, 2, 4], 1, "next", false), 2);
-  assert.equal(core.resolveCycleTargetIndex([0, 2, 4], 3, "prev", false), 2);
+  assert.equal(core.resolveCycleTargetIndex([0, 1, 2], 1, "next"), 2);
+  assert.equal(core.resolveCycleTargetIndex([0, 1, 2], 2, "next"), 0);
+  assert.equal(core.resolveCycleTargetIndex([0, 1, 2], 0, "prev"), 2);
+  assert.equal(core.resolveCycleTargetIndex([0, 2, 4], 1, "next"), 2);
+  assert.equal(core.resolveCycleTargetIndex([0, 2, 4], 3, "prev"), 2);
 });
 
 test("tabWheelCore normalizes wheel delta modes", async () => {

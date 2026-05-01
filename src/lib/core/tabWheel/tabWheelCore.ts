@@ -11,7 +11,6 @@ export function resolveCycleTargetIndex(
   tabIndices: number[],
   currentTabIndex: number,
   direction: "prev" | "next",
-  wrapAround: boolean,
 ): number {
   const candidates = tabIndices.slice().sort((left, right) => left - right);
 
@@ -21,13 +20,13 @@ export function resolveCycleTargetIndex(
   if (direction === "next") {
     const nextIndex = candidates.find((index) => index > currentTabIndex);
     if (nextIndex != null) return nextIndex;
-    return wrapAround ? candidates[0] : currentTabIndex;
+    return candidates[0];
   }
 
   for (let i = candidates.length - 1; i >= 0; i--) {
     if (candidates[i] < currentTabIndex) return candidates[i];
   }
-  return wrapAround ? candidates[candidates.length - 1] : currentTabIndex;
+  return candidates[candidates.length - 1];
 }
 
 export function normalizeWheelDeltaY(event: Pick<WheelEvent, "deltaMode" | "deltaY">, pageHeight: number): number {

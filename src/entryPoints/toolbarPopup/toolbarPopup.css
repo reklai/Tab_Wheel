@@ -27,6 +27,7 @@ body {
   display: flex;
   flex-direction: column;
   background: #1e1e1e;
+  color: #e0e0e0;
 }
 
 .titlebar {
@@ -206,6 +207,30 @@ body {
   background: rgba(10,132,255,0.2);
 }
 
+.quick-tab-row {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 8px;
+  padding: 0 14px 10px;
+  background: #1e1e1e;
+  border-bottom: 1px solid rgba(255,255,255,0.06);
+}
+
+.quick-tab-row button {
+  min-height: 32px;
+  border-radius: 7px;
+  border: 1px solid rgba(255,255,255,0.12);
+  background: rgba(255,255,255,0.06);
+  color: #e0e0e0;
+  cursor: pointer;
+  font-weight: 650;
+  min-width: 0;
+}
+
+.quick-tab-row button:hover {
+  background: rgba(255,255,255,0.1);
+}
+
 .list-section {
   display: block;
   border-bottom: 1px solid rgba(255,255,255,0.06);
@@ -247,6 +272,7 @@ body {
 }
 
 .list-toggle small {
+  color: #808080;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -511,6 +537,245 @@ input[type="checkbox"] {
   transform: translate(-50%, -50%) scale(1);
 }
 
+.tabwheel-command-panel {
+  width: min(760px, calc(100dvw - 24px));
+  height: min(620px, calc(100dvh - 24px));
+  max-width: 100%;
+  max-height: 100%;
+  border-radius: 10px;
+  overflow: hidden;
+}
+
+.command-header {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 18px;
+  padding: 14px 16px;
+  background: #252525;
+  border-bottom: 1px solid rgba(255,255,255,0.08);
+}
+
+.command-title {
+  min-width: 0;
+  display: block;
+  min-width: 0;
+  color: #f2f2f2;
+  font-size: 16px;
+  font-weight: 750;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.command-header-actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 8px;
+}
+
+.command-header-actions button {
+  min-height: 30px;
+  padding: 0 10px;
+  border-radius: 7px;
+  border: 1px solid rgba(255,255,255,0.12);
+  background: rgba(255,255,255,0.06);
+  color: #e0e0e0;
+  cursor: pointer;
+  font-weight: 650;
+}
+
+.command-header-actions button:hover {
+  background: rgba(255,255,255,0.1);
+}
+
+.command-header-actions .command-close-button {
+  border-color: rgba(255,255,255,0.18);
+  background: rgba(255,255,255,0.1);
+  color: #fff;
+}
+
+.command-status-grid {
+  display: grid;
+  grid-template-columns: 1.4fr 1fr 1fr;
+  gap: 10px;
+  padding: 14px 16px;
+  background: #1e1e1e;
+  border-bottom: 1px solid rgba(255,255,255,0.06);
+}
+
+.command-status-card {
+  min-width: 0;
+  min-height: 76px;
+  display: grid;
+  align-content: start;
+  gap: 5px;
+  padding: 12px;
+  border-radius: 8px;
+  border: 1px solid rgba(255,255,255,0.08);
+  background: #252525;
+}
+
+.command-status-card span,
+.command-status-card small,
+.command-section-heading small {
+  min-width: 0;
+  color: #808080;
+  font-size: 10px;
+}
+
+.command-status-card strong {
+  min-width: 0;
+  color: #f2f2f2;
+  font-size: 14px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.command-wheel-list-status-card {
+  align-content: stretch;
+  grid-template-rows: auto 1fr;
+}
+
+.command-wheel-list-status-card strong {
+  align-self: center;
+  text-align: center;
+}
+
+.command-status-card small {
+  line-height: 1.35;
+}
+
+.command-mode-card {
+  align-content: start;
+}
+
+.command-status-mode-pill {
+  min-width: 0;
+  align-self: center;
+}
+
+.command-status-mode-pill button {
+  min-height: 34px;
+}
+
+.command-section {
+  display: grid;
+  gap: 10px;
+  padding: 14px 16px;
+  background: #1e1e1e;
+  border-bottom: 1px solid rgba(255,255,255,0.06);
+}
+
+.command-section-heading {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.command-section-heading strong {
+  color: #f2f2f2;
+  font-size: 13px;
+  font-weight: 750;
+}
+
+.tabwheel-command-panel .cycle-row,
+.tabwheel-command-panel .quick-tab-row {
+  padding: 0;
+  border-bottom: 0;
+  background: transparent;
+}
+
+.tabwheel-command-panel .command-nav-row {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+.tabwheel-command-panel .command-nav-row button,
+.tabwheel-command-panel .command-tab-row button {
+  min-height: 58px;
+  padding: 8px 10px;
+  font-size: 13px;
+}
+
+.tabwheel-command-panel .command-tab-row {
+  grid-template-columns: 0.9fr 1.1fr;
+}
+
+.tabwheel-command-panel .command-tab-row .danger-action {
+  border-color: rgba(255,95,87,0.36);
+  background: rgba(255,95,87,0.10);
+  color: #ffd1cd;
+}
+
+.tabwheel-command-panel .command-tab-row .danger-action:hover {
+  background: rgba(255,95,87,0.18);
+}
+
+.command-list-section .tagged-list {
+  max-height: 230px;
+}
+
+.command-list-header {
+  min-height: auto;
+  grid-template-columns: minmax(0, 1fr) auto auto;
+  align-items: center;
+  padding: 12px 16px;
+  background: #252525;
+}
+
+.command-list-copy {
+  min-width: 0;
+  display: grid;
+  gap: 4px;
+}
+
+.command-list-copy strong {
+  color: #f2f2f2;
+  font-size: 13px;
+  font-weight: 750;
+}
+
+.command-list-copy small {
+  min-width: 0;
+  color: #808080;
+  font-size: 10px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.command-list-actions {
+  display: flex;
+  gap: 7px;
+}
+
+.command-list-toggle {
+  min-height: 34px;
+  justify-self: end;
+  display: flex;
+  align-items: center;
+}
+
+.command-control-grid {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+.tabwheel-command-panel .control-row {
+  min-height: 64px;
+}
+
+.tabwheel-command-panel .range-row {
+  grid-column: span 3;
+}
+
+.tabwheel-command-panel .range-row input {
+  width: 260px;
+  max-width: 42%;
+}
+
 @media (max-width: 420px) {
   body {
     width: 380px;
@@ -524,6 +789,7 @@ input[type="checkbox"] {
 
   .cycle-mode-panel,
   .shortcut-panel,
+  .quick-tab-row,
   .list-header,
   .control-grid {
     grid-template-columns: minmax(0, 1fr);
@@ -536,5 +802,60 @@ input[type="checkbox"] {
   .summary-actions {
     display: grid;
     grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 620px) {
+  .tabwheel-command-panel {
+    width: min(380px, calc(100dvw - 24px));
+  }
+
+  .command-header,
+  .command-status-grid,
+  .tabwheel-command-panel .command-nav-row,
+  .tabwheel-command-panel .command-tab-row,
+  .command-control-grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .command-list-header {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .command-list-copy small {
+    white-space: normal;
+  }
+
+  .command-list-actions {
+    width: 100%;
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .command-list-toggle {
+    width: 100%;
+    justify-self: stretch;
+  }
+
+  .command-list-toggle .summary-toggle-label {
+    width: 100%;
+    justify-content: center;
+  }
+
+  .command-header-actions {
+    justify-content: stretch;
+  }
+
+  .command-header-actions button {
+    flex: 1 1 86px;
+  }
+
+  .tabwheel-command-panel .range-row {
+    grid-column: auto;
+  }
+
+  .tabwheel-command-panel .range-row input {
+    width: 140px;
+    max-width: none;
   }
 }

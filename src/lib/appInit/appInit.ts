@@ -12,14 +12,18 @@ import { ContentRuntimeMessage } from "../common/contracts/runtimeMessages";
 import { dismissPanel } from "../common/utils/panelHost";
 import { normalizeWheelDelta, resolveWheelDirection } from "../core/tabWheel/tabWheelCore";
 import {
+  activateLastRecentTabWheelTab,
+  closeCurrentTabWheelTabAndActivateLastRecent,
   cycleTabWheel,
   fetchTabWheelFaviconData,
   getTabWheelOverviewWithRetry,
+  openNewTabNextToCurrentTabWheel,
   saveTabWheelScrollPosition,
   toggleCurrentTabWheelTag,
   toggleTabWheelCycleScope,
 } from "../adapters/runtime/tabWheelApi";
 import { openTabWheelHelpOverlay } from "../ui/panels/help/help";
+import { openTabWheelPopupOverlay } from "../ui/popup/tabWheelPopup";
 
 declare global {
   interface Window {
@@ -44,8 +48,35 @@ const TAGGED_FAVICON_LOAD_TIMEOUT_MS = 1200;
 const MAX_ORIGINAL_FAVICON_CACHE_ENTRIES = 20;
 const STATUS_ID = "tw-status-indicator";
 const MOUSE_GESTURE_CLAIM_MS = 900;
+const HOLD_GESTURE_DELAY_MS = 220;
+const HOLD_GESTURE_DEAD_ZONE_PX = 48;
+const HOLD_GESTURE_CHOICE_RADIUS_PX = 86;
+const HOLD_GESTURE_ID = "tw-hold-choice-wheel";
 type TabWheelEventModifierKey = TabWheelModifierKey | "shift";
-type TabWheelMouseGestureAction = "tag" | "scope";
+type TabWheelHoldGestureKind = "left" | "right";
+type TabWheelHoldGestureChoice = "tag" | "scope" | "newTab" | "closeTab" | "lastRecent";
+type TabWheelHoldGestureOption = {
+  choice: TabWheelHoldGestureChoice;
+  label: string;
+  x: number;
+  y: number;
+};
+type ActiveHoldGesture = {
+  kind: TabWheelHoldGestureKind;
+  button: number;
+  originX: number;
+  originY: number;
+  selectionX: number;
+  selectionY: number;
+  renderX: number;
+  renderY: number;
+  lastClientX: number;
+  lastClientY: number;
+  openTimer: number;
+  isOpen: boolean;
+  selectedChoice: TabWheelHoldGestureChoice | null;
+  overlay: HTMLDivElement | null;
+};
 type TaggedFaviconHref = {
   size: number;
   href: string;
@@ -156,6 +187,7 @@ export function initApp(): void {
     button: number;
     startedAt: number;
   } | null = null;
+  let activeHoldGesture: ActiveHoldGesture | null = null;
 
   void loadTabWheelSettings()
     .then((loadedSettings) => {
@@ -681,13 +713,14 @@ export function initApp(): void {
       && !isGestureBlockedTarget(event.target);
   }
 
-  function resolveMouseGestureAction(event: MouseEvent): TabWheelMouseGestureAction | null {
+  function resolveMouseGestureKind(event: MouseEvent): TabWheelHoldGestureKind | "middle" | null {
     if (!areSettingsLoaded) return null;
     if (!event.isTrusted) return null;
     if (!isTabWheelModifier(event, settings.gestureModifier, settings.gestureWithShift)) return null;
     if (isGestureBlockedTarget(event.target)) return null;
-    if (event.button === 0) return "tag";
-    if (event.button === 2) return "scope";
+    if (event.button === 0) return "left";
+    if (event.button === 1) return "middle";
+    if (event.button === 2) return "right";
     return null;
   }
 
@@ -695,8 +728,17 @@ export function initApp(): void {
     return event.type === "pointerdown" || event.type === "mousedown";
   }
 
+  function isMouseGestureMoveEvent(event: MouseEvent): boolean {
+    return event.type === "pointermove" || event.type === "mousemove";
+  }
+
+  function isMouseGestureEndEvent(event: MouseEvent): boolean {
+    return event.type === "pointerup" || event.type === "mouseup";
+  }
+
   function getActiveMouseGestureClaim(event: MouseEvent): typeof claimedMouseGesture {
     if (!claimedMouseGesture) return null;
+    if (activeHoldGesture) return claimedMouseGesture;
     if (Date.now() - claimedMouseGesture.startedAt > MOUSE_GESTURE_CLAIM_MS) {
       claimedMouseGesture = null;
       return null;
@@ -705,8 +747,144 @@ export function initApp(): void {
     return event.button === claimedMouseGesture.button ? claimedMouseGesture : null;
   }
 
-  function runMouseGestureAction(action: TabWheelMouseGestureAction): void {
-    if (action === "tag") {
+  function clampGestureCoordinate(value: number, radius: number, max: number): number {
+    if (max <= radius * 2) return Math.max(0, Math.min(max, value));
+    return Math.max(radius, Math.min(max - radius, value));
+  }
+
+  function getHoldGestureOptions(kind: TabWheelHoldGestureKind): TabWheelHoldGestureOption[] {
+    if (kind === "left") {
+      return [
+        { choice: "tag", label: "Tag / Untag", x: -HOLD_GESTURE_CHOICE_RADIUS_PX, y: 0 },
+        { choice: "scope", label: "Cycle Mode", x: HOLD_GESTURE_CHOICE_RADIUS_PX, y: 0 },
+      ];
+    }
+    return [
+      { choice: "lastRecent", label: "Last Recent", x: 0, y: -HOLD_GESTURE_CHOICE_RADIUS_PX },
+      { choice: "closeTab", label: "Close Tab", x: -HOLD_GESTURE_CHOICE_RADIUS_PX * 0.82, y: HOLD_GESTURE_CHOICE_RADIUS_PX * 0.78 },
+      { choice: "newTab", label: "New Tab", x: HOLD_GESTURE_CHOICE_RADIUS_PX * 0.82, y: HOLD_GESTURE_CHOICE_RADIUS_PX * 0.78 },
+    ];
+  }
+
+  function resolveHoldGestureChoice(
+    gesture: ActiveHoldGesture,
+    clientX: number,
+    clientY: number,
+  ): TabWheelHoldGestureChoice | null {
+    const actualDistance = Math.hypot(clientX - gesture.originX, clientY - gesture.originY);
+    if (actualDistance < HOLD_GESTURE_DEAD_ZONE_PX) return null;
+    const dx = clientX - gesture.selectionX;
+    const dy = clientY - gesture.selectionY;
+    const selectionDistance = Math.hypot(dx, dy);
+    if (selectionDistance < HOLD_GESTURE_DEAD_ZONE_PX) return null;
+    const normalizedX = dx / selectionDistance;
+    const normalizedY = dy / selectionDistance;
+    let bestOption: TabWheelHoldGestureOption | null = null;
+    let bestScore = -Infinity;
+    for (const option of getHoldGestureOptions(gesture.kind)) {
+      const optionDistance = Math.hypot(option.x, option.y) || 1;
+      const score = normalizedX * (option.x / optionDistance) + normalizedY * (option.y / optionDistance);
+      if (score > bestScore) {
+        bestScore = score;
+        bestOption = option;
+      }
+    }
+    return bestOption?.choice || null;
+  }
+
+  function updateHoldGestureOverlay(): void {
+    const gesture = activeHoldGesture;
+    if (!gesture?.overlay) return;
+    gesture.overlay.querySelectorAll<HTMLElement>("[data-choice]").forEach((element) => {
+      element.classList.toggle("is-selected", element.dataset.choice === gesture.selectedChoice);
+    });
+  }
+
+  function openHoldGestureOverlay(gesture: ActiveHoldGesture): void {
+    if (gesture.isOpen) return;
+    gesture.isOpen = true;
+    const overlay = document.createElement("div");
+    overlay.id = HOLD_GESTURE_ID;
+    overlay.setAttribute("aria-hidden", "true");
+    overlay.style.cssText = [
+      "position:fixed",
+      "inset:0",
+      "z-index:2147483645",
+      "pointer-events:none",
+      "font:11px/1.2 'SF Mono','JetBrains Mono','Fira Code','Consolas',monospace",
+      "color:#e0e0e0",
+    ].join(";");
+
+    const center = document.createElement("div");
+    center.style.cssText = [
+      "position:absolute",
+      `left:${gesture.renderX}px`,
+      `top:${gesture.renderY}px`,
+      "width:44px",
+      "height:44px",
+      "transform:translate(-50%,-50%)",
+      "border-radius:999px",
+      "border:1px solid rgba(255,255,255,0.14)",
+      "background:rgba(30,30,30,0.82)",
+      "box-shadow:0 16px 44px rgba(0,0,0,0.36)",
+    ].join(";");
+    overlay.appendChild(center);
+
+    for (const option of getHoldGestureOptions(gesture.kind)) {
+      const element = document.createElement("div");
+      const labelX = clampGestureCoordinate(gesture.renderX + option.x, 58, window.innerWidth);
+      const labelY = clampGestureCoordinate(gesture.renderY + option.y, 24, window.innerHeight);
+      element.dataset.choice = option.choice;
+      element.textContent = option.label;
+      element.style.cssText = [
+        "position:absolute",
+        `left:${labelX}px`,
+        `top:${labelY}px`,
+        "min-width:88px",
+        "min-height:34px",
+        "display:flex",
+        "align-items:center",
+        "justify-content:center",
+        "padding:6px 10px",
+        "transform:translate(-50%,-50%)",
+        "border-radius:8px",
+        "border:1px solid rgba(255,255,255,0.14)",
+        "background:rgba(30,30,30,0.92)",
+        "box-shadow:0 14px 36px rgba(0,0,0,0.34)",
+        "font-weight:700",
+        "letter-spacing:0",
+        "text-align:center",
+        "white-space:nowrap",
+        "transition:background 100ms ease,border-color 100ms ease,transform 100ms ease",
+      ].join(";");
+      overlay.appendChild(element);
+    }
+
+    const style = document.createElement("style");
+    style.textContent = `
+      #${HOLD_GESTURE_ID} [data-choice].is-selected {
+        border-color: rgba(10,132,255,0.65) !important;
+        background: rgba(10,132,255,0.34) !important;
+        transform: translate(-50%, -50%) scale(1.06) !important;
+      }
+    `;
+    overlay.appendChild(style);
+    document.documentElement.appendChild(overlay);
+    gesture.overlay = overlay;
+    gesture.selectedChoice = resolveHoldGestureChoice(gesture, gesture.lastClientX, gesture.lastClientY);
+    updateHoldGestureOverlay();
+  }
+
+  function cancelHoldGesture(): void {
+    const gesture = activeHoldGesture;
+    activeHoldGesture = null;
+    if (!gesture) return;
+    if (gesture.openTimer) window.clearTimeout(gesture.openTimer);
+    gesture.overlay?.remove();
+  }
+
+  function runHoldGestureChoice(choice: TabWheelHoldGestureChoice): void {
+    if (choice === "tag") {
       void toggleCurrentTabWheelTag()
         .then((result) => {
           if (!result.ok || typeof result.isCurrentTagged !== "boolean") return;
@@ -715,7 +893,83 @@ export function initApp(): void {
         .catch(() => showStatus("Tag failed"));
       return;
     }
-    void toggleTabWheelCycleScope().catch(() => showStatus("Mode switch failed"));
+    if (choice === "scope") {
+      void toggleTabWheelCycleScope().catch(() => showStatus("Mode switch failed"));
+      return;
+    }
+    if (choice === "newTab") {
+      void openNewTabNextToCurrentTabWheel().catch(() => showStatus("New tab failed"));
+      return;
+    }
+    if (choice === "lastRecent") {
+      void activateLastRecentTabWheelTab()
+        .then((result) => {
+          if (!result.ok) showStatus(result.reason || "No recent tab");
+        })
+        .catch(() => showStatus("No recent tab"));
+      return;
+    }
+    void closeCurrentTabWheelTabAndActivateLastRecent().catch(() => showStatus("Close failed"));
+  }
+
+  function startHoldGesture(event: MouseEvent, kind: TabWheelHoldGestureKind): void {
+    cancelHoldGesture();
+    const renderRadius = HOLD_GESTURE_CHOICE_RADIUS_PX + 80;
+    const gesture: ActiveHoldGesture = {
+      kind,
+      button: event.button,
+      originX: event.clientX,
+      originY: event.clientY,
+      renderX: clampGestureCoordinate(event.clientX, renderRadius, window.innerWidth),
+      renderY: clampGestureCoordinate(event.clientY, renderRadius, window.innerHeight),
+      selectionX: clampGestureCoordinate(event.clientX, renderRadius, window.innerWidth),
+      selectionY: clampGestureCoordinate(event.clientY, renderRadius, window.innerHeight),
+      lastClientX: event.clientX,
+      lastClientY: event.clientY,
+      openTimer: 0,
+      isOpen: false,
+      selectedChoice: null,
+      overlay: null,
+    };
+    gesture.openTimer = window.setTimeout(() => {
+      if (activeHoldGesture === gesture) openHoldGestureOverlay(gesture);
+    }, HOLD_GESTURE_DELAY_MS);
+    activeHoldGesture = gesture;
+    claimedMouseGesture = {
+      button: event.button,
+      startedAt: Date.now(),
+    };
+  }
+
+  function updateHoldGesture(event: MouseEvent): void {
+    const gesture = activeHoldGesture;
+    if (!gesture) return;
+    gesture.lastClientX = event.clientX;
+    gesture.lastClientY = event.clientY;
+    if (!gesture.isOpen) return;
+    gesture.selectedChoice = resolveHoldGestureChoice(gesture, event.clientX, event.clientY);
+    updateHoldGestureOverlay();
+  }
+
+  function finishHoldGesture(event: MouseEvent): void {
+    const gesture = activeHoldGesture;
+    if (!gesture) return;
+    updateHoldGesture(event);
+    const selectedChoice = gesture.isOpen ? gesture.selectedChoice : null;
+    cancelHoldGesture();
+    claimedMouseGesture = {
+      button: gesture.button,
+      startedAt: Date.now(),
+    };
+    if (selectedChoice) runHoldGestureChoice(selectedChoice);
+  }
+
+  function openMiddleClickPopup(event: MouseEvent): void {
+    claimedMouseGesture = {
+      button: event.button,
+      startedAt: Date.now(),
+    };
+    openTabWheelPopupOverlay();
   }
 
   function getTabCycleWheelDelta(event: WheelEvent): number {
@@ -761,6 +1015,19 @@ export function initApp(): void {
   }
 
   function mouseGestureHandler(event: MouseEvent): void {
+    if (activeHoldGesture) {
+      suppressPageEvent(event);
+      if (isMouseGestureMoveEvent(event)) {
+        updateHoldGesture(event);
+        return;
+      }
+      if (isMouseGestureEndEvent(event) && event.button === activeHoldGesture.button) {
+        finishHoldGesture(event);
+        return;
+      }
+      return;
+    }
+
     const activeClaim = getActiveMouseGestureClaim(event);
     if (activeClaim) {
       suppressPageEvent(event);
@@ -770,17 +1037,23 @@ export function initApp(): void {
       return;
     }
 
-    const action = resolveMouseGestureAction(event);
-    if (!action) return;
+    if (!isMouseGestureStartEvent(event)) return;
+    const gestureKind = resolveMouseGestureKind(event);
+    if (!gestureKind) return;
     suppressPageEvent(event);
 
-    if (isMouseGestureStartEvent(event) || event.type === "click" || event.type === "contextmenu") {
-      claimedMouseGesture = {
-        button: event.button,
-        startedAt: Date.now(),
-      };
-      runMouseGestureAction(action);
+    if (gestureKind === "middle") {
+      openMiddleClickPopup(event);
+      return;
     }
+    startHoldGesture(event, gestureKind);
+  }
+
+  function keyboardGestureHandler(event: KeyboardEvent): void {
+    if (event.key !== "Escape" || !activeHoldGesture) return;
+    suppressPageEvent(event);
+    cancelHoldGesture();
+    claimedMouseGesture = null;
   }
 
   function storageChangedHandler(
@@ -797,6 +1070,7 @@ export function initApp(): void {
       overshootGuardDirection = null;
       overshootGuardUntil = 0;
       claimedMouseGesture = null;
+      cancelHoldGesture();
       if (isTaggedIndicatorActive) applyTaggedIndicators(true, settings.cycleScope);
     }
   }
@@ -833,24 +1107,30 @@ export function initApp(): void {
   function visibilityHandler(): void {
     if (document.visibilityState === "hidden") {
       flushScrollSnapshot();
+      cancelHoldGesture();
       dismissPanel();
     }
   }
 
   window.addEventListener("pointerdown", mouseGestureHandler, true);
+  window.addEventListener("pointermove", mouseGestureHandler, true);
   window.addEventListener("mousedown", mouseGestureHandler, true);
+  window.addEventListener("mousemove", mouseGestureHandler, true);
   window.addEventListener("pointerup", mouseGestureHandler, true);
   window.addEventListener("mouseup", mouseGestureHandler, true);
   window.addEventListener("click", mouseGestureHandler, true);
   window.addEventListener("auxclick", mouseGestureHandler, true);
   window.addEventListener("contextmenu", mouseGestureHandler, true);
   document.addEventListener("pointerdown", mouseGestureHandler, true);
+  document.addEventListener("pointermove", mouseGestureHandler, true);
   document.addEventListener("mousedown", mouseGestureHandler, true);
+  document.addEventListener("mousemove", mouseGestureHandler, true);
   document.addEventListener("pointerup", mouseGestureHandler, true);
   document.addEventListener("mouseup", mouseGestureHandler, true);
   document.addEventListener("click", mouseGestureHandler, true);
   document.addEventListener("auxclick", mouseGestureHandler, true);
   document.addEventListener("contextmenu", mouseGestureHandler, true);
+  document.addEventListener("keydown", keyboardGestureHandler, true);
   window.addEventListener("wheel", wheelHandler, { passive: false, capture: true });
   document.addEventListener("wheel", wheelHandler, { passive: false, capture: true });
   browser.storage.onChanged.addListener(storageChangedHandler);
@@ -865,19 +1145,24 @@ export function initApp(): void {
 
   window.__tabWheelCleanup = () => {
     window.removeEventListener("pointerdown", mouseGestureHandler, true);
+    window.removeEventListener("pointermove", mouseGestureHandler, true);
     window.removeEventListener("mousedown", mouseGestureHandler, true);
+    window.removeEventListener("mousemove", mouseGestureHandler, true);
     window.removeEventListener("pointerup", mouseGestureHandler, true);
     window.removeEventListener("mouseup", mouseGestureHandler, true);
     window.removeEventListener("click", mouseGestureHandler, true);
     window.removeEventListener("auxclick", mouseGestureHandler, true);
     window.removeEventListener("contextmenu", mouseGestureHandler, true);
     document.removeEventListener("pointerdown", mouseGestureHandler, true);
+    document.removeEventListener("pointermove", mouseGestureHandler, true);
     document.removeEventListener("mousedown", mouseGestureHandler, true);
+    document.removeEventListener("mousemove", mouseGestureHandler, true);
     document.removeEventListener("pointerup", mouseGestureHandler, true);
     document.removeEventListener("mouseup", mouseGestureHandler, true);
     document.removeEventListener("click", mouseGestureHandler, true);
     document.removeEventListener("auxclick", mouseGestureHandler, true);
     document.removeEventListener("contextmenu", mouseGestureHandler, true);
+    document.removeEventListener("keydown", keyboardGestureHandler, true);
     window.removeEventListener("wheel", wheelHandler, true);
     document.removeEventListener("wheel", wheelHandler, true);
     browser.storage.onChanged.removeListener(storageChangedHandler);
@@ -891,9 +1176,12 @@ export function initApp(): void {
     if (scrollSaveTimer) window.clearTimeout(scrollSaveTimer);
     if (statusTimer) window.clearTimeout(statusTimer);
     if (taggedIndicatorRenderTimer) window.clearTimeout(taggedIndicatorRenderTimer);
+    const shouldPreservePanel = window.__tabWheelPreservePanelOnNextCleanup === true;
+    window.__tabWheelPreservePanelOnNextCleanup = false;
+    cancelHoldGesture();
     document.getElementById(STATUS_ID)?.remove();
     applyTaggedIndicators(false);
-    dismissPanel();
+    if (!shouldPreservePanel) dismissPanel();
   };
 
   if (isTopFrameContext) {

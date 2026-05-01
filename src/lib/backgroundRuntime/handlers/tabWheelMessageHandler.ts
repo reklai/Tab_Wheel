@@ -118,6 +118,15 @@ export function createTabWheelMessageHandler(
           suppressPageStatus: message.suppressPageStatus,
         });
 
+      case "TABWHEEL_OPEN_NEW_TAB_NEXT_TO_CURRENT":
+        return await domain.openNewTabNextToCurrent(sender.tab, message.windowId);
+
+      case "TABWHEEL_ACTIVATE_LAST_RECENT_TAB":
+        return await domain.activateLastRecentTab(sender.tab, message.windowId);
+
+      case "TABWHEEL_CLOSE_CURRENT_TAB_AND_ACTIVATE_LAST_RECENT":
+        return await domain.closeCurrentTabAndActivateLastRecent(sender.tab, message.windowId);
+
       case "TABWHEEL_FETCH_FAVICON":
         return await fetchFaviconData(message.href);
 

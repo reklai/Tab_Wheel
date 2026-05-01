@@ -42,7 +42,6 @@ interface TabWheelSettings {
   allowGesturesInEditableFields: boolean;
   cycleScope: TabWheelCycleScope;
   skipPinnedTabs: boolean;
-  wrapAround: boolean;
   wheelPreset: TabWheelPreset;
   wheelSensitivity: number;
   wheelCooldownMs: number;
@@ -84,4 +83,8 @@ interface TabWheelOverview {
   isCurrentTagged: boolean;
   taggedTabs: TabWheelTaggedTabEntry[];
   contentScriptStatus: TabWheelContentScriptStatus;
+}
+
+interface Window {
+  __tabWheelPreservePanelOnNextCleanup?: boolean;
 }
