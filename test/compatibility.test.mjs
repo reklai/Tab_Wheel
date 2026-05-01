@@ -33,10 +33,10 @@ test("manifests no longer declare legacy keyboard commands", () => {
 test("manifests use TabWheel names and titles", () => {
   const v2 = readJson("esBuildConfig/manifest_v2.json");
   const v3 = readJson("esBuildConfig/manifest_v3.json");
-  assert.equal(v2.name, "TabWheel");
-  assert.equal(v2.browser_action.default_title, "TabWheel");
-  assert.equal(v3.name, "TabWheel");
-  assert.equal(v3.action.default_title, "TabWheel");
+  assert.equal(v2.name, "TabWheel - Mouse Wheel Tab Switcher");
+  assert.equal(v2.browser_action.default_title, "TabWheel - Mouse Wheel Tab Switcher");
+  assert.equal(v3.name, "TabWheel - Mouse Wheel Tab Switcher");
+  assert.equal(v3.action.default_title, "TabWheel - Mouse Wheel Tab Switcher");
 });
 
 test("manifests are versioned for the 1.0.0 public release", () => {
