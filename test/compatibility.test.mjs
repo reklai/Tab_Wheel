@@ -54,6 +54,17 @@ test("content scripts run early enough to claim modifier-wheel events", () => {
 
   assert.equal(v2.content_scripts[0].run_at, "document_start");
   assert.equal(v3.content_scripts[0].run_at, "document_start");
+  assert.equal(v2.content_scripts[0].all_frames, true);
+  assert.equal(v3.content_scripts[0].all_frames, true);
+  assert.equal(v2.content_scripts[0].match_about_blank, true);
+  assert.equal(v3.content_scripts[0].match_about_blank, true);
+});
+
+test("chrome manifest can activate existing normal web tabs after install", () => {
+  const v3 = readJson("esBuildConfig/manifest_v3.json");
+
+  assert.ok(v3.permissions.includes("scripting"));
+  assert.ok(v3.host_permissions.includes("<all_urls>"));
 });
 
 test("firefox manifest contains AMO gecko metadata", () => {

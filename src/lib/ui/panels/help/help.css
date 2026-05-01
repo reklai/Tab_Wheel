@@ -71,12 +71,6 @@
   white-space: normal; flex-shrink: 1; margin-left: 12px;
   max-width: 70%; text-align: right; overflow-wrap: anywhere;
 }
-.ht-help-tip {
-  font-size: 11px; color: var(--ht-color-text-muted); padding: 10px 20px;
-  border-top: 1px solid var(--ht-color-border-soft);
-  text-align: center; line-height: 1.6;
-}
-
 @media (max-width: 520px), (max-height: 560px) {
   .ht-help-container { border-radius: 8px; }
   .ht-help-row { padding: 4px 10px 4px 12px; font-size: 11px; }

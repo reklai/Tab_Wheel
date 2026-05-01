@@ -60,7 +60,7 @@ if (!Array.isArray(requiredDataCollection) || requiredDataCollection.length === 
   errors.push("MV2 data_collection_permissions.required must include \"none\" for no external data collection.");
 }
 
-const requiredV3Permissions = ["tabs", "storage"];
+const requiredV3Permissions = ["scripting", "tabs", "storage"];
 if (!hasAll(manifestV3.permissions || [], requiredV3Permissions)) {
   errors.push("MV3 is missing required permissions for runtime features.");
 }
@@ -89,6 +89,22 @@ const v2Popup = manifestV2.browser_action?.default_popup;
 const v3Popup = manifestV3.action?.default_popup;
 if (v2Popup !== "toolbarPopup/toolbarPopup.html" || v3Popup !== "toolbarPopup/toolbarPopup.html") {
   errors.push('Both manifests must use "toolbarPopup/toolbarPopup.html" as default popup.');
+}
+
+for (const [name, manifest] of [
+  ["MV2", manifestV2],
+  ["MV3", manifestV3],
+]) {
+  const contentScript = manifest.content_scripts?.[0];
+  if (contentScript?.run_at !== "document_start") {
+    errors.push(`${name} content script must run at document_start to claim page gestures early.`);
+  }
+  if (contentScript?.all_frames !== true) {
+    errors.push(`${name} content script must run in all frames for editable iframe reliability.`);
+  }
+  if (contentScript?.match_about_blank !== true) {
+    errors.push(`${name} content script must match about:blank child frames where supported.`);
+  }
 }
 
 for (const [name, manifest] of [

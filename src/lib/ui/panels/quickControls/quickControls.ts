@@ -2,6 +2,8 @@
 
 import { escapeHtml } from "../../../common/utils/helpers";
 import {
+  applyTabWheelPreset,
+  detectTabWheelPreset,
   formatTabWheelModifierCombo,
   formatTabWheelModifierKey,
   loadTabWheelSettings,
@@ -10,8 +12,9 @@ import {
   MIN_WHEEL_COOLDOWN_MS,
   MIN_WHEEL_SENSITIVITY,
   saveTabWheelSettings,
-  TABWHEEL_CYCLE_ORDERS,
+  TABWHEEL_CYCLE_SCOPES,
   TABWHEEL_MODIFIER_KEYS,
+  TABWHEEL_PRESETS,
 } from "../../../common/contracts/tabWheel";
 import {
   getTabWheelOverviewWithRetry,
@@ -28,8 +31,15 @@ import {
 import { openTabWheelHelpOverlay } from "../help/help";
 import styles from "./quickControls.css";
 
-function cycleOrderLabel(order: TabWheelCycleOrder): string {
-  return order === "mru" ? "Recent" : "Left-right";
+function cycleScopeLabel(scope: TabWheelCycleScope): string {
+  return scope === "tagged" ? "Wheel List" : "General";
+}
+
+function presetLabel(preset: TabWheelPreset): string {
+  if (preset === "precise") return "Precise";
+  if (preset === "fast") return "Fast";
+  if (preset === "custom") return "Custom";
+  return "Balanced";
 }
 
 function boolAttr(value: boolean): string {
@@ -42,9 +52,15 @@ function modifierOptions(selected: TabWheelModifierKey): string {
     .join("");
 }
 
-function cycleOrderOptions(selected: TabWheelCycleOrder): string {
-  return TABWHEEL_CYCLE_ORDERS
-    .map((order) => `<option value="${order}" ${order === selected ? "selected" : ""}>${cycleOrderLabel(order)}</option>`)
+function cycleScopeOptions(selected: TabWheelCycleScope): string {
+  return TABWHEEL_CYCLE_SCOPES
+    .map((scope) => `<option value="${scope}" ${scope === selected ? "selected" : ""}>${cycleScopeLabel(scope)}</option>`)
+    .join("");
+}
+
+function presetOptions(selected: TabWheelPreset): string {
+  return TABWHEEL_PRESETS
+    .map((preset) => `<option value="${preset}" ${preset === selected ? "selected" : ""}>${presetLabel(preset)}</option>`)
     .join("");
 }
 
@@ -83,21 +99,26 @@ function buildQuickControlsHtml(settings: TabWheelSettings, overview: TabWheelOv
     </div>
     <div class="ht-quick-hero">
       <span class="ht-quick-shortcut">${escapeHtml(shortcutLabel(settings))}</span>
-      <span class="ht-quick-subtitle">${escapeHtml(cycleOrderLabel(settings.cycleOrder))} cycling</span>
+      <span class="ht-quick-subtitle">${escapeHtml(cycleScopeLabel(settings.cycleScope))} cycling</span>
     </div>
     <div class="ht-quick-grid">
-      ${buildControlRow("Cycle order", `
-        <select data-setting="cycleOrder">${cycleOrderOptions(settings.cycleOrder)}</select>
-      `, "Left-right follows the visible browser tab order. Recent follows most-recently-used tabs.")}
+      ${buildControlRow("Current cycle mode", `
+        <select data-setting="cycleScope">${cycleScopeOptions(settings.cycleScope)}</select>
+      `, "General cycles eligible tabs. Wheel List cycles tagged tabs only.")}
       ${buildControlRow("Wheel modifier", `
         <select data-setting="gestureModifier">${modifierOptions(settings.gestureModifier)}</select>
-      `, "Base key for cycling and for opening this menu.")}
+      `, "Base key for wheel and click shortcuts.")}
       ${buildControlRow("Require Shift", buildToggle("gestureWithShift", settings.gestureWithShift), "Add Shift to the selected modifier before wheel cycling is active.")}
       ${buildControlRow("Invert wheel", buildToggle("invertScroll", settings.invertScroll), "Swap wheel down/up so down goes previous and up goes next.")}
       ${buildControlRow("Skip pinned tabs", buildToggle("skipPinnedTabs", settings.skipPinnedTabs), "Keep pinned utility tabs out of the cycling path.")}
       ${buildControlRow("Wrap around", buildToggle("wrapAround", settings.wrapAround), "At the first or last tab, continue from the opposite edge.")}
+      ${buildControlRow("Preset", `
+        <select data-setting="wheelPreset">${presetOptions(settings.wheelPreset)}</select>
+      `, "Apply speed and guard defaults.")}
       ${buildControlRow("Acceleration", buildToggle("wheelAcceleration", settings.wheelAcceleration), "Shortens the cooldown during repeated wheel bursts.")}
-      ${buildControlRow("Editable fields", buildToggle("allowGesturesInEditableFields", settings.allowGesturesInEditableFields), "Allow the wheel shortcut inside text boxes and rich editors.")}
+      ${buildControlRow("Horizontal wheel", buildToggle("horizontalWheel", settings.horizontalWheel), "Use horizontal wheel or trackpad motion for switching.")}
+      ${buildControlRow("Safe overshoot guard", buildToggle("overshootGuard", settings.overshootGuard), "Prevent extra tab jumps from trackpad or wheel momentum.")}
+      ${buildControlRow("Editable fields", buildToggle("allowGesturesInEditableFields", settings.allowGesturesInEditableFields), "Allow wheel-cycling when cursor is inside text boxes, search fields, and editors/docs")}
       ${buildControlRow("Sensitivity", `
         <span class="ht-quick-range">
           <input data-setting="wheelSensitivity" type="range" min="${MIN_WHEEL_SENSITIVITY}" max="${MAX_WHEEL_SENSITIVITY}" step="0.1" value="${settings.wheelSensitivity}" />
@@ -161,14 +182,19 @@ export async function openQuickControlsPanel(): Promise<void> {
       const nextSettings: TabWheelSettings = { ...settings };
       if (target instanceof HTMLInputElement && target.type === "checkbox") {
         Object.assign(nextSettings, { [key]: target.checked });
+        nextSettings.wheelPreset = detectTabWheelPreset(nextSettings);
         return nextSettings;
       }
       if (target instanceof HTMLInputElement && target.type === "range") {
         Object.assign(nextSettings, { [key]: Number(target.value) });
+        nextSettings.wheelPreset = detectTabWheelPreset(nextSettings);
         return nextSettings;
       }
       if (target instanceof HTMLSelectElement) {
         Object.assign(nextSettings, { [key]: target.value });
+        if (key === "wheelPreset") {
+          return applyTabWheelPreset(nextSettings, target.value as TabWheelPreset);
+        }
       }
       return nextSettings;
     }

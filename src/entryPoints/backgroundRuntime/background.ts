@@ -5,6 +5,13 @@ import { createTabWheelMessageHandler } from "../../lib/backgroundRuntime/handle
 import { registerRuntimeMessageRouter } from "../../lib/backgroundRuntime/handlers/runtimeRouter";
 import { migrateStorageIfNeeded } from "../../lib/common/utils/storageMigrationsRuntime";
 
+const tabWheel = createTabWheelDomain();
+tabWheel.registerLifecycleListeners();
+
+registerRuntimeMessageRouter([
+  createTabWheelMessageHandler(tabWheel),
+]);
+
 async function bootstrapBackground(): Promise<void> {
   const migration = await migrateStorageIfNeeded();
   if (migration.changed) {
@@ -12,13 +19,6 @@ async function bootstrapBackground(): Promise<void> {
       `[TabWheel] Storage migration applied (${migration.fromVersion} -> ${migration.toVersion}).`,
     );
   }
-
-  const tabWheel = createTabWheelDomain();
-  tabWheel.registerLifecycleListeners();
-
-  registerRuntimeMessageRouter([
-    createTabWheelMessageHandler(tabWheel),
-  ]);
 
   void tabWheel.ensureLoaded();
 }

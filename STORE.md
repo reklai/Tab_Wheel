@@ -7,24 +7,27 @@
 
 ## Summary (short, <=132 chars)
 
-Switch tabs quickly with Alt+Wheel, recent-tab mode, scroll memory, and wheel tuning.
+Switch tabs with Alt + Wheel, Wheel List mode, tuning, and local-only scroll memory.
 
 ## Description
 
-TabWheel lets you switch browser tabs with `Alt + Wheel` by default. Wheel down moves forward and wheel up moves backward unless you invert the direction. You can cycle by left-right browser tab order or most-recently-used order, include or skip pinned tabs, keep wrap-around enabled or stop at the tab-list edge, and tune sensitivity, cooldown, and burst acceleration.
+TabWheel lets you switch browser tabs with `Alt + Wheel` by default. Wheel down or right moves forward, and wheel up or left moves backward unless you invert the direction. General mode cycles eligible tabs in visible tab-strip order. Wheel List mode cycles only tabs you marked for wheel switching.
 
-Use modifier + left click to open quick controls on pages where content scripts are available. The toolbar popup exposes the same controls for browser-reserved pages where page shortcuts may not run, such as `chrome://`, extension pages, browser stores, and devtools.
+Use Alt + Left Click by default to add or remove the current tab from the Wheel List. Use Alt + Right Click by default to switch between General and Wheel List cycling. The toolbar popup is a scrollable panel with current mode, Wheel List entries, remove-all, Previous / Next fallback buttons, and wheel tuning.
 
-TabWheel can remember recent scroll positions and restore them when cycling back to a page. Scroll memory is stored locally and works only where the browser allows the content script to read and restore page scroll.
+TabWheel includes Precise, Balanced, Fast, and Custom presets, horizontal wheel support, safe overshoot guarding, pinned-tab filtering, wrap-around, sensitivity, cooldown, editable-field control, and optional burst acceleration. Editable-field control means: Allow wheel-cycling when cursor is inside text boxes, search fields, and editors/docs. TabWheel tries to activate existing normal web tabs after install or update. Browser-reserved pages such as `chrome://`, extension pages, browser stores, and devtools do not allow page shortcuts; use the toolbar popup's controls there.
+
+TabWheel can remember recent scroll positions and restore them when cycling back to the same URL. Scroll memory, URL checks, Wheel List entries, and settings are stored locally and work only where the browser allows the content script to read and restore page scroll.
 
 ## Privacy
 
-No data leaves your browser. TabWheel stores settings and recent scroll positions locally through browser storage.
+No data leaves your browser. TabWheel stores settings, Wheel List entries, recent scroll positions, and URL checks for scroll restore through browser storage.
 
 ## Permissions
 
-- `tabs`: Read and activate tabs for cycling.
-- `storage`: Store settings, scroll positions, and schema version locally.
+- `tabs`: Read and activate tabs for cycling and Wheel List actions.
+- `storage`: Store settings, Wheel List entries, scroll positions, and schema version locally.
+- `scripting` (Chrome): Activate the content script on already-open normal web tabs after install or update.
 - `<all_urls>`: Run the content script on pages so modifier-wheel cycling and scroll memory can work.
 
 ## Browser Support

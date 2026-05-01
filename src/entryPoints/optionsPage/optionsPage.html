@@ -19,21 +19,37 @@
     <section class="settings-body">
       <div class="settings-header">
         <h1>TabWheel</h1>
-        <p class="subtitle">Fast modifier-wheel cycling for browser tabs.</p>
+        <p class="subtitle">Reliable modifier-wheel cycling with a toolbar fallback and optional Wheel List mode.</p>
       </div>
 
-      <label class="setting-row" for="cycleOrder" title="Left-right follows the visible browser tab order. Recent follows most-recently-used tabs.">
+      <label class="setting-row" for="gestureModifier" title="Base key for wheel and click shortcuts.">
         <span>
-          <strong>Cycle order</strong>
-          <small>Use left-right browser tab order or most-recently-used tab order.</small>
+          <strong>Modifier</strong>
+          <small>Choose the base key used for wheel cycling, tag/untag, and cycle-mode switching.</small>
         </span>
-        <select class="setting-control" id="cycleOrder"></select>
+        <select class="setting-control" id="gestureModifier"></select>
       </label>
 
-      <label class="setting-row" for="allowGesturesInEditableFields" title="Allow the wheel shortcut inside text boxes and rich editors.">
+      <label class="setting-row" for="gestureWithShift" title="Add Shift to the selected modifier before wheel cycling is active.">
         <span>
-          <strong>Allow modifier-wheel in editable fields</strong>
-          <small>Enabled by default for text boxes and rich editors. Turn off if a site needs native editor wheel behavior.</small>
+          <strong>Require Shift</strong>
+          <small>Add Shift to the selected modifier to reduce accidental wheel switches.</small>
+        </span>
+        <input id="gestureWithShift" type="checkbox" />
+      </label>
+
+      <label class="setting-row" for="wheelPreset" title="Apply a preset for sensitivity, cooldown, acceleration, and overshoot guard.">
+        <span>
+          <strong>Wheel preset</strong>
+          <small>Apply a sensitivity and timing profile: Precise, Balanced, Fast, or Custom.</small>
+        </span>
+        <select class="setting-control" id="wheelPreset"></select>
+      </label>
+
+      <label class="setting-row" for="allowGesturesInEditableFields" title="Allow wheel-cycling when cursor is inside text boxes, search fields, and editors/docs">
+        <span>
+          <strong>Editable fields</strong>
+          <small>Allow wheel-cycling when cursor is inside text boxes, search fields, and editors/docs</small>
         </span>
         <input id="allowGesturesInEditableFields" type="checkbox" />
       </label>
@@ -44,22 +60,6 @@
           <small id="invertScrollHelp">Alt + wheel down becomes previous, and Alt + wheel up becomes next.</small>
         </span>
         <input id="invertScroll" type="checkbox" />
-      </label>
-
-      <label class="setting-row" for="gestureModifier" title="Base key for cycling and for opening quick controls.">
-        <span>
-          <strong>Wheel modifier</strong>
-          <small>Choose Alt, Ctrl, or Meta for modifier-wheel cycling.</small>
-        </span>
-        <select class="setting-control" id="gestureModifier"></select>
-      </label>
-
-      <label class="setting-row" for="gestureWithShift" title="Add Shift to the selected modifier before wheel cycling is active.">
-        <span>
-          <strong>Add Shift to wheel shortcut</strong>
-          <small>Requires Shift with the selected modifier.</small>
-        </span>
-        <input id="gestureWithShift" type="checkbox" />
       </label>
 
       <label class="setting-row" for="skipPinnedTabs" title="Keep pinned utility tabs out of the cycling path.">
@@ -81,9 +81,25 @@
       <label class="setting-row" for="wheelAcceleration" title="Shortens the cooldown during repeated wheel bursts.">
         <span>
           <strong>Acceleration</strong>
-          <small>Speed up repeated wheel tab switches during a short burst.</small>
+          <small>Shorten the cooldown during repeated wheel bursts for faster intentional tab scanning.</small>
         </span>
         <input id="wheelAcceleration" type="checkbox" />
+      </label>
+
+      <label class="setting-row" for="horizontalWheel" title="Let horizontal wheel or trackpad motion switch tabs.">
+        <span>
+          <strong>Horizontal wheel</strong>
+          <small>Use sideways wheel or trackpad motion for previous and next tab switching.</small>
+        </span>
+        <input id="horizontalWheel" type="checkbox" />
+      </label>
+
+      <label class="setting-row" for="overshootGuard" title="Prevent extra tab jumps from trackpad or wheel momentum.">
+        <span>
+          <strong>Safe overshoot guard</strong>
+          <small>Prevent extra tab jumps from trackpad or wheel momentum.</small>
+        </span>
+        <input id="overshootGuard" type="checkbox" />
       </label>
 
       <label class="setting-row" for="wheelSensitivity" title="Higher values need less wheel movement before switching tabs.">
@@ -97,15 +113,27 @@
       <label class="setting-row" for="wheelCooldownMs" title="Minimum time between tab switches; lower feels faster but can overshoot.">
         <span>
           <strong>Cooldown</strong>
-          <small>Minimum time between tab switches. Current: <span id="wheelCooldownValue">140ms</span></small>
+          <small>Minimum time between tab switches. Current: <span id="wheelCooldownValue">160ms</span></small>
         </span>
         <input class="setting-range" id="wheelCooldownMs" type="range" step="10" />
       </label>
 
       <div class="reference-grid" aria-label="Shortcut reference">
-        <div><strong id="wheelShortcut">Alt + Wheel</strong><span>Cycle tabs using the selected tab order.</span></div>
-        <div><strong>Modifier + Left Click</strong><span>Open quick controls on pages where content scripts are available.</span></div>
-        <div><strong>Toolbar popup</strong><span>Open the same controls when page shortcuts are unavailable.</span></div>
+        <div><strong id="wheelShortcut">Alt + Wheel</strong><span>Cycle tabs using the current cycle mode.</span></div>
+        <div><strong id="tagShortcut">Alt + Left Click</strong><span>Add or remove the current tab from the Wheel List.</span></div>
+        <div><strong id="scopeShortcut">Alt + Right Click</strong><span>Switch between General and Wheel List cycling.</span></div>
+        <div><strong>Toolbar popup</strong><span>Use Previous / Next fallback buttons, change mode, and manage the collapsed Wheel List.</span></div>
+      </div>
+
+      <div class="constraint-grid" aria-label="Gesture and page constraints">
+        <div>
+          <strong>Modifier-click caveat</strong>
+          <span>Some sites and browsers reserve modifier + left/right click combinations for opening links, saving links, selection, context menus, or system shortcuts. If one combo conflicts on your setup, choose another modifier or require Shift.</span>
+        </div>
+        <div>
+          <strong>Extension constraints</strong>
+          <span>Page gestures run on normal web pages. Browser UI and internal pages such as chrome://extensions, about:addons, the web store, PDF viewers, and some restricted pages may block content scripts; use the toolbar popup controls there.</span>
+        </div>
       </div>
     </section>
 

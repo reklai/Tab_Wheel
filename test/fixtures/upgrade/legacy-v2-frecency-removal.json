@@ -31,9 +31,31 @@
     ]
   },
   "expected": {
-    "storageSchemaVersion": 6,
+    "storageSchemaVersion": 8,
     "tabWheelSettings": {
-      "allowGesturesInEditableFields": true
+      "allowGesturesInEditableFields": true,
+      "cycleScope": "general",
+      "wheelPreset": "balanced",
+      "horizontalWheel": true,
+      "overshootGuard": true,
+      "wheelAcceleration": false,
+      "wheelCooldownMs": 160,
+      "wheelSensitivity": 1
+    },
+    "tabWheelWheelList": {
+      "1": [
+        {
+          "tabId": 7,
+          "windowId": 1,
+          "url": "https://example.com/",
+          "title": "Example",
+          "pinned": false,
+          "scrollX": 0,
+          "scrollY": 200,
+          "createdAt": 1710000000000,
+          "updatedAt": 1710000000000
+        }
+      ]
     },
     "tabManagerList": [
       {

@@ -35,3 +35,19 @@ export function normalizeWheelDeltaY(event: Pick<WheelEvent, "deltaMode" | "delt
   if (event.deltaMode === 2) return event.deltaY * pageHeight;
   return event.deltaY;
 }
+
+export function normalizeWheelDelta(
+  event: Pick<WheelEvent, "deltaMode" | "deltaX" | "deltaY">,
+  pageHeight: number,
+  pageWidth: number,
+  horizontalWheel: boolean,
+): number {
+  const normalizedY = normalizeWheelDeltaY(event, pageHeight);
+  if (!horizontalWheel) return normalizedY;
+  const normalizedX = event.deltaMode === 1
+    ? event.deltaX * 16
+    : event.deltaMode === 2
+      ? event.deltaX * pageWidth
+      : event.deltaX;
+  return Math.abs(normalizedX) > Math.abs(normalizedY) ? normalizedX : normalizedY;
+}

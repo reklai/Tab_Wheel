@@ -1,6 +1,8 @@
 // Options page for TabWheel settings.
 
 import {
+  applyTabWheelPreset,
+  detectTabWheelPreset,
   formatTabWheelModifierCombo,
   formatTabWheelModifierKey,
   loadTabWheelSettings,
@@ -9,27 +11,39 @@ import {
   MIN_WHEEL_COOLDOWN_MS,
   MIN_WHEEL_SENSITIVITY,
   saveTabWheelSettings,
-  TABWHEEL_CYCLE_ORDERS,
   TABWHEEL_MODIFIER_KEYS,
+  TABWHEEL_PRESETS,
 } from "../../lib/common/contracts/tabWheel";
+
+function presetLabel(preset: TabWheelPreset): string {
+  if (preset === "precise") return "Precise";
+  if (preset === "fast") return "Fast";
+  if (preset === "custom") return "Custom";
+  return "Balanced";
+}
 
 document.addEventListener("DOMContentLoaded", async () => {
   const invertScrollInput = document.getElementById("invertScroll") as HTMLInputElement;
   const allowGesturesInEditableFieldsInput = document.getElementById("allowGesturesInEditableFields") as HTMLInputElement;
-  const cycleOrderSelect = document.getElementById("cycleOrder") as HTMLSelectElement;
   const gestureModifierSelect = document.getElementById("gestureModifier") as HTMLSelectElement;
   const gestureWithShiftInput = document.getElementById("gestureWithShift") as HTMLInputElement;
   const skipPinnedTabsInput = document.getElementById("skipPinnedTabs") as HTMLInputElement;
   const wrapAroundInput = document.getElementById("wrapAround") as HTMLInputElement;
+  const wheelPresetSelect = document.getElementById("wheelPreset") as HTMLSelectElement;
   const wheelAccelerationInput = document.getElementById("wheelAcceleration") as HTMLInputElement;
+  const horizontalWheelInput = document.getElementById("horizontalWheel") as HTMLInputElement;
+  const overshootGuardInput = document.getElementById("overshootGuard") as HTMLInputElement;
   const wheelSensitivityInput = document.getElementById("wheelSensitivity") as HTMLInputElement;
   const wheelSensitivityValue = document.getElementById("wheelSensitivityValue")!;
   const wheelCooldownInput = document.getElementById("wheelCooldownMs") as HTMLInputElement;
   const wheelCooldownValue = document.getElementById("wheelCooldownValue")!;
   const invertScrollHelp = document.getElementById("invertScrollHelp")!;
   const wheelShortcut = document.getElementById("wheelShortcut")!;
+  const tagShortcut = document.getElementById("tagShortcut")!;
+  const scopeShortcut = document.getElementById("scopeShortcut")!;
   const statusBar = document.getElementById("statusBar")!;
 
+  let settings = await loadTabWheelSettings();
   let statusTimeout: ReturnType<typeof setTimeout> | null = null;
 
   function showStatus(message: string): void {
@@ -47,37 +61,47 @@ document.addEventListener("DOMContentLoaded", async () => {
       .join("");
   }
 
-  function populateCycleOrderSelect(select: HTMLSelectElement): void {
-    select.innerHTML = TABWHEEL_CYCLE_ORDERS
-      .map((order) => `<option value="${order}">${order === "mru" ? "Recent" : "Left-right"}</option>`)
+  function populatePresetSelect(select: HTMLSelectElement): void {
+    select.innerHTML = TABWHEEL_PRESETS
+      .map((preset) => `<option value="${preset}">${presetLabel(preset)}</option>`)
       .join("");
   }
 
   function readSettings(): TabWheelSettings {
-    return {
+    const nextSettings: TabWheelSettings = {
+      ...settings,
       invertScroll: invertScrollInput.checked,
       allowGesturesInEditableFields: allowGesturesInEditableFieldsInput.checked,
-      cycleOrder: cycleOrderSelect.value as TabWheelCycleOrder,
       gestureModifier: gestureModifierSelect.value as TabWheelModifierKey,
       gestureWithShift: gestureWithShiftInput.checked,
       skipPinnedTabs: skipPinnedTabsInput.checked,
       wrapAround: wrapAroundInput.checked,
+      wheelPreset: wheelPresetSelect.value as TabWheelPreset,
       wheelAcceleration: wheelAccelerationInput.checked,
+      horizontalWheel: horizontalWheelInput.checked,
+      overshootGuard: overshootGuardInput.checked,
       wheelSensitivity: Number(wheelSensitivityInput.value),
       wheelCooldownMs: Number(wheelCooldownInput.value),
     };
+    return {
+      ...nextSettings,
+      wheelPreset: detectTabWheelPreset(nextSettings),
+    };
   }
 
-  function renderSettings(settings: TabWheelSettings): void {
+  function renderSettings(nextSettings: TabWheelSettings): void {
+    settings = nextSettings;
     const gestureModifier = formatTabWheelModifierCombo(settings.gestureModifier, settings.gestureWithShift);
     invertScrollInput.checked = settings.invertScroll;
     allowGesturesInEditableFieldsInput.checked = settings.allowGesturesInEditableFields;
-    cycleOrderSelect.value = settings.cycleOrder;
     gestureModifierSelect.value = settings.gestureModifier;
     gestureWithShiftInput.checked = settings.gestureWithShift;
     skipPinnedTabsInput.checked = settings.skipPinnedTabs;
     wrapAroundInput.checked = settings.wrapAround;
+    wheelPresetSelect.value = settings.wheelPreset;
     wheelAccelerationInput.checked = settings.wheelAcceleration;
+    horizontalWheelInput.checked = settings.horizontalWheel;
+    overshootGuardInput.checked = settings.overshootGuard;
     wheelSensitivityInput.min = String(MIN_WHEEL_SENSITIVITY);
     wheelSensitivityInput.max = String(MAX_WHEEL_SENSITIVITY);
     wheelSensitivityInput.value = String(settings.wheelSensitivity);
@@ -86,37 +110,47 @@ document.addEventListener("DOMContentLoaded", async () => {
     wheelCooldownInput.max = String(MAX_WHEEL_COOLDOWN_MS);
     wheelCooldownInput.value = String(settings.wheelCooldownMs);
     wheelCooldownValue.textContent = `${Math.round(settings.wheelCooldownMs)}ms`;
-    invertScrollHelp.textContent = `${gestureModifier} + wheel down becomes previous, and ${gestureModifier} + wheel up becomes next.`;
+    invertScrollHelp.textContent = `${gestureModifier} + wheel down/right becomes previous, and ${gestureModifier} + wheel up/left becomes next.`;
     wheelShortcut.textContent = `${gestureModifier} + Wheel`;
+    tagShortcut.textContent = `${gestureModifier} + Left Click`;
+    scopeShortcut.textContent = `${gestureModifier} + Right Click`;
   }
 
-  async function saveSettings(): Promise<void> {
-    const settings = readSettings();
+  async function persist(nextSettings: TabWheelSettings): Promise<void> {
+    settings = nextSettings;
     await saveTabWheelSettings(settings);
     renderSettings(settings);
     showStatus("Saved");
   }
 
-  populateModifierSelect(gestureModifierSelect);
-  populateCycleOrderSelect(cycleOrderSelect);
+  async function saveSettings(): Promise<void> {
+    await persist(readSettings());
+  }
 
-  const settings = await loadTabWheelSettings();
+  populateModifierSelect(gestureModifierSelect);
+  populatePresetSelect(wheelPresetSelect);
   renderSettings(settings);
 
+  wheelPresetSelect.addEventListener("change", () => {
+    void persist(applyTabWheelPreset(readSettings(), wheelPresetSelect.value as TabWheelPreset));
+  });
   invertScrollInput.addEventListener("change", () => void saveSettings());
   allowGesturesInEditableFieldsInput.addEventListener("change", () => void saveSettings());
-  cycleOrderSelect.addEventListener("change", () => void saveSettings());
   gestureModifierSelect.addEventListener("change", () => void saveSettings());
   gestureWithShiftInput.addEventListener("change", () => void saveSettings());
   skipPinnedTabsInput.addEventListener("change", () => void saveSettings());
   wrapAroundInput.addEventListener("change", () => void saveSettings());
   wheelAccelerationInput.addEventListener("change", () => void saveSettings());
+  horizontalWheelInput.addEventListener("change", () => void saveSettings());
+  overshootGuardInput.addEventListener("change", () => void saveSettings());
   wheelSensitivityInput.addEventListener("change", () => void saveSettings());
   wheelSensitivityInput.addEventListener("input", () => {
     wheelSensitivityValue.textContent = `${Number(wheelSensitivityInput.value).toFixed(1)}x`;
+    wheelPresetSelect.value = "custom";
   });
   wheelCooldownInput.addEventListener("change", () => void saveSettings());
   wheelCooldownInput.addEventListener("input", () => {
     wheelCooldownValue.textContent = `${Math.round(Number(wheelCooldownInput.value))}ms`;
+    wheelPresetSelect.value = "custom";
   });
 });

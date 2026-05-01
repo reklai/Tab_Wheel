@@ -23,7 +23,12 @@ test("in-page overlays include mobile tightening for small devices", () => {
 test("popup and options layouts guard narrow viewports", () => {
   const popupCss = readText("src/entryPoints/toolbarPopup/toolbarPopup.css");
   const optionsCss = readText("src/entryPoints/optionsPage/optionsPage.css");
+  assert.match(popupCss, /height:\s*600px/);
+  assert.match(popupCss, /\.popup-scroll\s*\{[\s\S]*flex:\s*1 1 auto/);
+  assert.doesNotMatch(popupCss, /100vh/);
   assert.match(popupCss, /grid-template-columns:[^;]*minmax\(0,\s*1fr\)/);
+  assert.match(optionsCss, /\.reference-grid\s*\{[\s\S]*grid-template-columns:\s*repeat\(2,\s*minmax\(0,\s*1fr\)\)/);
+  assert.match(optionsCss, /\.constraint-grid\s*\{[\s\S]*grid-template-columns:\s*repeat\(2,\s*minmax\(0,\s*1fr\)\)/);
   assert.match(optionsCss, /@media \(max-width:\s*620px\)/);
   assert.match(optionsCss, /grid-template-columns:\s*minmax\(0,\s*1fr\)/);
 });

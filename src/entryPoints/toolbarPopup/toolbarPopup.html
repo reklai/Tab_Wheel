@@ -12,64 +12,110 @@
         <span class="dot dot-minimize"></span>
         <span class="dot dot-maximize"></span>
       </div>
-      <span class="titlebar-text">TabWheel</span>
-      <span class="meta-pill" id="tabMeta">Tab</span>
+      <span class="titlebar-text" id="titlebarText">TabWheel</span>
+      <button class="titlebar-button" id="reloadTabBtn" type="button" title="Refresh TabWheel on this tab">Refresh</button>
     </div>
 
-    <div class="hero">
+    <div class="shortcut-panel">
       <strong id="shortcutLabel">Alt + Wheel</strong>
-      <span>Fast wheel tab switching</span>
+      <span id="shortcutStatus">Hold the modifier and scroll to switch tabs.</span>
     </div>
 
-    <section class="control-grid" aria-label="TabWheel controls">
-      <label class="control-row" title="Left-right follows the visible browser tab order. Recent follows most-recently-used tabs.">
-        <span><strong>Cycle order</strong><small>Left-right or recent tabs</small></span>
-        <select id="cycleOrder"></select>
-      </label>
-      <label class="control-row" title="Base key for cycling and for opening quick controls.">
-        <span><strong>Wheel modifier</strong><small>Base key for cycling</small></span>
-        <select id="gestureModifier"></select>
-      </label>
-      <label class="control-row" title="Add Shift to the selected modifier before wheel cycling is active.">
-        <span><strong>Require Shift</strong><small>Add Shift to the shortcut</small></span>
-        <input id="gestureWithShift" type="checkbox" />
-      </label>
-      <label class="control-row" title="Swap wheel down/up so down goes previous and up goes next.">
-        <span><strong>Invert wheel</strong><small>Swap next and previous</small></span>
-        <input id="invertScroll" type="checkbox" />
-      </label>
-      <label class="control-row" title="Keep pinned utility tabs out of the cycling path.">
-        <span><strong>Skip pinned tabs</strong><small>Ignore pinned tabs</small></span>
-        <input id="skipPinnedTabs" type="checkbox" />
-      </label>
-      <label class="control-row" title="At the first or last tab, continue from the opposite edge.">
-        <span><strong>Wrap around</strong><small>Loop at tab-list edges</small></span>
-        <input id="wrapAround" type="checkbox" />
-      </label>
-      <label class="control-row" title="Shortens the cooldown during repeated wheel bursts.">
-        <span><strong>Acceleration</strong><small>Speed up wheel bursts</small></span>
-        <input id="wheelAcceleration" type="checkbox" />
-      </label>
-      <label class="control-row" title="Allow the wheel shortcut inside text boxes and rich editors.">
-        <span><strong>Editable fields</strong><small>Allow shortcut in inputs</small></span>
-        <input id="allowGesturesInEditableFields" type="checkbox" />
-      </label>
-      <label class="control-row range-row" title="Higher values need less wheel movement before switching tabs.">
-        <span><strong>Sensitivity</strong><small id="wheelSensitivityValue">1.0x</small></span>
-        <input id="wheelSensitivity" type="range" step="0.1" />
-      </label>
-      <label class="control-row range-row" title="Minimum time between tab switches; lower feels faster but can overshoot.">
-        <span><strong>Cooldown</strong><small id="wheelCooldownValue">140ms</small></span>
-        <input id="wheelCooldownMs" type="range" step="10" />
-      </label>
-    </section>
+    <main class="popup-scroll">
+      <section class="cycle-mode-panel" aria-label="Cycle mode">
+        <div class="mode-heading">
+          <span>Current Cycle Mode</span>
+          <strong id="scopeLabel">General</strong>
+        </div>
+        <div class="mode-pill" role="group" aria-label="Change cycle mode">
+          <button id="generalModeBtn" data-cycle-scope="general" type="button">General</button>
+          <button id="wheelListModeBtn" data-cycle-scope="tagged" type="button">Wheel List</button>
+        </div>
+      </section>
+
+      <div class="cycle-row" aria-label="Tab cycle fallback controls">
+        <button id="prevTabBtn" type="button">Previous tab</button>
+        <button id="nextTabBtn" type="button">Next tab</button>
+      </div>
+
+      <section class="list-section" id="wheelListSection" aria-label="Wheel List tabs">
+        <div class="list-header">
+          <button class="list-toggle" id="wheelListToggle" type="button" aria-expanded="false" aria-controls="taggedTabsList">
+            <span>
+              <strong>Wheel List</strong>
+              <small id="tagCountLabel">0/15 tagged</small>
+            </span>
+            <span class="summary-toggle-label">
+              <span class="summary-toggle-text"></span>
+              <span class="summary-toggle-arrow" aria-hidden="true"></span>
+            </span>
+          </button>
+          <span class="summary-actions">
+            <button id="tagCurrentBtn" type="button">Tag current</button>
+            <button id="clearTagsBtn" type="button">Remove all</button>
+          </span>
+        </div>
+        <div class="tagged-list" id="taggedTabsList"></div>
+      </section>
+
+      <section class="control-grid" aria-label="TabWheel controls">
+        <label class="control-row" title="Apply a preset for sensitivity, cooldown, acceleration, and overshoot guard.">
+          <span><strong>Preset</strong><small>Choose deliberate, balanced, or fast switching</small></span>
+          <select id="wheelPreset"></select>
+        </label>
+        <label class="control-row" title="Base key for cycling and gestures.">
+          <span><strong>Modifier</strong><small>Hold this key while scrolling or clicking</small></span>
+          <select id="gestureModifier"></select>
+        </label>
+        <label class="control-row" title="Add Shift to the selected modifier before gestures are active.">
+          <span><strong>Require Shift</strong><small>Add a second key for safer gestures</small></span>
+          <input id="gestureWithShift" type="checkbox" />
+        </label>
+        <label class="control-row" title="Swap wheel down/right and up/left.">
+          <span><strong>Invert wheel</strong><small>Swap next and previous direction</small></span>
+          <input id="invertScroll" type="checkbox" />
+        </label>
+        <label class="control-row" title="Keep pinned utility tabs out of the cycling path.">
+          <span><strong>Skip pinned</strong><small>Leave pinned tabs out of cycling</small></span>
+          <input id="skipPinnedTabs" type="checkbox" />
+        </label>
+        <label class="control-row" title="At the first or last tab, continue from the opposite edge.">
+          <span><strong>Wrap around</strong><small>Continue from last to first tab</small></span>
+          <input id="wrapAround" type="checkbox" />
+        </label>
+        <label class="control-row" title="Shortens the cooldown during repeated wheel bursts.">
+          <span><strong>Acceleration</strong><small>Speed up intentional wheel bursts</small></span>
+          <input id="wheelAcceleration" type="checkbox" />
+        </label>
+        <label class="control-row" title="Allow horizontal wheel or trackpad motion to switch tabs.">
+          <span><strong>Horizontal wheel</strong><small>Use sideways wheel or trackpad motion</small></span>
+          <input id="horizontalWheel" type="checkbox" />
+        </label>
+        <label class="control-row" title="Prevent extra tab jumps from trackpad or wheel momentum.">
+          <span><strong>Safe overshoot guard</strong><small>Prevent extra tab jumps from trackpad or wheel momentum</small></span>
+          <input id="overshootGuard" type="checkbox" />
+        </label>
+        <label class="control-row" title="Allow wheel-cycling when cursor is inside text boxes, search fields, and editors/docs">
+          <span><strong>Editable fields</strong><small>Allow wheel-cycling when cursor is inside text boxes, search fields, and editors/docs</small></span>
+          <input id="allowGesturesInEditableFields" type="checkbox" />
+        </label>
+        <label class="control-row range-row" title="Higher values need less wheel movement before switching tabs.">
+          <span><strong>Sensitivity</strong><small id="wheelSensitivityValue">Wheel distance: 1.0x</small></span>
+          <input id="wheelSensitivity" type="range" step="0.1" />
+        </label>
+        <label class="control-row range-row" title="Minimum time between tab switches; lower feels faster but can overshoot.">
+          <span><strong>Cooldown</strong><small id="wheelCooldownValue">Switch delay: 160ms</small></span>
+          <input id="wheelCooldownMs" type="range" step="10" />
+        </label>
+      </section>
+    </main>
 
     <div class="action-row">
       <button id="helpBtn">Help</button>
       <button id="settingsBtn">Settings</button>
     </div>
 
-    <div class="status-line" id="statusLine"></div>
+    <div class="popup-toast" id="popupToast" role="status" aria-live="polite" aria-atomic="true"></div>
   </div>
   <script src="toolbarPopup.js"></script>
 </body>

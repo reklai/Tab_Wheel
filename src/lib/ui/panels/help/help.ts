@@ -26,46 +26,51 @@ const SCROLL_STEP = 80;
 
 function buildHelpSections(settings: TabWheelSettings): HelpSection[] {
   const gestureModifier = formatTabWheelModifierCombo(settings.gestureModifier, settings.gestureWithShift);
-  const editableFields = settings.allowGesturesInEditableFields ? "allowed" : "blocked";
+  const editableFields = settings.allowGesturesInEditableFields
+    ? "Allow wheel-cycling when cursor is inside text boxes, search fields, and editors/docs"
+    : "Skip wheel-cycling when cursor is inside text boxes, search fields, and editors/docs";
+  const cycleScope = settings.cycleScope === "tagged" ? "Wheel List" : "General";
   return [
     {
       title: "How To Use",
       layout: "centered",
       items: [
-        { value: `${gestureModifier} + Wheel cycles tabs in the current panel mode` },
-        { value: `${gestureModifier} + Left Click opens quick controls` },
-        { value: `Use quick controls to switch between left-right and recent cycling` },
-        { value: `The toolbar popup shows the same controls when page shortcuts are unavailable` },
+        { value: `${gestureModifier} + Wheel switches tabs using the current cycle mode` },
+        { value: `${gestureModifier} + Left Click adds or removes this tab from the Wheel List` },
+        { value: `${gestureModifier} + Right Click switches between General and Wheel List mode` },
+        { value: `Some modifier-click gestures can conflict with site, browser, or system shortcuts. Browser UI and internal pages such as chrome://extensions and about:addons may block page gestures.` },
       ],
     },
     {
-      title: "Wheel Shortcut",
+      title: "Shortcuts",
       items: [
-        { label: "Cycle tabs", value: `${gestureModifier} + Wheel` },
-        { label: "Quick controls", value: `${gestureModifier} + Left Click` },
+        { label: "Switch tabs", value: `${gestureModifier} + Wheel` },
+        { label: "Add/remove tab", value: `${gestureModifier} + Left Click` },
+        { label: "Change mode", value: `${gestureModifier} + Right Click` },
         { label: "Editable fields", value: editableFields },
-        { label: "Wheel down", value: settings.invertScroll ? "previous tab" : "next tab" },
-        { label: "Wheel up", value: settings.invertScroll ? "next tab" : "previous tab" },
+        { label: "Wheel down/right", value: settings.invertScroll ? "goes to previous tab" : "goes to next tab" },
+        { label: "Wheel up/left", value: settings.invertScroll ? "goes to next tab" : "goes to previous tab" },
       ],
     },
     {
-      title: "Cycling Rules",
+      title: "Cycle Modes",
       items: [
-        { label: "Left-right", value: "cycle by visible browser tab order" },
-        { label: "Recent", value: "cycle by most recently used tabs" },
-        { label: "Pinned tabs", value: settings.skipPinnedTabs ? "skipped" : "included" },
-        { label: "Wrap around", value: settings.wrapAround ? "on" : "off" },
-        { label: "Sensitivity", value: `${settings.wheelSensitivity.toFixed(1)}x` },
-        { label: "Cooldown", value: `${Math.round(settings.wheelCooldownMs)}ms` },
+        { label: "Current mode", value: cycleScope },
+        { label: "General", value: "switch through eligible tabs in visible tab order" },
+        { label: "Wheel List", value: "switch only through tabs you added to the Wheel List" },
+        { label: "Pinned tabs", value: settings.skipPinnedTabs ? "left out of cycling" : "included in cycling" },
+        { label: "Wrap around", value: settings.wrapAround ? "last tab continues to first tab" : "stop at the first or last tab" },
       ],
     },
     {
-      title: "Scroll Memory",
+      title: "Wheel Feel",
       items: [
-        { label: "Tracked data", value: "scroll X / Y for recent tabs" },
-        { label: "Saved when", value: "a page scrolls" },
-        { label: "Restored when", value: "a remembered tab is activated" },
-        { label: "Restricted pages", value: "browser pages may block content scripts" },
+        { label: "Preset", value: `${settings.wheelPreset} timing profile` },
+        { label: "Sensitivity", value: `${settings.wheelSensitivity.toFixed(1)}x wheel distance before switching` },
+        { label: "Cooldown", value: `${Math.round(settings.wheelCooldownMs)}ms minimum delay between switches` },
+        { label: "Acceleration", value: settings.wheelAcceleration ? "repeated wheel bursts switch faster" : "repeated wheel bursts keep the same delay" },
+        { label: "Horizontal wheel", value: settings.horizontalWheel ? "sideways wheel or trackpad motion also switches tabs" : "only vertical wheel movement switches tabs" },
+        { label: "Safe overshoot guard", value: settings.overshootGuard ? "prevents extra tab jumps from trackpad or wheel momentum" : "every qualified wheel tick can switch tabs" },
       ],
     },
   ];
@@ -125,7 +130,6 @@ export async function openTabWheelHelpOverlay(): Promise<void> {
       </div>
       <div class="ht-help-body">
         ${buildSectionsHtml(buildHelpSections(settings))}
-        <div class="ht-help-tip">Browser-reserved pages may not allow content scripts; use the toolbar popup when page shortcuts are unavailable.</div>
       </div>
       <div class="ht-footer">
         ${footerRowHtml([

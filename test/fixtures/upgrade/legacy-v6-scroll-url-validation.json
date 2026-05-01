@@ -1,0 +1,51 @@
+{
+  "input": {
+    "storageSchemaVersion": 6,
+    "tabWheelScrollMemory": {
+      "7": {
+        "tabId": 7,
+        "windowId": 1,
+        "scrollX": 0,
+        "scrollY": 420,
+        "updatedAt": 1710000000000
+      },
+      "8": {
+        "tabId": 8,
+        "windowId": 1,
+        "url": "https://example.com/docs",
+        "scrollX": 0,
+        "scrollY": 120,
+        "updatedAt": 1710000000001
+      }
+    },
+    "tabWheelMruState": {
+      "windows": {
+        "1": [8, 7]
+      },
+      "updatedAt": 1710000000002
+    }
+  },
+  "expected": {
+    "storageSchemaVersion": 8,
+    "tabWheelScrollMemory": {
+      "8": {
+        "tabId": 8,
+        "windowId": 1,
+        "url": "https://example.com/docs",
+        "scrollX": 0,
+        "scrollY": 120,
+        "updatedAt": 1710000000001
+      }
+    },
+    "tabWheelSettings": {
+      "cycleScope": "general",
+      "wheelPreset": "balanced",
+      "horizontalWheel": true,
+      "overshootGuard": true,
+      "wheelAcceleration": false,
+      "wheelCooldownMs": 160,
+      "wheelSensitivity": 1
+    }
+  },
+  "expectedChanged": true
+}

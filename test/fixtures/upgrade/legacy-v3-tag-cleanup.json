@@ -25,10 +25,17 @@
     ]
   },
   "expected": {
-    "storageSchemaVersion": 6,
+    "storageSchemaVersion": 8,
     "tabWheelSettings": {
       "invertScroll": true,
-      "allowGesturesInEditableFields": true
+      "allowGesturesInEditableFields": true,
+      "cycleScope": "general",
+      "wheelPreset": "balanced",
+      "horizontalWheel": true,
+      "overshootGuard": true,
+      "wheelAcceleration": false,
+      "wheelCooldownMs": 160,
+      "wheelSensitivity": 1
     }
   },
   "expectedChanged": true

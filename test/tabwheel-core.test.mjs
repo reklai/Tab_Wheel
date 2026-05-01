@@ -54,3 +54,13 @@ test("tabWheelCore normalizes wheel delta modes", async () => {
   assert.equal(core.normalizeWheelDeltaY({ deltaMode: 1, deltaY: 2 }, 900), 32);
   assert.equal(core.normalizeWheelDeltaY({ deltaMode: 2, deltaY: 1 }, 900), 900);
 });
+
+test("tabWheelCore uses dominant horizontal delta when enabled", async () => {
+  const core = await loadTabWheelCoreModule();
+
+  assert.equal(core.normalizeWheelDelta({ deltaMode: 0, deltaX: 4, deltaY: 12 }, 900, 1200, true), 12);
+  assert.equal(core.normalizeWheelDelta({ deltaMode: 0, deltaX: -40, deltaY: 12 }, 900, 1200, true), -40);
+  assert.equal(core.normalizeWheelDelta({ deltaMode: 0, deltaX: -40, deltaY: 12 }, 900, 1200, false), 12);
+  assert.equal(core.normalizeWheelDelta({ deltaMode: 1, deltaX: 3, deltaY: 1 }, 900, 1200, true), 48);
+  assert.equal(core.normalizeWheelDelta({ deltaMode: 2, deltaX: -1, deltaY: 0.5 }, 900, 1200, true), -1200);
+});

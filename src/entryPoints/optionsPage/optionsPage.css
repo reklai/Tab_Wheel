@@ -134,12 +134,20 @@ body {
 
 .reference-grid {
   display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
+  grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 10px;
   margin-top: 18px;
 }
 
-.reference-grid div {
+.constraint-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+  margin-top: 10px;
+}
+
+.reference-grid div,
+.constraint-grid div {
   min-width: 0;
   padding: 12px;
   border: 1px solid rgba(255,255,255,0.06);
@@ -147,14 +155,20 @@ body {
   background: rgba(255,255,255,0.03);
 }
 
-.reference-grid strong {
+.reference-grid strong,
+.constraint-grid strong {
   display: block;
   color: #0a84ff;
   font-size: 12px;
   margin-bottom: 5px;
 }
 
-.reference-grid span {
+.constraint-grid strong {
+  color: #ffcc66;
+}
+
+.reference-grid span,
+.constraint-grid span {
   display: block;
   color: #a0a0a0;
   line-height: 1.5;
@@ -184,6 +198,7 @@ body {
   }
 
   .reference-grid,
+  .constraint-grid,
   .setting-row {
     grid-template-columns: minmax(0, 1fr);
   }

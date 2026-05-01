@@ -1,6 +1,10 @@
 const STORAGE_SCHEMA_VERSION_KEY = "storageSchemaVersion";
 const TABWHEEL_SETTINGS_KEY = "tabWheelSettings";
-export const STORAGE_SCHEMA_VERSION = 6;
+const TABWHEEL_SCROLL_MEMORY_KEY = "tabWheelScrollMemory";
+const TABWHEEL_MRU_STATE_KEY = "tabWheelMruState";
+const TABWHEEL_LEGACY_TAGGED_TABS_KEY = "tabWheelTaggedTabs";
+const TABWHEEL_WHEEL_LIST_KEY = "tabWheelWheelList";
+export const STORAGE_SCHEMA_VERSION = 8;
 
 type StorageSnapshot = Record<string, unknown>;
 
@@ -52,6 +56,110 @@ function deleteSettingKey(storage: StorageSnapshot, key: string): boolean {
   return true;
 }
 
+function migrateTabWheelSettings(storage: StorageSnapshot): boolean {
+  const settings = storage[TABWHEEL_SETTINGS_KEY];
+  const hasExistingSettings = typeof settings === "object" && settings !== null && !Array.isArray(settings);
+  const nextSettings = hasExistingSettings ? { ...(settings as Record<string, unknown>) } : {};
+  let changed = !hasExistingSettings;
+
+  if (nextSettings.cycleScope !== "general" && nextSettings.cycleScope !== "tagged") {
+    nextSettings.cycleScope = "general";
+    changed = true;
+  }
+  if (deleteKey(nextSettings, "cycleOrder")) changed = true;
+  if (typeof nextSettings.wheelPreset !== "string") {
+    nextSettings.wheelPreset = "balanced";
+    changed = true;
+  }
+  if (typeof nextSettings.horizontalWheel !== "boolean") {
+    nextSettings.horizontalWheel = true;
+    changed = true;
+  }
+  if (typeof nextSettings.overshootGuard !== "boolean") {
+    nextSettings.overshootGuard = true;
+    changed = true;
+  }
+  if (typeof nextSettings.wheelAcceleration !== "boolean") {
+    nextSettings.wheelAcceleration = false;
+    changed = true;
+  }
+  if (typeof nextSettings.wheelCooldownMs !== "number") {
+    nextSettings.wheelCooldownMs = 160;
+    changed = true;
+  }
+  if (typeof nextSettings.wheelSensitivity !== "number") {
+    nextSettings.wheelSensitivity = 1;
+    changed = true;
+  }
+
+  if (changed) storage[TABWHEEL_SETTINGS_KEY] = nextSettings;
+  return changed;
+}
+
+function normalizeLegacyTaggedTabs(legacy: Record<string, unknown>): Record<string, unknown[]> {
+  const normalized: Record<string, unknown[]> = {};
+  for (const [key, rawEntries] of Object.entries(legacy)) {
+    const windowId = Number(key);
+    if (!Number.isInteger(windowId) || windowId <= 0 || !Array.isArray(rawEntries)) continue;
+    const entries = rawEntries.filter((rawEntry) => {
+      if (typeof rawEntry !== "object" || rawEntry === null || Array.isArray(rawEntry)) return false;
+      const entry = rawEntry as Record<string, unknown>;
+      const tabId = Number(entry.tabId);
+      return Number.isInteger(tabId) && tabId > 0 && Number(entry.windowId) === windowId;
+    });
+    if (entries.length > 0) normalized[key] = entries;
+  }
+  return normalized;
+}
+
+function isHttpUrl(value: unknown): boolean {
+  if (typeof value !== "string") return false;
+  try {
+    const url = new URL(value);
+    return url.protocol === "http:" || url.protocol === "https:";
+  } catch (_) {
+    return false;
+  }
+}
+
+function removeScrollMemoryWithoutUrls(storage: StorageSnapshot): boolean {
+  const scrollMemory = storage[TABWHEEL_SCROLL_MEMORY_KEY];
+  if (typeof scrollMemory !== "object" || scrollMemory === null || Array.isArray(scrollMemory)) return false;
+  const nextScrollMemory: Record<string, unknown> = {};
+  let changed = false;
+
+  for (const [key, rawEntry] of Object.entries(scrollMemory as Record<string, unknown>)) {
+    if (typeof rawEntry !== "object" || rawEntry === null || Array.isArray(rawEntry)) {
+      changed = true;
+      continue;
+    }
+    const entry = rawEntry as Record<string, unknown>;
+    if (!isHttpUrl(entry.url)) {
+      changed = true;
+      continue;
+    }
+    nextScrollMemory[key] = entry;
+  }
+
+  if (changed) storage[TABWHEEL_SCROLL_MEMORY_KEY] = nextScrollMemory;
+  return changed;
+}
+
+function migrateLegacyTaggedTabs(storage: StorageSnapshot): boolean {
+  const legacy = storage[TABWHEEL_LEGACY_TAGGED_TABS_KEY];
+  if (typeof legacy !== "object" || legacy === null || Array.isArray(legacy)) {
+    return deleteKey(storage, TABWHEEL_LEGACY_TAGGED_TABS_KEY);
+  }
+  const normalized = normalizeLegacyTaggedTabs(legacy as Record<string, unknown>);
+  if (!hasKey(storage, TABWHEEL_WHEEL_LIST_KEY)) {
+    if (Object.keys(normalized).length > 0) {
+      storage[TABWHEEL_WHEEL_LIST_KEY] = normalized;
+    }
+  }
+  delete storage[TABWHEEL_LEGACY_TAGGED_TABS_KEY];
+  return true;
+}
+
 export function migrateStorageSnapshot(input: StorageSnapshot): StorageMigrationResult {
   const migratedStorage: StorageSnapshot = { ...input };
   const fromVersion = readSchemaVersion(input);
@@ -73,7 +181,6 @@ export function migrateStorageSnapshot(input: StorageSnapshot): StorageMigration
     changed = deleteKey(migratedStorage, "frecencyData") || changed;
   }
   if (fromVersion < 4) {
-    changed = deleteKey(migratedStorage, "tabWheelTaggedTabs") || changed;
     changed = deleteKey(migratedStorage, "tabWheelSessions") || changed;
   }
   if (fromVersion < 5) {
@@ -81,6 +188,15 @@ export function migrateStorageSnapshot(input: StorageSnapshot): StorageMigration
   }
   if (fromVersion < 6) {
     changed = deleteSettingKey(migratedStorage, "showCycleToast") || changed;
+  }
+  if (fromVersion < 7) {
+    changed = removeScrollMemoryWithoutUrls(migratedStorage) || changed;
+    changed = deleteKey(migratedStorage, TABWHEEL_MRU_STATE_KEY) || changed;
+  }
+  if (fromVersion < 8) {
+    changed = migrateLegacyTaggedTabs(migratedStorage) || changed;
+    changed = deleteKey(migratedStorage, TABWHEEL_MRU_STATE_KEY) || changed;
+    changed = migrateTabWheelSettings(migratedStorage) || changed;
   }
 
   if (migratedStorage[STORAGE_SCHEMA_VERSION_KEY] !== STORAGE_SCHEMA_VERSION) {

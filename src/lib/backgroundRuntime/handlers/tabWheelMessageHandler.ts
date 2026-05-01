@@ -29,11 +29,40 @@ export function createTabWheelMessageHandler(
 ): RuntimeMessageHandler {
   return async (message, sender) => {
     switch (message.type) {
+      case "TABWHEEL_CONTENT_READY":
+        return domain.markContentScriptReady(sender.tab);
+
       case "TABWHEEL_CYCLE":
         return await domain.cycle(message.direction, sender.tab);
 
+      case "TABWHEEL_REFRESH_CURRENT_TAB":
+        return await domain.refreshCurrentTab(sender.tab, message.windowId ?? sender.tab?.windowId);
+
       case "TABWHEEL_GET_OVERVIEW":
         return await domain.getOverview(sender.tab, message.windowId ?? sender.tab?.windowId);
+
+      case "TABWHEEL_TOGGLE_CURRENT_TAG":
+        return await domain.toggleCurrentTag(sender.tab, message.windowId);
+
+      case "TABWHEEL_REMOVE_TAGGED_TAB":
+        return await domain.removeTaggedTab(message.tabId, message.windowId);
+
+      case "TABWHEEL_CLEAR_TAGGED_TABS":
+        return await domain.clearTaggedTabs(message.windowId);
+
+      case "TABWHEEL_LIST_TAGGED_TABS":
+        return await domain.listTaggedTabs(message.windowId);
+
+      case "TABWHEEL_ACTIVATE_TAGGED_TAB":
+        return await domain.activateTaggedTab(message.tabId, message.windowId);
+
+      case "TABWHEEL_TOGGLE_CYCLE_SCOPE":
+        return await domain.toggleCycleScope(sender.tab, message.windowId);
+
+      case "TABWHEEL_SET_CYCLE_SCOPE":
+        return await domain.setCycleScope(message.cycleScope, sender.tab, message.windowId, {
+          suppressPageStatus: message.suppressPageStatus,
+        });
 
       case "TABWHEEL_SAVE_SCROLL_POSITION": {
         const tabId = sender.tab?.id;
@@ -42,6 +71,7 @@ export function createTabWheelMessageHandler(
         return await domain.saveScrollPosition(
           tabId,
           windowId,
+          sender.tab?.url,
           message.scrollX,
           message.scrollY,
         );
