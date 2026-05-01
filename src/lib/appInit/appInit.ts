@@ -39,12 +39,25 @@ const TAGGED_FAVICON_ATTR = "data-tabwheel-tagged-favicon";
 const TAGGED_FAVICON_RESTORE_ATTR = "data-tabwheel-favicon-restore";
 const TAGGED_INDICATOR_DEBOUNCE_MS = 90;
 const TAGGED_FAVICON_SIZE_PX = 64;
+const TAGGED_FAVICON_SIZES_PX: readonly number[] = [16, 32, 48, 64, 128];
 const TAGGED_FAVICON_LOAD_TIMEOUT_MS = 1200;
 const MAX_ORIGINAL_FAVICON_CACHE_ENTRIES = 20;
 const STATUS_ID = "tw-status-indicator";
 const MOUSE_GESTURE_CLAIM_MS = 900;
 type TabWheelEventModifierKey = TabWheelModifierKey | "shift";
 type TabWheelMouseGestureAction = "tag" | "scope";
+type TaggedFaviconHref = {
+  size: number;
+  href: string;
+};
+type FaviconLinkSnapshot = {
+  attributes: Array<[string, string]>;
+};
+type FaviconSnapshot = {
+  originalHref: string;
+  links: FaviconLinkSnapshot[];
+  source: "page" | "fallback";
+};
 const EVENT_MODIFIER_KEYS: readonly TabWheelEventModifierKey[] = ["alt", "ctrl", "shift", "meta"];
 const SCROLL_RESTORE_DELAYS_MS = [0, 80, 220, 500, 900, 1500, 2400, 3600];
 
@@ -132,9 +145,10 @@ export function initApp(): void {
   let taggedIndicatorRenderTimer = 0;
   let isTaggedIndicatorActive = false;
   let activeTaggedCycleScope: TabWheelCycleScope = settings.cycleScope;
-  const originalFaviconHrefByPageUrl = new Map<string, string>();
-  let lastTaggedFaviconHref = "";
+  const originalFaviconSnapshotsByPageUrl = new Map<string, FaviconSnapshot>();
+  let lastTaggedFaviconHrefs: TaggedFaviconHref[] = [];
   let lastTaggedFaviconSourceHref = "";
+  let lastFailedTaggedFaviconSourceHref = "";
   let taggedFaviconRenderId = 0;
   let faviconObserver: MutationObserver | null = null;
   let faviconObserverTarget: Node | null = null;
@@ -195,6 +209,10 @@ export function initApp(): void {
       .filter((link) => includeTaggedFavicon || link.getAttribute(TAGGED_FAVICON_ATTR) !== "true");
   }
 
+  function getTaggedFaviconLinks(): HTMLLinkElement[] {
+    return Array.from(document.querySelectorAll<HTMLLinkElement>(`link[${TAGGED_FAVICON_ATTR}="true"]`));
+  }
+
   function resolveFaviconHref(rawHref: string): string {
     try {
       return new URL(rawHref, document.baseURI).href;
@@ -224,25 +242,78 @@ export function initApp(): void {
     return window.location.href;
   }
 
-  function cacheOriginalFaviconHref(pageUrl: string, originalHref: string): void {
-    if (!pageUrl || !originalHref) return;
-    if (originalFaviconHrefByPageUrl.has(pageUrl)) {
-      originalFaviconHrefByPageUrl.delete(pageUrl);
+  function snapshotFaviconLink(link: HTMLLinkElement): FaviconLinkSnapshot {
+    const attributes = Array.from(link.attributes)
+      .filter((attribute) => attribute.name !== TAGGED_FAVICON_ATTR)
+      .filter((attribute) => attribute.name !== TAGGED_FAVICON_RESTORE_ATTR)
+      .map((attribute): [string, string] => [
+        attribute.name,
+        attribute.name.toLowerCase() === "href"
+          ? resolveFaviconHref(attribute.value)
+          : attribute.value,
+      ]);
+    if (!attributes.some(([name]) => name.toLowerCase() === "rel")) {
+      attributes.push(["rel", "icon"]);
     }
-    originalFaviconHrefByPageUrl.set(pageUrl, originalHref);
-    while (originalFaviconHrefByPageUrl.size > MAX_ORIGINAL_FAVICON_CACHE_ENTRIES) {
-      const oldestPageUrl = originalFaviconHrefByPageUrl.keys().next().value;
+    return { attributes };
+  }
+
+  function createFaviconLink(snapshot: FaviconLinkSnapshot): HTMLLinkElement {
+    const link = document.createElement("link");
+    snapshot.attributes.forEach(([name, value]) => link.setAttribute(name, value));
+    if (!link.relList.contains("icon")) link.rel = "icon";
+    return link;
+  }
+
+  function createFallbackFaviconSnapshot(originalHref: string): FaviconLinkSnapshot {
+    return {
+      attributes: [
+        ["rel", "icon"],
+        ["href", originalHref],
+      ],
+    };
+  }
+
+  function createFaviconSnapshot(originalHref: string, iconLinks: HTMLLinkElement[]): FaviconSnapshot {
+    return {
+      originalHref,
+      links: iconLinks.length > 0
+        ? iconLinks.map(snapshotFaviconLink)
+        : [createFallbackFaviconSnapshot(originalHref)],
+      source: iconLinks.length > 0 ? "page" : "fallback",
+    };
+  }
+
+  function cacheOriginalFaviconSnapshot(pageUrl: string, snapshot: FaviconSnapshot): void {
+    if (!pageUrl || !snapshot.originalHref) return;
+    if (originalFaviconSnapshotsByPageUrl.has(pageUrl)) {
+      originalFaviconSnapshotsByPageUrl.delete(pageUrl);
+    }
+    originalFaviconSnapshotsByPageUrl.set(pageUrl, snapshot);
+    while (originalFaviconSnapshotsByPageUrl.size > MAX_ORIGINAL_FAVICON_CACHE_ENTRIES) {
+      const oldestPageUrl = originalFaviconSnapshotsByPageUrl.keys().next().value;
       if (!oldestPageUrl) break;
-      originalFaviconHrefByPageUrl.delete(oldestPageUrl);
+      originalFaviconSnapshotsByPageUrl.delete(oldestPageUrl);
     }
   }
 
-  function getCachedOriginalFaviconHref(pageUrl: string): string {
-    return originalFaviconHrefByPageUrl.get(pageUrl) || "";
+  function getCachedOriginalFaviconSnapshot(pageUrl: string): FaviconSnapshot | null {
+    return originalFaviconSnapshotsByPageUrl.get(pageUrl) || null;
   }
 
-  function removeCachedOriginalFaviconHref(pageUrl: string): void {
-    originalFaviconHrefByPageUrl.delete(pageUrl);
+  function clearOriginalFaviconSnapshots(): void {
+    originalFaviconSnapshotsByPageUrl.clear();
+  }
+
+  function ensureOriginalFaviconSnapshot(pageUrl: string, originalHref: string): FaviconSnapshot {
+    const iconLinks = getIconLinks(false);
+    const existingSnapshot = getCachedOriginalFaviconSnapshot(pageUrl);
+    if (existingSnapshot && !(existingSnapshot.source === "fallback" && iconLinks.length > 0)) {
+      return existingSnapshot;
+    }
+    const snapshot = createFaviconSnapshot(originalHref, iconLinks);
+    cacheOriginalFaviconSnapshot(pageUrl, snapshot);
+    return snapshot;
   }
 
   function loadTaggedFaviconImage(originalHref: string): Promise<HTMLImageElement | null> {
@@ -270,38 +341,35 @@ export function initApp(): void {
     });
   }
 
-  async function buildTaggedFaviconHref(originalHref: string): Promise<string | null> {
-    if (!originalHref) return null;
-    const fetchedFavicon = await fetchTabWheelFaviconData(originalHref).catch(() => null);
-    const sourceHref = fetchedFavicon?.ok && fetchedFavicon.dataUrl
-      ? fetchedFavicon.dataUrl
-      : originalHref;
-    const image = await loadTaggedFaviconImage(sourceHref);
-    if (!image) return null;
-
+  function buildTaggedFaviconHref(image: HTMLImageElement, size: number): string | null {
     const canvas = document.createElement("canvas");
-    canvas.width = TAGGED_FAVICON_SIZE_PX;
-    canvas.height = TAGGED_FAVICON_SIZE_PX;
+    canvas.width = size;
+    canvas.height = size;
     const context = canvas.getContext("2d");
     if (!context) return null;
 
     const sourceWidth = image.naturalWidth || image.width || TAGGED_FAVICON_SIZE_PX;
     const sourceHeight = image.naturalHeight || image.height || TAGGED_FAVICON_SIZE_PX;
-    const scale = Math.min(TAGGED_FAVICON_SIZE_PX / sourceWidth, TAGGED_FAVICON_SIZE_PX / sourceHeight);
+    const scale = Math.min(size / sourceWidth, size / sourceHeight);
     const width = sourceWidth * scale;
     const height = sourceHeight * scale;
-    const x = (TAGGED_FAVICON_SIZE_PX - width) / 2;
-    const y = (TAGGED_FAVICON_SIZE_PX - height) / 2;
+    const x = (size - width) / 2;
+    const y = (size - height) / 2;
+    const badgeOuterRadius = Math.max(3, size * 0.17);
+    const badgeInnerRadius = Math.max(2, size * 0.095);
+    const badgeInset = Math.max(1, size * 0.05);
+    const badgeX = size - badgeOuterRadius - badgeInset;
+    const badgeY = badgeOuterRadius + badgeInset;
 
-    context.clearRect(0, 0, TAGGED_FAVICON_SIZE_PX, TAGGED_FAVICON_SIZE_PX);
+    context.clearRect(0, 0, size, size);
     context.drawImage(image, x, y, width, height);
     context.beginPath();
     context.fillStyle = "rgba(16, 18, 20, 0.88)";
-    context.arc(50, 14, 11, 0, Math.PI * 2);
+    context.arc(badgeX, badgeY, badgeOuterRadius, 0, Math.PI * 2);
     context.fill();
     context.beginPath();
     context.fillStyle = "#32d74b";
-    context.arc(50, 14, 6.25, 0, Math.PI * 2);
+    context.arc(badgeX, badgeY, badgeInnerRadius, 0, Math.PI * 2);
     context.fill();
 
     try {
@@ -311,81 +379,125 @@ export function initApp(): void {
     }
   }
 
+  async function buildTaggedFaviconHrefs(originalHref: string): Promise<TaggedFaviconHref[] | null> {
+    if (!originalHref) return null;
+    const fetchedFavicon = await fetchTabWheelFaviconData(originalHref).catch(() => null);
+    const sourceHref = fetchedFavicon?.ok && fetchedFavicon.dataUrl
+      ? fetchedFavicon.dataUrl
+      : originalHref;
+    const image = await loadTaggedFaviconImage(sourceHref);
+    if (!image) return null;
+
+    const faviconHrefs: TaggedFaviconHref[] = [];
+    TAGGED_FAVICON_SIZES_PX.forEach((size) => {
+      const href = buildTaggedFaviconHref(image, size);
+      if (href) faviconHrefs.push({ size, href });
+    });
+    return faviconHrefs.length > 0 ? faviconHrefs : null;
+  }
+
   function removeFaviconRestoreLinks(): void {
     document
       .querySelectorAll<HTMLLinkElement>(`link[${TAGGED_FAVICON_RESTORE_ATTR}="true"]`)
       .forEach((link) => link.remove());
   }
 
-  function restoreOriginalFavicon(originalHref: string): void {
+  function restoreOriginalFavicon(snapshot: FaviconSnapshot | null, fallbackHref: string): void {
     const head = document.head;
-    if (!head || !originalHref) return;
+    if (!head) return;
+    getIconLinks(true).forEach((link) => link.remove());
     removeFaviconRestoreLinks();
-    const link = document.createElement("link");
+    if (snapshot?.links.length) {
+      snapshot.links.forEach((linkSnapshot) => head.appendChild(createFaviconLink(linkSnapshot)));
+      return;
+    }
+    if (!fallbackHref) return;
+    const link = createFaviconLink(createFallbackFaviconSnapshot(fallbackHref));
     link.setAttribute(TAGGED_FAVICON_RESTORE_ATTR, "true");
-    link.rel = "icon";
-    link.href = originalHref;
     head.appendChild(link);
+  }
+
+  function areTaggedFaviconLinksCurrent(
+    links: HTMLLinkElement[],
+    faviconHrefs: TaggedFaviconHref[],
+  ): boolean {
+    if (links.length !== faviconHrefs.length) return false;
+    return faviconHrefs.every((faviconHref, index) => {
+      const link = links[index];
+      return link?.getAttribute("href") === faviconHref.href
+        && link.getAttribute("sizes") === `${faviconHref.size}x${faviconHref.size}`;
+    });
+  }
+
+  function removeCompetingFaviconLinks(): void {
+    getIconLinks(false).forEach((link) => link.remove());
+  }
+
+  function renderTaggedFaviconLinks(faviconHrefs: TaggedFaviconHref[]): void {
+    const head = document.head;
+    if (!head) return;
+    const taggedLinks = getTaggedFaviconLinks();
+    const competingLinks = getIconLinks(false);
+    if (competingLinks.length === 0 && areTaggedFaviconLinksCurrent(taggedLinks, faviconHrefs)) {
+      return;
+    }
+    competingLinks.forEach((link) => link.remove());
+    taggedLinks.forEach((link) => link.remove());
+    faviconHrefs.forEach(({ size, href }) => {
+      const link = document.createElement("link");
+      link.setAttribute(TAGGED_FAVICON_ATTR, "true");
+      link.rel = "icon";
+      link.type = "image/png";
+      link.setAttribute("sizes", `${size}x${size}`);
+      link.href = href;
+      head.appendChild(link);
+    });
   }
 
   function removeTaggedFavicon(): void {
     taggedFaviconRenderId += 1;
     const pageUrl = getFaviconCacheKey();
-    const originalHref = getCachedOriginalFaviconHref(pageUrl)
+    const snapshot = getCachedOriginalFaviconSnapshot(pageUrl);
+    const originalHref = snapshot?.originalHref
       || lastTaggedFaviconSourceHref
       || getCurrentFaviconHref()
       || getDefaultFaviconHref();
-    document
-      .querySelectorAll<HTMLLinkElement>(`link[${TAGGED_FAVICON_ATTR}="true"]`)
-      .forEach((link) => link.remove());
-    removeCachedOriginalFaviconHref(pageUrl);
-    lastTaggedFaviconHref = "";
+    restoreOriginalFavicon(snapshot, originalHref);
+    clearOriginalFaviconSnapshots();
+    lastTaggedFaviconHrefs = [];
     lastTaggedFaviconSourceHref = "";
-    restoreOriginalFavicon(originalHref);
+    lastFailedTaggedFaviconSourceHref = "";
   }
 
   function ensureTaggedFavicon(): void {
     const head = document.head;
     if (!head) return;
     const pageUrl = getFaviconCacheKey();
-    const originalHref = getCurrentFaviconHref() || getDefaultFaviconHref();
+    const existingSnapshot = getCachedOriginalFaviconSnapshot(pageUrl);
+    const originalHref = getCurrentFaviconHref()
+      || existingSnapshot?.originalHref
+      || getDefaultFaviconHref();
     if (!originalHref) return;
-    cacheOriginalFaviconHref(pageUrl, originalHref);
-    removeFaviconRestoreLinks();
-    const existingLink = document.querySelector<HTMLLinkElement>(`link[${TAGGED_FAVICON_ATTR}="true"]`);
-    if (existingLink && lastTaggedFaviconSourceHref === originalHref && lastTaggedFaviconHref) {
-      if (existingLink.parentElement !== head) head.appendChild(existingLink);
-      const iconLinks = getIconLinks(true);
-      if (iconLinks[iconLinks.length - 1] !== existingLink) head.appendChild(existingLink);
+    const snapshot = ensureOriginalFaviconSnapshot(pageUrl, originalHref);
+    const sourceHref = snapshot.originalHref || originalHref;
+    if (lastFailedTaggedFaviconSourceHref === sourceHref) return;
+    if (lastTaggedFaviconSourceHref === sourceHref && lastTaggedFaviconHrefs.length > 0) {
+      renderTaggedFaviconLinks(lastTaggedFaviconHrefs);
       return;
     }
 
     const renderId = ++taggedFaviconRenderId;
-    void buildTaggedFaviconHref(originalHref).then((faviconHref) => {
+    void buildTaggedFaviconHrefs(sourceHref).then((faviconHrefs) => {
       if (renderId !== taggedFaviconRenderId || !isTaggedIndicatorActive) return;
-      if (!faviconHref) {
-        removeTaggedFavicon();
+      if (!faviconHrefs) {
+        lastFailedTaggedFaviconSourceHref = sourceHref;
+        restoreOriginalFavicon(snapshot, sourceHref);
         return;
       }
-
-      const nextHead = document.head;
-      if (!nextHead) return;
-      let link = document.querySelector<HTMLLinkElement>(`link[${TAGGED_FAVICON_ATTR}="true"]`);
-      if (!link) {
-        link = document.createElement("link");
-        link.setAttribute(TAGGED_FAVICON_ATTR, "true");
-        link.rel = "icon";
-        link.type = "image/png";
-        link.setAttribute("sizes", `${TAGGED_FAVICON_SIZE_PX}x${TAGGED_FAVICON_SIZE_PX}`);
-      }
-      if (lastTaggedFaviconHref !== faviconHref || link.getAttribute("href") !== faviconHref) {
-        link.href = faviconHref;
-        lastTaggedFaviconHref = faviconHref;
-        lastTaggedFaviconSourceHref = originalHref;
-      }
-      if (link.parentElement !== nextHead) nextHead.appendChild(link);
-      const iconLinks = getIconLinks(true);
-      if (iconLinks[iconLinks.length - 1] !== link) nextHead.appendChild(link);
+      lastFailedTaggedFaviconSourceHref = "";
+      lastTaggedFaviconHrefs = faviconHrefs;
+      lastTaggedFaviconSourceHref = sourceHref;
+      renderTaggedFaviconLinks(faviconHrefs);
     });
   }
 
