@@ -11,13 +11,13 @@ TabWheel - Reliable Wheel Tab Switching
 
 ## Summary (short, <=132 chars)
 
-Reliable tab switching with Alt + Wheel, Wheel List mode, tuning, and local-only scroll memory.
+Mouse scroll wheel tab switcher: Alt+Wheel switches tabs; Alt+Left tags/untags; Alt+Right switches cycle mode.
 
 ## Description
 
-TabWheel is a reliable, mouse-first tab switcher built around `Alt + Wheel` by default. It provides modifier-wheel cycling for normal web pages: wheel down or right moves forward, and wheel up or left moves backward unless you invert the direction. General mode cycles eligible tabs in visible tab-strip order. Wheel List mode cycles only tabs you marked for wheel switching.
+TabWheel is a reliable mouse scroll wheel-based tab switcher. Alt + Wheel switches tabs, Alt + Left Click tags or untags the current tab, and Alt + Right Click switches between General cycling and Wheel List cycling. General mode cycles eligible tabs in visible tab-strip order; Wheel List mode cycles only tagged tabs.
 
-Use Alt + Left Click by default to add or remove the current tab from the Wheel List. Marked tabs show a subtle in-page Wheel List label and, when safe, a small favicon badge that preserves the site's original icon. Use Alt + Right Click by default to switch between General and Wheel List cycling. The toolbar popup is a scrollable panel with current mode, Wheel List entries, remove-all, Previous / Next fallback buttons, a Refresh action for reconnecting TabWheel on the current page, and wheel tuning.
+The extension popup toolbar keeps the main controls configurable and customizable: current mode, Wheel List entries, tag current, remove all, Previous / Next fallback buttons, a Refresh action for reconnecting TabWheel on the current page, and wheel tuning. Marked tabs show a subtle in-page Wheel List label and, when safe, a small favicon badge that preserves the site's original icon.
 
 TabWheel includes Precise, Balanced, Fast, and Custom presets, horizontal wheel support, safe overshoot guarding, pinned-tab filtering, wrap-around, sensitivity, cooldown, editable-field control, and optional burst acceleration. Editable-field control means: Allow wheel-cycling when cursor is inside text boxes, search fields, and editors/docs. TabWheel tries to activate existing normal web tabs after install or update. Browser-reserved pages such as `chrome://`, extension pages, browser stores, and devtools do not allow page shortcuts; use the toolbar popup's controls there.
 

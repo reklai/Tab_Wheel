@@ -2,7 +2,7 @@
   "manifest_version": 3,
   "name": "TabWheel",
   "version": "1.0.0",
-  "description": "Reliable tab switching with Alt + Wheel, Wheel List mode, tuning, and scroll memory.",
+  "description": "Mouse scroll wheel tab switcher: Alt+Wheel switches tabs; Alt+Left tags/untags; Alt+Right switches cycle mode.",
   "permissions": [
     "scripting",
     "tabs",
