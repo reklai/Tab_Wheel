@@ -62,9 +62,8 @@ test("content script implements modifier-wheel and left/middle/right click actio
   assert.match(source, /claimedMouseGesture/);
   assert.match(source, /suppressPageEvent\(event\)/);
   assert.match(source, /isWheelGestureBlockedTarget/);
-  assert.match(source, /isMouseGestureBlockedTarget/);
   assert.match(source, /!settings\.allowGesturesInEditableFields && isEditableTarget\(target\)/);
-  assert.match(source, /isMouseGestureBlockedTarget\(event\.target\)[\s\S]*return null/);
+  assert.match(source, /isWheelGestureBlockedTarget\(event\.target\)[\s\S]*return null[\s\S]*event\.button === 0[\s\S]*return "search"/);
   assert.match(source, /normalizeWheelDelta\(event,\s*window\.innerHeight,\s*window\.innerWidth,\s*settings\.horizontalWheel\)/);
   assert.match(source, /wheelAccumulator \+= wheelDelta \* settings\.wheelSensitivity/);
   assert.match(source, /getRootScrollSnapshot/);

@@ -330,10 +330,6 @@ export function initApp(): void {
     return !settings.allowGesturesInEditableFields && isEditableTarget(target);
   }
 
-  function isMouseGestureBlockedTarget(target: EventTarget | null): boolean {
-    return isEditableTarget(target);
-  }
-
   function isKeyboardWheelEvent(event: WheelEvent): boolean {
     return areSettingsLoaded
       && event.isTrusted
@@ -345,7 +341,7 @@ export function initApp(): void {
     if (!areSettingsLoaded) return null;
     if (!event.isTrusted) return null;
     if (!isTabWheelModifier(event, settings.gestureModifier, settings.gestureWithShift)) return null;
-    if (isMouseGestureBlockedTarget(event.target)) return null;
+    if (isWheelGestureBlockedTarget(event.target)) return null;
     if (event.button === 0) return "search";
     if (event.button === 1) return "recentTab";
     if (event.button === 2) return "closeToRecent";
