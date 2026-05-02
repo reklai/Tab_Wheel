@@ -1,23 +1,25 @@
 import browser from "webextension-polyfill";
 
 export const MAX_SCROLL_MEMORY_ENTRIES = 300;
-export const MAX_WHEEL_LIST_TABS = 15;
+export const MAX_MRU_TABS = 100;
 export const TABWHEEL_STORAGE_KEYS = {
   settings: "tabWheelSettings",
   scrollMemory: "tabWheelScrollMemory",
-  wheelList: "tabWheelWheelList",
+  mruState: "tabWheelMruState",
 } as const;
 export const TABWHEEL_MODIFIER_KEYS: readonly TabWheelModifierKey[] = [
   "alt",
   "ctrl",
   "meta",
 ] as const;
-export const TABWHEEL_CYCLE_SCOPES: readonly TabWheelCycleScope[] = ["general", "tagged"];
+export const TABWHEEL_CYCLE_SCOPES: readonly TabWheelCycleScope[] = ["general", "mru"];
 export const TABWHEEL_PRESETS: readonly TabWheelPreset[] = ["precise", "balanced", "fast", "custom"];
 export const MIN_WHEEL_SENSITIVITY = 0.5;
 export const MAX_WHEEL_SENSITIVITY = 2;
 export const MIN_WHEEL_COOLDOWN_MS = 60;
 export const MAX_WHEEL_COOLDOWN_MS = 400;
+export const DEFAULT_SEARCH_URL_TEMPLATE = "https://www.google.com/search?q=%s";
+export const MAX_SEARCH_QUERY_LENGTH = 512;
 
 export const TABWHEEL_PRESET_VALUES: Record<Exclude<TabWheelPreset, "custom">, {
   wheelSensitivity: number;
@@ -52,6 +54,8 @@ export const DEFAULT_TABWHEEL_SETTINGS: TabWheelSettings = {
   allowGesturesInEditableFields: true,
   cycleScope: "general",
   skipPinnedTabs: false,
+  skipRestrictedPages: true,
+  searchUrlTemplate: DEFAULT_SEARCH_URL_TEMPLATE,
   wrapAround: true,
   wheelPreset: "balanced",
   wheelSensitivity: 1,
@@ -87,6 +91,31 @@ function normalizeNumberInRange(
   const numeric = Number(value);
   if (!Number.isFinite(numeric)) return fallback;
   return Math.max(min, Math.min(max, numeric));
+}
+
+export function normalizeSearchUrlTemplate(value: unknown): string {
+  if (typeof value !== "string") return DEFAULT_SEARCH_URL_TEMPLATE;
+  const trimmed = value.trim();
+  if (!trimmed.includes("%s")) return DEFAULT_SEARCH_URL_TEMPLATE;
+  try {
+    const probeUrl = new URL(trimmed.replaceAll("%s", "tabwheel"));
+    if (probeUrl.protocol !== "http:" && probeUrl.protocol !== "https:") {
+      return DEFAULT_SEARCH_URL_TEMPLATE;
+    }
+    return trimmed;
+  } catch (_) {
+    return DEFAULT_SEARCH_URL_TEMPLATE;
+  }
+}
+
+export function normalizeSearchQuery(value: unknown): string {
+  if (typeof value !== "string") return "";
+  return value.trim().replace(/\s+/g, " ").slice(0, MAX_SEARCH_QUERY_LENGTH);
+}
+
+export function buildSearchUrl(template: string, query: string): string {
+  const normalizedTemplate = normalizeSearchUrlTemplate(template);
+  return normalizedTemplate.replaceAll("%s", encodeURIComponent(normalizeSearchQuery(query)));
 }
 
 export function normalizeTabWheelCycleScope(value: unknown): TabWheelCycleScope {
@@ -154,6 +183,11 @@ export function normalizeTabWheelSettings(
       settings.skipPinnedTabs,
       DEFAULT_TABWHEEL_SETTINGS.skipPinnedTabs,
     ),
+    skipRestrictedPages: normalizeEnabledFlag(
+      settings.skipRestrictedPages,
+      DEFAULT_TABWHEEL_SETTINGS.skipRestrictedPages,
+    ),
+    searchUrlTemplate: normalizeSearchUrlTemplate(settings.searchUrlTemplate),
     wrapAround: normalizeEnabledFlag(
       settings.wrapAround,
       DEFAULT_TABWHEEL_SETTINGS.wrapAround,
@@ -191,9 +225,9 @@ export function normalizeTabWheelSettings(
 }
 
 export function formatTabWheelModifierKey(modifier: TabWheelModifierKey): string {
-  if (modifier === "ctrl") return "Ctrl";
-  if (modifier === "meta") return "Meta";
-  return "Alt";
+  if (modifier === "ctrl") return "Ctrl / Control";
+  if (modifier === "meta") return "Meta / Command";
+  return "Alt / Option";
 }
 
 export function formatTabWheelModifierCombo(

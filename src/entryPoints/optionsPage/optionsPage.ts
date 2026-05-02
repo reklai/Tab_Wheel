@@ -11,6 +11,7 @@ import {
   MIN_WHEEL_COOLDOWN_MS,
   MIN_WHEEL_SENSITIVITY,
   saveTabWheelSettings,
+  TABWHEEL_CYCLE_SCOPES,
   TABWHEEL_MODIFIER_KEYS,
   TABWHEEL_PRESETS,
 } from "../../lib/common/contracts/tabWheel";
@@ -22,12 +23,19 @@ function presetLabel(preset: TabWheelPreset): string {
   return "Balanced";
 }
 
+function cycleScopeLabel(scope: TabWheelCycleScope): string {
+  return scope === "mru" ? "MRU" : "General";
+}
+
 document.addEventListener("DOMContentLoaded", async () => {
   const invertScrollInput = document.getElementById("invertScroll") as HTMLInputElement;
   const allowGesturesInEditableFieldsInput = document.getElementById("allowGesturesInEditableFields") as HTMLInputElement;
   const gestureModifierSelect = document.getElementById("gestureModifier") as HTMLSelectElement;
   const gestureWithShiftInput = document.getElementById("gestureWithShift") as HTMLInputElement;
+  const cycleScopeSelect = document.getElementById("cycleScope") as HTMLSelectElement;
+  const searchUrlTemplateInput = document.getElementById("searchUrlTemplate") as HTMLInputElement;
   const skipPinnedTabsInput = document.getElementById("skipPinnedTabs") as HTMLInputElement;
+  const skipRestrictedPagesInput = document.getElementById("skipRestrictedPages") as HTMLInputElement;
   const wrapAroundInput = document.getElementById("wrapAround") as HTMLInputElement;
   const wheelPresetSelect = document.getElementById("wheelPreset") as HTMLSelectElement;
   const wheelAccelerationInput = document.getElementById("wheelAcceleration") as HTMLInputElement;
@@ -39,8 +47,9 @@ document.addEventListener("DOMContentLoaded", async () => {
   const wheelCooldownValue = document.getElementById("wheelCooldownValue")!;
   const invertScrollHelp = document.getElementById("invertScrollHelp")!;
   const wheelShortcut = document.getElementById("wheelShortcut")!;
-  const tagShortcut = document.getElementById("tagShortcut")!;
-  const scopeShortcut = document.getElementById("scopeShortcut")!;
+  const searchShortcut = document.getElementById("searchShortcut")!;
+  const recentShortcut = document.getElementById("recentShortcut")!;
+  const closeShortcut = document.getElementById("closeShortcut")!;
   const statusBar = document.getElementById("statusBar")!;
 
   let settings = await loadTabWheelSettings();
@@ -67,6 +76,12 @@ document.addEventListener("DOMContentLoaded", async () => {
       .join("");
   }
 
+  function populateCycleScopeSelect(select: HTMLSelectElement): void {
+    select.innerHTML = TABWHEEL_CYCLE_SCOPES
+      .map((cycleScope) => `<option value="${cycleScope}">${cycleScopeLabel(cycleScope)}</option>`)
+      .join("");
+  }
+
   function readSettings(): TabWheelSettings {
     const nextSettings: TabWheelSettings = {
       ...settings,
@@ -74,7 +89,10 @@ document.addEventListener("DOMContentLoaded", async () => {
       allowGesturesInEditableFields: allowGesturesInEditableFieldsInput.checked,
       gestureModifier: gestureModifierSelect.value as TabWheelModifierKey,
       gestureWithShift: gestureWithShiftInput.checked,
+      cycleScope: cycleScopeSelect.value as TabWheelCycleScope,
+      searchUrlTemplate: searchUrlTemplateInput.value,
       skipPinnedTabs: skipPinnedTabsInput.checked,
+      skipRestrictedPages: skipRestrictedPagesInput.checked,
       wrapAround: wrapAroundInput.checked,
       wheelPreset: wheelPresetSelect.value as TabWheelPreset,
       wheelAcceleration: wheelAccelerationInput.checked,
@@ -96,7 +114,10 @@ document.addEventListener("DOMContentLoaded", async () => {
     allowGesturesInEditableFieldsInput.checked = settings.allowGesturesInEditableFields;
     gestureModifierSelect.value = settings.gestureModifier;
     gestureWithShiftInput.checked = settings.gestureWithShift;
+    cycleScopeSelect.value = settings.cycleScope;
+    searchUrlTemplateInput.value = settings.searchUrlTemplate;
     skipPinnedTabsInput.checked = settings.skipPinnedTabs;
+    skipRestrictedPagesInput.checked = settings.skipRestrictedPages;
     wrapAroundInput.checked = settings.wrapAround;
     wheelPresetSelect.value = settings.wheelPreset;
     wheelAccelerationInput.checked = settings.wheelAcceleration;
@@ -112,8 +133,9 @@ document.addEventListener("DOMContentLoaded", async () => {
     wheelCooldownValue.textContent = `${Math.round(settings.wheelCooldownMs)}ms`;
     invertScrollHelp.textContent = `${gestureModifier} + wheel down/right becomes previous, and ${gestureModifier} + wheel up/left becomes next.`;
     wheelShortcut.textContent = `${gestureModifier} + Wheel`;
-    tagShortcut.textContent = `${gestureModifier} + Left Click`;
-    scopeShortcut.textContent = `${gestureModifier} + Right Click`;
+    searchShortcut.textContent = `${gestureModifier} + Left Click`;
+    recentShortcut.textContent = `${gestureModifier} + Middle Click`;
+    closeShortcut.textContent = `${gestureModifier} + Right Click`;
   }
 
   async function persist(nextSettings: TabWheelSettings): Promise<void> {
@@ -129,6 +151,7 @@ document.addEventListener("DOMContentLoaded", async () => {
 
   populateModifierSelect(gestureModifierSelect);
   populatePresetSelect(wheelPresetSelect);
+  populateCycleScopeSelect(cycleScopeSelect);
   renderSettings(settings);
 
   wheelPresetSelect.addEventListener("change", () => {
@@ -138,7 +161,10 @@ document.addEventListener("DOMContentLoaded", async () => {
   allowGesturesInEditableFieldsInput.addEventListener("change", () => void saveSettings());
   gestureModifierSelect.addEventListener("change", () => void saveSettings());
   gestureWithShiftInput.addEventListener("change", () => void saveSettings());
+  cycleScopeSelect.addEventListener("change", () => void saveSettings());
+  searchUrlTemplateInput.addEventListener("change", () => void saveSettings());
   skipPinnedTabsInput.addEventListener("change", () => void saveSettings());
+  skipRestrictedPagesInput.addEventListener("change", () => void saveSettings());
   wrapAroundInput.addEventListener("change", () => void saveSettings());
   wheelAccelerationInput.addEventListener("change", () => void saveSettings());
   horizontalWheelInput.addEventListener("change", () => void saveSettings());

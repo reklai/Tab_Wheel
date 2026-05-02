@@ -1,4 +1,4 @@
-// App init - wires TabWheel wheel cycling, Wheel List gestures, scroll memory, and content messages.
+// App init - wires TabWheel wheel cycling, click gestures, scroll memory, and content messages.
 
 import browser from "webextension-polyfill";
 import {
@@ -12,14 +12,13 @@ import { ContentRuntimeMessage } from "../common/contracts/runtimeMessages";
 import { dismissPanel } from "../common/utils/panelHost";
 import { normalizeWheelDelta, resolveWheelDirection } from "../core/tabWheel/tabWheelCore";
 import {
+  activateMostRecentTabWheelTab,
+  closeCurrentTabWheelTabAndActivateRecent,
   cycleTabWheel,
-  fetchTabWheelFaviconData,
-  getTabWheelOverviewWithRetry,
   saveTabWheelScrollPosition,
-  toggleCurrentTabWheelTag,
-  toggleTabWheelCycleScope,
 } from "../adapters/runtime/tabWheelApi";
 import { openTabWheelHelpOverlay } from "../ui/panels/help/help";
+import { openTabWheelSearchLauncher } from "../ui/panels/searchLauncher/searchLauncher";
 
 declare global {
   interface Window {
@@ -34,32 +33,18 @@ const WHEEL_ACCELERATION_WINDOW_MS = 700;
 const MIN_ACCELERATED_COOLDOWN_MS = 80;
 const OVERSHOOT_GUARD_MS = 260;
 const STATUS_TIMEOUT_MS = 1500;
-const TAGGED_PILL_ID = "tw-tagged-pill";
-const TAGGED_FAVICON_ATTR = "data-tabwheel-tagged-favicon";
-const TAGGED_FAVICON_RESTORE_ATTR = "data-tabwheel-favicon-restore";
-const TAGGED_INDICATOR_DEBOUNCE_MS = 90;
-const TAGGED_FAVICON_SIZE_PX = 64;
-const TAGGED_FAVICON_SIZES_PX: readonly number[] = [16, 32, 48, 64, 128];
-const TAGGED_FAVICON_LOAD_TIMEOUT_MS = 1200;
-const MAX_ORIGINAL_FAVICON_CACHE_ENTRIES = 20;
 const STATUS_ID = "tw-status-indicator";
 const MOUSE_GESTURE_CLAIM_MS = 900;
-type TabWheelEventModifierKey = TabWheelModifierKey | "shift";
-type TabWheelMouseGestureAction = "tag" | "scope";
-type TaggedFaviconHref = {
-  size: number;
-  href: string;
-};
-type FaviconLinkSnapshot = {
-  attributes: Array<[string, string]>;
-};
-type FaviconSnapshot = {
-  originalHref: string;
-  links: FaviconLinkSnapshot[];
-  source: "page" | "fallback";
-};
-const EVENT_MODIFIER_KEYS: readonly TabWheelEventModifierKey[] = ["alt", "ctrl", "shift", "meta"];
 const SCROLL_RESTORE_DELAYS_MS = [0, 80, 220, 500, 900, 1500, 2400, 3600];
+const LAYOUT_STABILITY_TIMEOUT_MS = 1600;
+const LAYOUT_STABILITY_REQUIRED_FRAMES = 3;
+const LAYOUT_DIMENSION_TOLERANCE_PX = 4;
+const LAYOUT_DIMENSION_MATCH_RATIO = 0.08;
+
+type TabWheelEventModifierKey = TabWheelModifierKey | "shift";
+type TabWheelMouseGestureAction = "search" | "recentTab" | "closeToRecent";
+
+const EVENT_MODIFIER_KEYS: readonly TabWheelEventModifierKey[] = ["alt", "ctrl", "shift", "meta"];
 
 function isEditableTarget(target: EventTarget | null): boolean {
   if (!(target instanceof Element)) return false;
@@ -89,16 +74,113 @@ function isTabWheelModifier(
 }
 
 function clampScrollY(scrollY: number): number {
+  return Math.max(0, Math.min(scrollY, getMaxScrollY()));
+}
+
+function getPageScrollWidth(): number {
   const documentElement = document.documentElement;
   const body = document.body;
-  const scrollHeight = Math.max(
+  return Math.max(
+    documentElement?.scrollWidth || 0,
+    body?.scrollWidth || 0,
+    documentElement?.offsetWidth || 0,
+    body?.offsetWidth || 0,
+    documentElement?.clientWidth || 0,
+    body?.clientWidth || 0,
+  );
+}
+
+function getPageScrollHeight(): number {
+  const documentElement = document.documentElement;
+  const body = document.body;
+  return Math.max(
     documentElement?.scrollHeight || 0,
     body?.scrollHeight || 0,
     documentElement?.offsetHeight || 0,
     body?.offsetHeight || 0,
+    documentElement?.clientHeight || 0,
+    body?.clientHeight || 0,
   );
-  const maxScrollY = Math.max(0, scrollHeight - window.innerHeight);
-  return Math.max(0, Math.min(scrollY, maxScrollY));
+}
+
+function getMaxScrollX(): number {
+  return Math.max(0, getPageScrollWidth() - window.innerWidth);
+}
+
+function getMaxScrollY(): number {
+  return Math.max(0, getPageScrollHeight() - window.innerHeight);
+}
+
+function clampScrollX(scrollX: number): number {
+  return Math.max(0, Math.min(scrollX, getMaxScrollX()));
+}
+
+function getRootScrollSnapshot(): ScrollData {
+  const scrollX = Math.max(0, window.scrollX);
+  const scrollY = Math.max(0, window.scrollY);
+  const scrollWidth = getPageScrollWidth();
+  const scrollHeight = getPageScrollHeight();
+  const viewportWidth = window.innerWidth;
+  const viewportHeight = window.innerHeight;
+  const maxScrollX = Math.max(0, scrollWidth - viewportWidth);
+  const maxScrollY = Math.max(0, scrollHeight - viewportHeight);
+  return {
+    scrollX,
+    scrollY,
+    scrollRatioX: maxScrollX > 0 ? Math.max(0, Math.min(1, scrollX / maxScrollX)) : 0,
+    scrollRatioY: maxScrollY > 0 ? Math.max(0, Math.min(1, scrollY / maxScrollY)) : 0,
+    scrollWidth,
+    scrollHeight,
+    viewportWidth,
+    viewportHeight,
+  };
+}
+
+function hasSimilarDimension(current: number, stored: number): boolean {
+  if (!Number.isFinite(stored) || stored <= 0) return false;
+  return Math.abs(current - stored) <= Math.max(LAYOUT_DIMENSION_TOLERANCE_PX, stored * LAYOUT_DIMENSION_MATCH_RATIO);
+}
+
+function resolveRootScrollTarget(snapshot: ScrollData): { left: number; top: number } {
+  const current = getRootScrollSnapshot();
+  const hasStoredWidth = snapshot.scrollWidth > 0 && snapshot.viewportWidth > 0;
+  const hasStoredHeight = snapshot.scrollHeight > 0 && snapshot.viewportHeight > 0;
+  const hasSimilarWidth = hasSimilarDimension(current.scrollWidth, snapshot.scrollWidth)
+    && hasSimilarDimension(current.viewportWidth, snapshot.viewportWidth);
+  const hasSimilarHeight = hasSimilarDimension(current.scrollHeight, snapshot.scrollHeight)
+    && hasSimilarDimension(current.viewportHeight, snapshot.viewportHeight);
+  const maxScrollX = Math.max(0, current.scrollWidth - current.viewportWidth);
+  const maxScrollY = Math.max(0, current.scrollHeight - current.viewportHeight);
+  const ratioX = Number.isFinite(snapshot.scrollRatioX) ? Math.max(0, Math.min(1, snapshot.scrollRatioX)) : 0;
+  const ratioY = Number.isFinite(snapshot.scrollRatioY) ? Math.max(0, Math.min(1, snapshot.scrollRatioY)) : 0;
+  return {
+    left: !hasStoredWidth || hasSimilarWidth ? clampScrollX(snapshot.scrollX) : Math.round(maxScrollX * ratioX),
+    top: !hasStoredHeight || hasSimilarHeight ? clampScrollY(snapshot.scrollY) : Math.round(maxScrollY * ratioY),
+  };
+}
+
+async function waitForLayoutStability(): Promise<void> {
+  const startedAt = performance.now();
+  let stableFrames = 0;
+  let previousWidth = getPageScrollWidth();
+  let previousHeight = getPageScrollHeight();
+
+  while (performance.now() - startedAt < LAYOUT_STABILITY_TIMEOUT_MS) {
+    await new Promise<void>((resolve) => window.requestAnimationFrame(() => resolve()));
+    const width = getPageScrollWidth();
+    const height = getPageScrollHeight();
+    if (
+      Math.abs(width - previousWidth) <= LAYOUT_DIMENSION_TOLERANCE_PX
+      && Math.abs(height - previousHeight) <= LAYOUT_DIMENSION_TOLERANCE_PX
+    ) {
+      stableFrames += 1;
+      if (stableFrames >= LAYOUT_STABILITY_REQUIRED_FRAMES) return;
+    } else {
+      stableFrames = 0;
+      previousWidth = width;
+      previousHeight = height;
+    }
+  }
 }
 
 function sleep(ms: number): Promise<void> {
@@ -117,10 +199,6 @@ function isTopFrame(): boolean {
   } catch (_) {
     return false;
   }
-}
-
-function cycleScopeLabel(cycleScope: TabWheelCycleScope): string {
-  return cycleScope === "tagged" ? "Wheel List" : "General";
 }
 
 export function initApp(): void {
@@ -142,16 +220,6 @@ export function initApp(): void {
   let overshootGuardDirection: "prev" | "next" | null = null;
   let overshootGuardUntil = 0;
   let areSettingsLoaded = false;
-  let taggedIndicatorRenderTimer = 0;
-  let isTaggedIndicatorActive = false;
-  let activeTaggedCycleScope: TabWheelCycleScope = settings.cycleScope;
-  const originalFaviconSnapshotsByPageUrl = new Map<string, FaviconSnapshot>();
-  let lastTaggedFaviconHrefs: TaggedFaviconHref[] = [];
-  let lastTaggedFaviconSourceHref = "";
-  let lastFailedTaggedFaviconSourceHref = "";
-  let taggedFaviconRenderId = 0;
-  let faviconObserver: MutationObserver | null = null;
-  let faviconObserverTarget: Node | null = null;
   let claimedMouseGesture: {
     button: number;
     startedAt: number;
@@ -160,7 +228,6 @@ export function initApp(): void {
   void loadTabWheelSettings()
     .then((loadedSettings) => {
       settings = loadedSettings;
-      activeTaggedCycleScope = loadedSettings.cycleScope;
     })
     .finally(() => {
       areSettingsLoaded = true;
@@ -203,423 +270,13 @@ export function initApp(): void {
     }, STATUS_TIMEOUT_MS);
   }
 
-  function getIconLinks(includeTaggedFavicon: boolean): HTMLLinkElement[] {
-    return Array.from(document.querySelectorAll<HTMLLinkElement>("link[rel]"))
-      .filter((link) => link.relList.contains("icon"))
-      .filter((link) => includeTaggedFavicon || link.getAttribute(TAGGED_FAVICON_ATTR) !== "true");
-  }
-
-  function getTaggedFaviconLinks(): HTMLLinkElement[] {
-    return Array.from(document.querySelectorAll<HTMLLinkElement>(`link[${TAGGED_FAVICON_ATTR}="true"]`));
-  }
-
-  function resolveFaviconHref(rawHref: string): string {
-    try {
-      return new URL(rawHref, document.baseURI).href;
-    } catch (_) {
-      return rawHref;
-    }
-  }
-
-  function getCurrentFaviconHref(): string {
-    const iconLinks = getIconLinks(false);
-    for (let index = iconLinks.length - 1; index >= 0; index -= 1) {
-      const rawHref = iconLinks[index]?.getAttribute("href");
-      if (rawHref) return resolveFaviconHref(rawHref);
-    }
-    return "";
-  }
-
-  function getDefaultFaviconHref(): string {
-    try {
-      return new URL("/favicon.ico", window.location.origin).href;
-    } catch (_) {
-      return "";
-    }
-  }
-
-  function getFaviconCacheKey(): string {
-    return window.location.href;
-  }
-
-  function snapshotFaviconLink(link: HTMLLinkElement): FaviconLinkSnapshot {
-    const attributes = Array.from(link.attributes)
-      .filter((attribute) => attribute.name !== TAGGED_FAVICON_ATTR)
-      .filter((attribute) => attribute.name !== TAGGED_FAVICON_RESTORE_ATTR)
-      .map((attribute): [string, string] => [
-        attribute.name,
-        attribute.name.toLowerCase() === "href"
-          ? resolveFaviconHref(attribute.value)
-          : attribute.value,
-      ]);
-    if (!attributes.some(([name]) => name.toLowerCase() === "rel")) {
-      attributes.push(["rel", "icon"]);
-    }
-    return { attributes };
-  }
-
-  function createFaviconLink(snapshot: FaviconLinkSnapshot): HTMLLinkElement {
-    const link = document.createElement("link");
-    snapshot.attributes.forEach(([name, value]) => link.setAttribute(name, value));
-    if (!link.relList.contains("icon")) link.rel = "icon";
-    return link;
-  }
-
-  function createFallbackFaviconSnapshot(originalHref: string): FaviconLinkSnapshot {
-    return {
-      attributes: [
-        ["rel", "icon"],
-        ["href", originalHref],
-      ],
-    };
-  }
-
-  function createFaviconSnapshot(originalHref: string, iconLinks: HTMLLinkElement[]): FaviconSnapshot {
-    return {
-      originalHref,
-      links: iconLinks.length > 0
-        ? iconLinks.map(snapshotFaviconLink)
-        : [createFallbackFaviconSnapshot(originalHref)],
-      source: iconLinks.length > 0 ? "page" : "fallback",
-    };
-  }
-
-  function cacheOriginalFaviconSnapshot(pageUrl: string, snapshot: FaviconSnapshot): void {
-    if (!pageUrl || !snapshot.originalHref) return;
-    if (originalFaviconSnapshotsByPageUrl.has(pageUrl)) {
-      originalFaviconSnapshotsByPageUrl.delete(pageUrl);
-    }
-    originalFaviconSnapshotsByPageUrl.set(pageUrl, snapshot);
-    while (originalFaviconSnapshotsByPageUrl.size > MAX_ORIGINAL_FAVICON_CACHE_ENTRIES) {
-      const oldestPageUrl = originalFaviconSnapshotsByPageUrl.keys().next().value;
-      if (!oldestPageUrl) break;
-      originalFaviconSnapshotsByPageUrl.delete(oldestPageUrl);
-    }
-  }
-
-  function getCachedOriginalFaviconSnapshot(pageUrl: string): FaviconSnapshot | null {
-    return originalFaviconSnapshotsByPageUrl.get(pageUrl) || null;
-  }
-
-  function clearOriginalFaviconSnapshots(): void {
-    originalFaviconSnapshotsByPageUrl.clear();
-  }
-
-  function ensureOriginalFaviconSnapshot(pageUrl: string, originalHref: string): FaviconSnapshot {
-    const iconLinks = getIconLinks(false);
-    const existingSnapshot = getCachedOriginalFaviconSnapshot(pageUrl);
-    if (existingSnapshot && !(existingSnapshot.source === "fallback" && iconLinks.length > 0)) {
-      return existingSnapshot;
-    }
-    const snapshot = createFaviconSnapshot(originalHref, iconLinks);
-    cacheOriginalFaviconSnapshot(pageUrl, snapshot);
-    return snapshot;
-  }
-
-  function loadTaggedFaviconImage(originalHref: string): Promise<HTMLImageElement | null> {
-    return new Promise((resolve) => {
-      const image = new Image();
-      let hasSettled = false;
-      const timeout = window.setTimeout(() => settle(null), TAGGED_FAVICON_LOAD_TIMEOUT_MS);
-
-      function settle(result: HTMLImageElement | null): void {
-        if (hasSettled) return;
-        hasSettled = true;
-        window.clearTimeout(timeout);
-        image.onload = null;
-        image.onerror = null;
-        resolve(result);
-      }
-
-      image.onload = () => settle(image);
-      image.onerror = () => settle(null);
-      if (originalHref.startsWith("http://") || originalHref.startsWith("https://")) {
-        image.crossOrigin = "anonymous";
-      }
-      image.decoding = "async";
-      image.src = originalHref;
-    });
-  }
-
-  function buildTaggedFaviconHref(image: HTMLImageElement, size: number): string | null {
-    const canvas = document.createElement("canvas");
-    canvas.width = size;
-    canvas.height = size;
-    const context = canvas.getContext("2d");
-    if (!context) return null;
-
-    const sourceWidth = image.naturalWidth || image.width || TAGGED_FAVICON_SIZE_PX;
-    const sourceHeight = image.naturalHeight || image.height || TAGGED_FAVICON_SIZE_PX;
-    const scale = Math.min(size / sourceWidth, size / sourceHeight);
-    const width = sourceWidth * scale;
-    const height = sourceHeight * scale;
-    const x = (size - width) / 2;
-    const y = (size - height) / 2;
-    const badgeOuterRadius = Math.max(3, size * 0.17);
-    const badgeInnerRadius = Math.max(2, size * 0.095);
-    const badgeInset = Math.max(1, size * 0.05);
-    const badgeX = size - badgeOuterRadius - badgeInset;
-    const badgeY = badgeOuterRadius + badgeInset;
-
-    context.clearRect(0, 0, size, size);
-    context.drawImage(image, x, y, width, height);
-    context.beginPath();
-    context.fillStyle = "rgba(16, 18, 20, 0.88)";
-    context.arc(badgeX, badgeY, badgeOuterRadius, 0, Math.PI * 2);
-    context.fill();
-    context.beginPath();
-    context.fillStyle = "#32d74b";
-    context.arc(badgeX, badgeY, badgeInnerRadius, 0, Math.PI * 2);
-    context.fill();
-
-    try {
-      return canvas.toDataURL("image/png");
-    } catch (_) {
-      return null;
-    }
-  }
-
-  async function buildTaggedFaviconHrefs(originalHref: string): Promise<TaggedFaviconHref[] | null> {
-    if (!originalHref) return null;
-    const fetchedFavicon = await fetchTabWheelFaviconData(originalHref).catch(() => null);
-    const sourceHref = fetchedFavicon?.ok && fetchedFavicon.dataUrl
-      ? fetchedFavicon.dataUrl
-      : originalHref;
-    const image = await loadTaggedFaviconImage(sourceHref);
-    if (!image) return null;
-
-    const faviconHrefs: TaggedFaviconHref[] = [];
-    TAGGED_FAVICON_SIZES_PX.forEach((size) => {
-      const href = buildTaggedFaviconHref(image, size);
-      if (href) faviconHrefs.push({ size, href });
-    });
-    return faviconHrefs.length > 0 ? faviconHrefs : null;
-  }
-
-  function removeFaviconRestoreLinks(): void {
-    document
-      .querySelectorAll<HTMLLinkElement>(`link[${TAGGED_FAVICON_RESTORE_ATTR}="true"]`)
-      .forEach((link) => link.remove());
-  }
-
-  function restoreOriginalFavicon(snapshot: FaviconSnapshot | null, fallbackHref: string): void {
-    const head = document.head;
-    if (!head) return;
-    getIconLinks(true).forEach((link) => link.remove());
-    removeFaviconRestoreLinks();
-    if (snapshot?.links.length) {
-      snapshot.links.forEach((linkSnapshot) => head.appendChild(createFaviconLink(linkSnapshot)));
-      return;
-    }
-    if (!fallbackHref) return;
-    const link = createFaviconLink(createFallbackFaviconSnapshot(fallbackHref));
-    link.setAttribute(TAGGED_FAVICON_RESTORE_ATTR, "true");
-    head.appendChild(link);
-  }
-
-  function areTaggedFaviconLinksCurrent(
-    links: HTMLLinkElement[],
-    faviconHrefs: TaggedFaviconHref[],
-  ): boolean {
-    if (links.length !== faviconHrefs.length) return false;
-    return faviconHrefs.every((faviconHref, index) => {
-      const link = links[index];
-      return link?.getAttribute("href") === faviconHref.href
-        && link.getAttribute("sizes") === `${faviconHref.size}x${faviconHref.size}`;
-    });
-  }
-
-  function removeCompetingFaviconLinks(): void {
-    getIconLinks(false).forEach((link) => link.remove());
-  }
-
-  function renderTaggedFaviconLinks(faviconHrefs: TaggedFaviconHref[]): void {
-    const head = document.head;
-    if (!head) return;
-    const taggedLinks = getTaggedFaviconLinks();
-    const competingLinks = getIconLinks(false);
-    if (competingLinks.length === 0 && areTaggedFaviconLinksCurrent(taggedLinks, faviconHrefs)) {
-      return;
-    }
-    competingLinks.forEach((link) => link.remove());
-    taggedLinks.forEach((link) => link.remove());
-    faviconHrefs.forEach(({ size, href }) => {
-      const link = document.createElement("link");
-      link.setAttribute(TAGGED_FAVICON_ATTR, "true");
-      link.rel = "icon";
-      link.type = "image/png";
-      link.setAttribute("sizes", `${size}x${size}`);
-      link.href = href;
-      head.appendChild(link);
-    });
-  }
-
-  function removeTaggedFavicon(): void {
-    taggedFaviconRenderId += 1;
-    const pageUrl = getFaviconCacheKey();
-    const snapshot = getCachedOriginalFaviconSnapshot(pageUrl);
-    const originalHref = snapshot?.originalHref
-      || lastTaggedFaviconSourceHref
-      || getCurrentFaviconHref()
-      || getDefaultFaviconHref();
-    restoreOriginalFavicon(snapshot, originalHref);
-    clearOriginalFaviconSnapshots();
-    lastTaggedFaviconHrefs = [];
-    lastTaggedFaviconSourceHref = "";
-    lastFailedTaggedFaviconSourceHref = "";
-  }
-
-  function ensureTaggedFavicon(): void {
-    const head = document.head;
-    if (!head) return;
-    const pageUrl = getFaviconCacheKey();
-    const existingSnapshot = getCachedOriginalFaviconSnapshot(pageUrl);
-    const originalHref = getCurrentFaviconHref()
-      || existingSnapshot?.originalHref
-      || getDefaultFaviconHref();
-    if (!originalHref) return;
-    const snapshot = ensureOriginalFaviconSnapshot(pageUrl, originalHref);
-    const sourceHref = snapshot.originalHref || originalHref;
-    if (lastFailedTaggedFaviconSourceHref === sourceHref) return;
-    if (lastTaggedFaviconSourceHref === sourceHref && lastTaggedFaviconHrefs.length > 0) {
-      renderTaggedFaviconLinks(lastTaggedFaviconHrefs);
-      return;
-    }
-
-    const renderId = ++taggedFaviconRenderId;
-    void buildTaggedFaviconHrefs(sourceHref).then((faviconHrefs) => {
-      if (renderId !== taggedFaviconRenderId || !isTaggedIndicatorActive) return;
-      if (!faviconHrefs) {
-        lastFailedTaggedFaviconSourceHref = sourceHref;
-        restoreOriginalFavicon(snapshot, sourceHref);
-        return;
-      }
-      lastFailedTaggedFaviconSourceHref = "";
-      lastTaggedFaviconHrefs = faviconHrefs;
-      lastTaggedFaviconSourceHref = sourceHref;
-      renderTaggedFaviconLinks(faviconHrefs);
-    });
-  }
-
-  function removeTaggedPill(): void {
-    document.getElementById(TAGGED_PILL_ID)?.remove();
-  }
-
-  function updateTaggedPillLabel(pill: HTMLElement, cycleScope: TabWheelCycleScope): void {
-    const label = pill.querySelector<HTMLElement>(".tw-tagged-label");
-    if (label) label.textContent = `In-Wheel List (Cycle Mode: ${cycleScopeLabel(cycleScope)})`;
-  }
-
-  function ensureTaggedPill(cycleScope: TabWheelCycleScope): void {
-    const existingPill = document.getElementById(TAGGED_PILL_ID);
-    if (existingPill) {
-      updateTaggedPillLabel(existingPill, cycleScope);
-      return;
-    }
-    const pill = document.createElement("div");
-    pill.id = TAGGED_PILL_ID;
-    pill.setAttribute("aria-hidden", "true");
-    pill.innerHTML = '<span class="tw-tagged-dot"></span><span class="tw-tagged-label"></span>';
-    pill.style.cssText = [
-      "position:fixed",
-      "top:clamp(8px,1.5vh,14px)",
-      "left:50vw",
-      "transform:translateX(-50%)",
-      "z-index:2147483644",
-      "min-height:22px",
-      "display:inline-flex",
-      "align-items:center",
-      "gap:6px",
-      "padding:3px 8px",
-      "max-width:calc(100vw - 24px)",
-      "border-radius:999px",
-      "border:1px solid rgba(50,215,75,0.22)",
-      "background:rgba(18,18,18,0.18)",
-      "backdrop-filter:blur(6px)",
-      "color:rgba(255,255,255,0.54)",
-      "box-shadow:0 6px 18px rgba(0,0,0,0.12)",
-      "font:10px/1.2 'SF Mono','JetBrains Mono','Fira Code','Consolas',monospace",
-      "font-weight:600",
-      "letter-spacing:0",
-      "opacity:0.82",
-      "pointer-events:none",
-      "user-select:none",
-    ].join(";");
-    const dot = pill.querySelector<HTMLElement>(".tw-tagged-dot");
-    if (dot) {
-      dot.style.cssText = [
-        "width:6px",
-        "height:6px",
-        "border-radius:999px",
-        "background:#32d74b",
-        "box-shadow:0 0 0 3px rgba(50,215,75,0.12)",
-        "flex:0 0 auto",
-      ].join(";");
-    }
-    updateTaggedPillLabel(pill, cycleScope);
-    document.documentElement.appendChild(pill);
-  }
-
-  function scheduleTaggedIndicatorRender(): void {
-    if (taggedIndicatorRenderTimer) window.clearTimeout(taggedIndicatorRenderTimer);
-    taggedIndicatorRenderTimer = window.setTimeout(() => {
-      taggedIndicatorRenderTimer = 0;
-      applyTaggedIndicators(isTaggedIndicatorActive, activeTaggedCycleScope);
-    }, TAGGED_INDICATOR_DEBOUNCE_MS);
-  }
-
-  function observeFaviconChanges(): void {
-    const target = document.head || document.documentElement;
-    if (!target || faviconObserverTarget === target) return;
-    faviconObserver?.disconnect();
-    faviconObserverTarget = target;
-    faviconObserver = new MutationObserver(() => {
-      if (!isTaggedIndicatorActive) return;
-      observeFaviconChanges();
-      scheduleTaggedIndicatorRender();
-    });
-    faviconObserver.observe(target, target === document.head
-      ? { childList: true, subtree: true, attributes: true, attributeFilter: ["href", "rel"] }
-      : { childList: true });
-  }
-
-  function stopFaviconObserver(): void {
-    faviconObserver?.disconnect();
-    faviconObserver = null;
-    faviconObserverTarget = null;
-  }
-
-  function applyTaggedIndicators(isTagged: boolean, cycleScope: TabWheelCycleScope = settings.cycleScope): void {
-    isTaggedIndicatorActive = isTagged;
-    activeTaggedCycleScope = cycleScope;
-    if (!isTagged) {
-      removeTaggedPill();
-      removeTaggedFavicon();
-      stopFaviconObserver();
-      return;
-    }
-    ensureTaggedPill(cycleScope);
-    observeFaviconChanges();
-    ensureTaggedFavicon();
-  }
-
-  async function refreshTaggedIndicators(): Promise<void> {
-    try {
-      const overview = await getTabWheelOverviewWithRetry();
-      applyTaggedIndicators(overview.isCurrentTagged, overview.cycleScope);
-    } catch (_) {
-      applyTaggedIndicators(false);
-    }
-  }
-
   function sendScrollSnapshot(): void {
     if (Date.now() < suppressScrollSaveUntil) return;
-    const scrollX = Math.max(0, window.scrollX);
-    const scrollY = Math.max(0, window.scrollY);
-    if (scrollX === lastScrollSaveX && scrollY === lastScrollSaveY) return;
-    lastScrollSaveX = scrollX;
-    lastScrollSaveY = scrollY;
-    void saveTabWheelScrollPosition(scrollX, scrollY).catch(() => {});
+    const snapshot = getRootScrollSnapshot();
+    if (snapshot.scrollX === lastScrollSaveX && snapshot.scrollY === lastScrollSaveY) return;
+    lastScrollSaveX = snapshot.scrollX;
+    lastScrollSaveY = snapshot.scrollY;
+    void saveTabWheelScrollPosition(snapshot).catch(() => {});
   }
 
   function flushScrollSnapshot(): void {
@@ -640,13 +297,11 @@ export function initApp(): void {
   }
 
   async function restoreWindowScroll(
-    scrollX: number,
-    scrollY: number,
+    snapshot: ScrollData,
     smooth?: boolean,
   ): Promise<void> {
     const token = ++scrollRestoreToken;
-    const targetX = Math.max(0, Number(scrollX) || 0);
-    const targetY = Math.max(0, Number(scrollY) || 0);
+    await waitForLayoutStability();
 
     for (const delay of SCROLL_RESTORE_DELAYS_MS) {
       if (token !== scrollRestoreToken) return;
@@ -659,35 +314,41 @@ export function initApp(): void {
         scrollSaveTimer = 0;
       }
 
+      const target = resolveRootScrollTarget(snapshot);
       window.scrollTo({
-        left: targetX,
-        top: clampScrollY(targetY),
+        left: target.left,
+        top: target.top,
         behavior: smooth && delay === 0 ? "smooth" : "auto",
       });
 
       await new Promise<void>((resolve) => window.requestAnimationFrame(() => resolve()));
-      if (Math.abs(window.scrollY - targetY) <= 2) return;
+      if (Math.abs(window.scrollX - target.left) <= 2 && Math.abs(window.scrollY - target.top) <= 2) return;
     }
   }
 
-  function isGestureBlockedTarget(target: EventTarget | null): boolean {
+  function isWheelGestureBlockedTarget(target: EventTarget | null): boolean {
     return !settings.allowGesturesInEditableFields && isEditableTarget(target);
+  }
+
+  function isMouseGestureBlockedTarget(target: EventTarget | null): boolean {
+    return isEditableTarget(target);
   }
 
   function isKeyboardWheelEvent(event: WheelEvent): boolean {
     return areSettingsLoaded
       && event.isTrusted
       && isTabWheelModifier(event, settings.gestureModifier, settings.gestureWithShift)
-      && !isGestureBlockedTarget(event.target);
+      && !isWheelGestureBlockedTarget(event.target);
   }
 
   function resolveMouseGestureAction(event: MouseEvent): TabWheelMouseGestureAction | null {
     if (!areSettingsLoaded) return null;
     if (!event.isTrusted) return null;
     if (!isTabWheelModifier(event, settings.gestureModifier, settings.gestureWithShift)) return null;
-    if (isGestureBlockedTarget(event.target)) return null;
-    if (event.button === 0) return "tag";
-    if (event.button === 2) return "scope";
+    if (isMouseGestureBlockedTarget(event.target)) return null;
+    if (event.button === 0) return "search";
+    if (event.button === 1) return "recentTab";
+    if (event.button === 2) return "closeToRecent";
     return null;
   }
 
@@ -706,16 +367,15 @@ export function initApp(): void {
   }
 
   function runMouseGestureAction(action: TabWheelMouseGestureAction): void {
-    if (action === "tag") {
-      void toggleCurrentTabWheelTag()
-        .then((result) => {
-          if (!result.ok || typeof result.isCurrentTagged !== "boolean") return;
-          applyTaggedIndicators(result.isCurrentTagged, result.cycleScope || settings.cycleScope);
-        })
-        .catch(() => showStatus("Tag failed"));
+    if (action === "search") {
+      void openTabWheelSearchLauncher().catch(() => showStatus("Search unavailable"));
       return;
     }
-    void toggleTabWheelCycleScope().catch(() => showStatus("Mode switch failed"));
+    if (action === "recentTab") {
+      void activateMostRecentTabWheelTab().catch(() => showStatus("Recent tab unavailable"));
+      return;
+    }
+    void closeCurrentTabWheelTabAndActivateRecent().catch(() => showStatus("Close tab failed"));
   }
 
   function getTabCycleWheelDelta(event: WheelEvent): number {
@@ -774,7 +434,7 @@ export function initApp(): void {
     if (!action) return;
     suppressPageEvent(event);
 
-    if (isMouseGestureStartEvent(event) || event.type === "click" || event.type === "contextmenu") {
+    if (isMouseGestureStartEvent(event) || event.type === "click" || event.type === "contextmenu" || event.type === "auxclick") {
       claimedMouseGesture = {
         button: event.button,
         startedAt: Date.now(),
@@ -791,13 +451,11 @@ export function initApp(): void {
     const settingsChange = changes[TABWHEEL_STORAGE_KEYS.settings];
     if (settingsChange) {
       settings = normalizeTabWheelSettings(settingsChange.newValue);
-      activeTaggedCycleScope = settings.cycleScope;
       wheelAccumulator = 0;
       wheelBurstCount = 0;
       overshootGuardDirection = null;
       overshootGuardUntil = 0;
       claimedMouseGesture = null;
-      if (isTaggedIndicatorActive) applyTaggedIndicators(true, settings.cycleScope);
     }
   }
 
@@ -807,22 +465,12 @@ export function initApp(): void {
       case "TABWHEEL_PING":
         return Promise.resolve({ ok: true });
       case "GET_SCROLL":
-        return Promise.resolve({
-          scrollX: window.scrollX,
-          scrollY: window.scrollY,
-        });
+        return Promise.resolve(getRootScrollSnapshot());
       case "SET_SCROLL":
-        void restoreWindowScroll(
-          receivedMessage.scrollX,
-          receivedMessage.scrollY,
-          receivedMessage.smooth,
-        );
+        void restoreWindowScroll(receivedMessage, receivedMessage.smooth);
         return Promise.resolve({ ok: true });
       case "TABWHEEL_STATUS":
         showStatus(receivedMessage.message);
-        return Promise.resolve({ ok: true });
-      case "TABWHEEL_TAG_STATE_CHANGED":
-        applyTaggedIndicators(receivedMessage.isTagged, receivedMessage.cycleScope);
         return Promise.resolve({ ok: true });
       case "OPEN_TABWHEEL_HELP":
         void openTabWheelHelpOverlay();
@@ -890,14 +538,11 @@ export function initApp(): void {
     }
     if (scrollSaveTimer) window.clearTimeout(scrollSaveTimer);
     if (statusTimer) window.clearTimeout(statusTimer);
-    if (taggedIndicatorRenderTimer) window.clearTimeout(taggedIndicatorRenderTimer);
     document.getElementById(STATUS_ID)?.remove();
-    applyTaggedIndicators(false);
     dismissPanel();
   };
 
   if (isTopFrameContext) {
     void browser.runtime.sendMessage({ type: "TABWHEEL_CONTENT_READY" }).catch(() => {});
-    void refreshTaggedIndicators();
   }
 }

@@ -25,11 +25,13 @@
     ]
   },
   "expected": {
-    "storageSchemaVersion": 8,
+    "storageSchemaVersion": 9,
     "tabWheelSettings": {
       "invertScroll": true,
       "allowGesturesInEditableFields": true,
       "cycleScope": "general",
+      "skipRestrictedPages": true,
+      "searchUrlTemplate": "https://www.google.com/search?q=%s",
       "wheelPreset": "balanced",
       "horizontalWheel": true,
       "overshootGuard": true,

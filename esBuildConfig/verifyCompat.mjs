@@ -43,7 +43,7 @@ for (const [name, manifest] of [
   }
 }
 
-const requiredV2Permissions = ["tabs", "storage", "<all_urls>"];
+const requiredV2Permissions = ["tabs", "storage", "search", "<all_urls>"];
 if (!hasAll(manifestV2.permissions || [], requiredV2Permissions)) {
   errors.push("MV2 is missing required permissions for runtime features.");
 }
@@ -60,7 +60,7 @@ if (!Array.isArray(requiredDataCollection) || requiredDataCollection.length === 
   errors.push("MV2 data_collection_permissions.required must include \"none\" for no external data collection.");
 }
 
-const requiredV3Permissions = ["scripting", "tabs", "storage"];
+const requiredV3Permissions = ["scripting", "tabs", "storage", "search"];
 if (!hasAll(manifestV3.permissions || [], requiredV3Permissions)) {
   errors.push("MV3 is missing required permissions for runtime features.");
 }

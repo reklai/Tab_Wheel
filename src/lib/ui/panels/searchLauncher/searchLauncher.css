@@ -1,0 +1,133 @@
+.ht-search-launcher {
+  position: fixed;
+  top: 24vh;
+  left: 50%;
+  width: min(620px, calc(100vw - 32px));
+  transform: translateX(-50%);
+  border: 1px solid var(--ht-color-border);
+  border-radius: 8px;
+  overflow: hidden;
+  background: var(--ht-color-bg);
+  box-shadow: var(--ht-shadow-overlay);
+  contain: layout style paint;
+  overscroll-behavior: contain;
+  backface-visibility: hidden;
+  will-change: transform;
+}
+
+.ht-search-titlebar {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 12px;
+  background: var(--ht-color-bg-soft);
+  border-bottom: 1px solid var(--ht-color-border-soft);
+}
+
+.ht-search-title {
+  min-width: 0;
+  color: var(--ht-color-text-title);
+  font-size: 12px;
+  font-weight: 600;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.ht-search-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.ht-search-cancel,
+.ht-search-submit {
+  min-height: 26px;
+  padding: 0 10px;
+  border-radius: 6px;
+  cursor: pointer;
+  font: inherit;
+  font-size: 11px;
+  font-weight: 700;
+}
+
+.ht-search-cancel {
+  border: 1px solid var(--ht-color-border);
+  background: transparent;
+  color: var(--ht-color-text-title);
+}
+
+.ht-search-cancel:hover {
+  background: var(--ht-color-bg-soft);
+}
+
+.ht-search-submit {
+  border: 1px solid rgba(10,132,255,0.28);
+  background: rgba(10,132,255,0.14);
+  color: #d8ebff;
+}
+
+.ht-search-submit:hover {
+  background: rgba(10,132,255,0.22);
+}
+
+.ht-search-submit:disabled {
+  cursor: default;
+  opacity: 0.66;
+}
+
+.ht-search-form {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 16px;
+  background: var(--ht-color-bg);
+}
+
+.ht-search-input {
+  min-width: 0;
+  flex: 1;
+  height: 38px;
+  border: 0;
+  outline: none;
+  background: transparent;
+  color: var(--ht-color-text-strong);
+  caret-color: var(--ht-color-text-strong);
+  font: inherit;
+  font-size: 16px;
+}
+
+.ht-search-input::placeholder {
+  color: var(--ht-color-text-dim);
+}
+
+.ht-search-input:disabled {
+  opacity: 0.82;
+}
+
+.ht-search-status {
+  min-height: 18px;
+  padding: 0 16px 14px;
+  color: var(--ht-color-text-muted);
+  font-size: 12px;
+}
+
+.ht-search-status[hidden] {
+  display: none;
+}
+
+@media (max-width: 520px), (max-height: 560px) {
+  .ht-search-launcher {
+    top: 14vh;
+    width: min(440px, calc(100vw - 20px));
+  }
+
+  .ht-search-form {
+    padding: 12px;
+  }
+
+  .ht-search-input {
+    font-size: 14px;
+  }
+}

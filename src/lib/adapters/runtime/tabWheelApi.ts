@@ -1,4 +1,5 @@
 import { sendRuntimeMessage, sendRuntimeMessageWithRetry, RuntimeRetryPolicy } from "./runtimeClient";
+import { normalizeSearchQuery } from "../../common/contracts/tabWheel";
 
 export function getTabWheelOverview(windowId?: number): Promise<TabWheelOverview> {
   return sendRuntimeMessage<TabWheelOverview>({ type: "TABWHEEL_GET_OVERVIEW", windowId });
@@ -30,49 +31,6 @@ export function refreshCurrentTabWheel(windowId?: number): Promise<TabWheelRefre
   });
 }
 
-export function toggleCurrentTabWheelTag(windowId?: number): Promise<TabWheelActionResult> {
-  return sendRuntimeMessage<TabWheelActionResult>({
-    type: "TABWHEEL_TOGGLE_CURRENT_TAG",
-    windowId,
-  });
-}
-
-export function removeTaggedTabWheelTab(
-  tabId: number,
-  windowId?: number,
-): Promise<TabWheelActionResult> {
-  return sendRuntimeMessage<TabWheelActionResult>({
-    type: "TABWHEEL_REMOVE_TAGGED_TAB",
-    tabId,
-    windowId,
-  });
-}
-
-export function clearTaggedTabWheelTabs(windowId?: number): Promise<TabWheelActionResult> {
-  return sendRuntimeMessage<TabWheelActionResult>({
-    type: "TABWHEEL_CLEAR_TAGGED_TABS",
-    windowId,
-  });
-}
-
-export function listTaggedTabWheelTabs(windowId?: number): Promise<TabWheelTaggedTabEntry[]> {
-  return sendRuntimeMessage<TabWheelTaggedTabEntry[]>({
-    type: "TABWHEEL_LIST_TAGGED_TABS",
-    windowId,
-  });
-}
-
-export function activateTaggedTabWheelTab(
-  tabId: number,
-  windowId?: number,
-): Promise<TabWheelActionResult> {
-  return sendRuntimeMessage<TabWheelActionResult>({
-    type: "TABWHEEL_ACTIVATE_TAGGED_TAB",
-    tabId,
-    windowId,
-  });
-}
-
 export function toggleTabWheelCycleScope(windowId?: number): Promise<TabWheelActionResult> {
   return sendRuntimeMessage<TabWheelActionResult>({
     type: "TABWHEEL_TOGGLE_CYCLE_SCOPE",
@@ -93,21 +51,32 @@ export function setTabWheelCycleScope(
   });
 }
 
-export function fetchTabWheelFaviconData(href: string): Promise<TabWheelFaviconFetchResult> {
-  return sendRuntimeMessage<TabWheelFaviconFetchResult>({
-    type: "TABWHEEL_FETCH_FAVICON",
-    href,
+export function openTabWheelSearchTab(query: string, windowId?: number): Promise<TabWheelActionResult> {
+  return sendRuntimeMessage<TabWheelActionResult>({
+    type: "TABWHEEL_OPEN_SEARCH_TAB",
+    query: normalizeSearchQuery(query),
+    windowId,
   });
 }
 
-export function saveTabWheelScrollPosition(
-  scrollX: number,
-  scrollY: number,
-): Promise<TabWheelActionResult> {
+export function activateMostRecentTabWheelTab(windowId?: number): Promise<TabWheelActionResult> {
+  return sendRuntimeMessage<TabWheelActionResult>({
+    type: "TABWHEEL_ACTIVATE_MOST_RECENT_TAB",
+    windowId,
+  });
+}
+
+export function closeCurrentTabWheelTabAndActivateRecent(windowId?: number): Promise<TabWheelActionResult> {
+  return sendRuntimeMessage<TabWheelActionResult>({
+    type: "TABWHEEL_CLOSE_CURRENT_TAB_AND_ACTIVATE_RECENT",
+    windowId,
+  });
+}
+
+export function saveTabWheelScrollPosition(scroll: ScrollData): Promise<TabWheelActionResult> {
   return sendRuntimeMessage<TabWheelActionResult>({
     type: "TABWHEEL_SAVE_SCROLL_POSITION",
-    scrollX,
-    scrollY,
+    ...scroll,
   });
 }
 

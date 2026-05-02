@@ -29,7 +29,7 @@
         </div>
         <div class="mode-pill" role="group" aria-label="Change cycle mode">
           <button id="generalModeBtn" data-cycle-scope="general" type="button">General</button>
-          <button id="wheelListModeBtn" data-cycle-scope="tagged" type="button">Wheel List</button>
+          <button id="mruModeBtn" data-cycle-scope="mru" type="button">MRU</button>
         </div>
       </section>
 
@@ -38,25 +38,15 @@
         <button id="nextTabBtn" type="button">Next tab</button>
       </div>
 
-      <section class="list-section" id="wheelListSection" aria-label="Wheel List tabs">
-        <div class="list-header">
-          <button class="list-toggle" id="wheelListToggle" type="button" aria-expanded="false" aria-controls="taggedTabsList">
-            <span>
-              <strong>Wheel List</strong>
-              <small id="tagCountLabel">0/15 tagged</small>
-            </span>
-            <span class="summary-toggle-label">
-              <span class="summary-toggle-text"></span>
-              <span class="summary-toggle-arrow" aria-hidden="true"></span>
-            </span>
-          </button>
-          <span class="summary-actions">
-            <button id="tagCurrentBtn" type="button">Tag current</button>
-            <button id="clearTagsBtn" type="button">Remove all</button>
-          </span>
-        </div>
-        <div class="tagged-list" id="taggedTabsList"></div>
-      </section>
+      <form class="search-row" id="searchForm" aria-label="Search fallback">
+        <input id="searchQueryInput" type="search" autocomplete="off" spellcheck="false" placeholder="Search" />
+        <button id="searchSubmitBtn" type="submit">Search</button>
+      </form>
+
+      <div class="gesture-row" aria-label="Click gesture fallback controls">
+        <button id="recentTabBtn" type="button">Most recent tab</button>
+        <button id="closeRecentBtn" type="button">Close tab</button>
+      </div>
 
       <section class="control-grid" aria-label="TabWheel controls">
         <label class="control-row" title="Apply a preset for sensitivity, cooldown, acceleration, and overshoot guard.">
@@ -78,6 +68,10 @@
         <label class="control-row" title="Keep pinned utility tabs out of the cycling path.">
           <span><strong>Skip pinned</strong><small>Leave pinned tabs out of cycling</small></span>
           <input id="skipPinnedTabs" type="checkbox" />
+        </label>
+        <label class="control-row" title="Skip browser UI, extension pages, stores, PDF viewers, and other unsupported pages when cycling.">
+          <span><strong>Skip restricted</strong><small>Leave unsupported pages out of wheel cycling</small></span>
+          <input id="skipRestrictedPages" type="checkbox" />
         </label>
         <label class="control-row" title="At the first or last tab, continue from the opposite edge.">
           <span><strong>Wrap around</strong><small>Continue from last to first tab</small></span>

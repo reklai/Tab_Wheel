@@ -29,22 +29,23 @@ function buildHelpSections(settings: TabWheelSettings): HelpSection[] {
   const editableFields = settings.allowGesturesInEditableFields
     ? "Allow wheel-cycling when cursor is inside text boxes, search fields, and editors/docs"
     : "Skip wheel-cycling when cursor is inside text boxes, search fields, and editors/docs";
-  const cycleScope = settings.cycleScope === "tagged" ? "Wheel List" : "General";
+  const cycleScope = settings.cycleScope === "mru" ? "MRU" : "General";
   return [
     {
       title: "How To Use",
       layout: "centered",
       items: [
         { value: `${gestureModifier} + Wheel switches tabs using the current cycle mode` },
-        { value: `${gestureModifier} + Left Click adds or removes this tab from the Wheel List` },
-        { value: `${gestureModifier} + Right Click switches between General and Wheel List mode` },
+        { value: `${gestureModifier} + Left Click opens the in-page search launcher` },
+        { value: `${gestureModifier} + Middle Click jumps to the most recently used tab` },
+        { value: `${gestureModifier} + Right Click closes this tab and activates the most recently used tab` },
       ],
     },
     {
       title: "Caveats",
       layout: "centered",
       items: [
-        { value: "Modifier-click caveat: modifier + left/right click can be reserved by sites, browsers, or the OS; change modifier or require Shift if it conflicts" },
+        { value: "Modifier-click caveat: modifier + left/middle/right click can be reserved by sites, browsers, or the OS; change modifier or require Shift if it conflicts" },
         { value: "Extension constraints: page gestures work on normal web pages; browser UI, stores, PDFs, and internal pages can block content scripts" },
       ],
     },
@@ -52,8 +53,9 @@ function buildHelpSections(settings: TabWheelSettings): HelpSection[] {
       title: "Shortcuts",
       items: [
         { label: "Switch tabs", value: `${gestureModifier} + Wheel` },
-        { label: "Add/remove tab", value: `${gestureModifier} + Left Click` },
-        { label: "Change mode", value: `${gestureModifier} + Right Click` },
+        { label: "Search launcher", value: `${gestureModifier} + Left Click` },
+        { label: "Most recent tab", value: `${gestureModifier} + Middle Click` },
+        { label: "Close to recent", value: `${gestureModifier} + Right Click` },
         { label: "Editable fields", value: editableFields },
         { label: "Wheel down/right", value: settings.invertScroll ? "goes to previous tab" : "goes to next tab" },
         { label: "Wheel up/left", value: settings.invertScroll ? "goes to next tab" : "goes to previous tab" },
@@ -64,8 +66,9 @@ function buildHelpSections(settings: TabWheelSettings): HelpSection[] {
       items: [
         { label: "Current mode", value: cycleScope },
         { label: "General", value: "switch through eligible tabs in visible tab order" },
-        { label: "Wheel List", value: "switch only through tabs you added to the Wheel List" },
+        { label: "MRU", value: "switch through eligible tabs in most-recently-used order" },
         { label: "Pinned tabs", value: settings.skipPinnedTabs ? "left out of cycling" : "included in cycling" },
+        { label: "Restricted pages", value: settings.skipRestrictedPages ? "left out of cycling" : "included when the browser allows activation" },
         { label: "Wrap around", value: settings.wrapAround ? "last tab continues to first tab" : "stop at the first or last tab" },
       ],
     },

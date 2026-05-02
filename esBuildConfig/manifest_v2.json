@@ -2,7 +2,7 @@
   "manifest_version": 2,
   "name": "TabWheel - Mouse Wheel Tab Switcher",
   "version": "1.0.1",
-  "description": "Mouse scroll wheel tab switcher: Alt+Wheel switches tabs; Alt+Left tags/untags; Alt+Right switches cycle mode.",
+  "description": "Mouse scroll wheel tab switcher with MRU mode, in-page search, recent-tab, and close-to-recent gestures.",
   "browser_specific_settings": {
     "gecko": {
       "id": "@tabwheel.reklai",
@@ -14,6 +14,7 @@
   "permissions": [
     "tabs",
     "storage",
+    "search",
     "<all_urls>"
   ],
   "background": {

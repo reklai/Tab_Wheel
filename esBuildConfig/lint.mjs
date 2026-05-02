@@ -16,10 +16,12 @@ const BANNED_UI_PACKAGES = [
 
 const OVERLAY_TS_FILES = [
   "src/lib/ui/panels/help/help.ts",
+  "src/lib/ui/panels/searchLauncher/searchLauncher.ts",
 ];
 
 const OVERLAY_CSS_FILES = [
   "src/lib/ui/panels/help/help.css",
+  "src/lib/ui/panels/searchLauncher/searchLauncher.css",
 ];
 
 const DISALLOWED_IDENTIFIER_PATTERNS = [

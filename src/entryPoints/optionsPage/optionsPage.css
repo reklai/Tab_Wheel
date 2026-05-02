@@ -127,7 +127,19 @@ body {
   padding: 0 9px;
 }
 
-.setting-control:focus {
+.setting-text {
+  width: min(320px, 42vw);
+  min-height: 30px;
+  border: 1px solid rgba(255,255,255,0.12);
+  border-radius: 7px;
+  background: #1e1e1e;
+  color: #e0e0e0;
+  font: inherit;
+  padding: 0 9px;
+}
+
+.setting-control:focus,
+.setting-text:focus {
   outline: 1px solid #0a84ff;
   outline-offset: 2px;
 }
@@ -204,6 +216,10 @@ body {
   }
 
   .setting-range {
+    width: 100%;
+  }
+
+  .setting-text {
     width: 100%;
   }
 }

@@ -39,7 +39,7 @@ test("manifests use TabWheel names and titles", () => {
   assert.equal(v3.action.default_title, "TabWheel - Mouse Wheel Tab Switcher");
 });
 
-test("manifests are versioned for the 1.0.1 favicon update release", () => {
+test("manifests are versioned for the 1.0.1 MRU gesture release", () => {
   const v2 = readJson("esBuildConfig/manifest_v2.json");
   const v3 = readJson("esBuildConfig/manifest_v3.json");
   const packageJson = readJson("package.json");
@@ -75,6 +75,14 @@ test("chrome manifest can activate existing normal web tabs after install", () =
 
   assert.ok(v3.permissions.includes("scripting"));
   assert.ok(v3.host_permissions.includes("<all_urls>"));
+});
+
+test("manifests can use the browser default search provider", () => {
+  const v2 = readJson("esBuildConfig/manifest_v2.json");
+  const v3 = readJson("esBuildConfig/manifest_v3.json");
+
+  assert.ok(v2.permissions.includes("search"));
+  assert.ok(v3.permissions.includes("search"));
 });
 
 test("firefox manifest contains AMO gecko metadata", () => {

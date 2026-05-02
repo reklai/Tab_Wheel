@@ -44,12 +44,6 @@ function zipSource(archivePath) {
     "release/*",
     "node_modules/",
     "node_modules/*",
-    "src/entryPoints/sidePanel/",
-    "src/entryPoints/sidePanel/*",
-    "src/lib/ui/panels/tabWheel/",
-    "src/lib/ui/panels/tabWheel/*",
-    "src/lib/ui/panels/quickControls/",
-    "src/lib/ui/panels/quickControls/*",
   ]);
 }
 

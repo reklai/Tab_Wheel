@@ -11,6 +11,7 @@ function readText(relativePath) {
 
 const OVERLAY_CSS_FILES = [
   "src/lib/ui/panels/help/help.css",
+  "src/lib/ui/panels/searchLauncher/searchLauncher.css",
 ];
 
 test("store and privacy docs include local-only/no-telemetry policy", () => {

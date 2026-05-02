@@ -4,7 +4,8 @@ const TABWHEEL_SCROLL_MEMORY_KEY = "tabWheelScrollMemory";
 const TABWHEEL_MRU_STATE_KEY = "tabWheelMruState";
 const TABWHEEL_LEGACY_TAGGED_TABS_KEY = "tabWheelTaggedTabs";
 const TABWHEEL_WHEEL_LIST_KEY = "tabWheelWheelList";
-export const STORAGE_SCHEMA_VERSION = 8;
+export const STORAGE_SCHEMA_VERSION = 9;
+const DEFAULT_SEARCH_URL_TEMPLATE = "https://www.google.com/search?q=%s";
 
 type StorageSnapshot = Record<string, unknown>;
 
@@ -62,8 +63,16 @@ function migrateTabWheelSettings(storage: StorageSnapshot): boolean {
   const nextSettings = hasExistingSettings ? { ...(settings as Record<string, unknown>) } : {};
   let changed = !hasExistingSettings;
 
-  if (nextSettings.cycleScope !== "general" && nextSettings.cycleScope !== "tagged") {
+  if (nextSettings.cycleScope !== "general" && nextSettings.cycleScope !== "mru") {
     nextSettings.cycleScope = "general";
+    changed = true;
+  }
+  if (typeof nextSettings.skipRestrictedPages !== "boolean") {
+    nextSettings.skipRestrictedPages = true;
+    changed = true;
+  }
+  if (typeof nextSettings.searchUrlTemplate !== "string") {
+    nextSettings.searchUrlTemplate = DEFAULT_SEARCH_URL_TEMPLATE;
     changed = true;
   }
   if (deleteKey(nextSettings, "cycleOrder")) changed = true;
@@ -94,22 +103,6 @@ function migrateTabWheelSettings(storage: StorageSnapshot): boolean {
 
   if (changed) storage[TABWHEEL_SETTINGS_KEY] = nextSettings;
   return changed;
-}
-
-function normalizeLegacyTaggedTabs(legacy: Record<string, unknown>): Record<string, unknown[]> {
-  const normalized: Record<string, unknown[]> = {};
-  for (const [key, rawEntries] of Object.entries(legacy)) {
-    const windowId = Number(key);
-    if (!Number.isInteger(windowId) || windowId <= 0 || !Array.isArray(rawEntries)) continue;
-    const entries = rawEntries.filter((rawEntry) => {
-      if (typeof rawEntry !== "object" || rawEntry === null || Array.isArray(rawEntry)) return false;
-      const entry = rawEntry as Record<string, unknown>;
-      const tabId = Number(entry.tabId);
-      return Number.isInteger(tabId) && tabId > 0 && Number(entry.windowId) === windowId;
-    });
-    if (entries.length > 0) normalized[key] = entries;
-  }
-  return normalized;
 }
 
 function isHttpUrl(value: unknown): boolean {
@@ -143,21 +136,6 @@ function removeScrollMemoryWithoutUrls(storage: StorageSnapshot): boolean {
 
   if (changed) storage[TABWHEEL_SCROLL_MEMORY_KEY] = nextScrollMemory;
   return changed;
-}
-
-function migrateLegacyTaggedTabs(storage: StorageSnapshot): boolean {
-  const legacy = storage[TABWHEEL_LEGACY_TAGGED_TABS_KEY];
-  if (typeof legacy !== "object" || legacy === null || Array.isArray(legacy)) {
-    return deleteKey(storage, TABWHEEL_LEGACY_TAGGED_TABS_KEY);
-  }
-  const normalized = normalizeLegacyTaggedTabs(legacy as Record<string, unknown>);
-  if (!hasKey(storage, TABWHEEL_WHEEL_LIST_KEY)) {
-    if (Object.keys(normalized).length > 0) {
-      storage[TABWHEEL_WHEEL_LIST_KEY] = normalized;
-    }
-  }
-  delete storage[TABWHEEL_LEGACY_TAGGED_TABS_KEY];
-  return true;
 }
 
 export function migrateStorageSnapshot(input: StorageSnapshot): StorageMigrationResult {
@@ -194,8 +172,13 @@ export function migrateStorageSnapshot(input: StorageSnapshot): StorageMigration
     changed = deleteKey(migratedStorage, TABWHEEL_MRU_STATE_KEY) || changed;
   }
   if (fromVersion < 8) {
-    changed = migrateLegacyTaggedTabs(migratedStorage) || changed;
+    changed = deleteKey(migratedStorage, TABWHEEL_LEGACY_TAGGED_TABS_KEY) || changed;
     changed = deleteKey(migratedStorage, TABWHEEL_MRU_STATE_KEY) || changed;
+    changed = migrateTabWheelSettings(migratedStorage) || changed;
+  }
+  if (fromVersion < 9) {
+    changed = deleteKey(migratedStorage, TABWHEEL_LEGACY_TAGGED_TABS_KEY) || changed;
+    changed = deleteKey(migratedStorage, TABWHEEL_WHEEL_LIST_KEY) || changed;
     changed = migrateTabWheelSettings(migratedStorage) || changed;
   }
 

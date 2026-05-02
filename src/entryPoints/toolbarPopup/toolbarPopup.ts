@@ -1,7 +1,6 @@
-// Browser-action popup for TabWheel Wheel List controls.
+// Browser-action popup for TabWheel controls.
 
 import browser from "webextension-polyfill";
-import { escapeHtml, extractDomain } from "../../lib/common/utils/helpers";
 import {
   applyTabWheelPreset,
   detectTabWheelPreset,
@@ -9,7 +8,6 @@ import {
   formatTabWheelModifierKey,
   loadTabWheelSettings,
   MAX_WHEEL_COOLDOWN_MS,
-  MAX_WHEEL_LIST_TABS,
   MAX_WHEEL_SENSITIVITY,
   MIN_WHEEL_COOLDOWN_MS,
   MIN_WHEEL_SENSITIVITY,
@@ -18,15 +16,14 @@ import {
   TABWHEEL_PRESETS,
 } from "../../lib/common/contracts/tabWheel";
 import {
-  activateTaggedTabWheelTab,
-  clearTaggedTabWheelTabs,
+  activateMostRecentTabWheelTab,
+  closeCurrentTabWheelTabAndActivateRecent,
   cycleTabWheel,
   getTabWheelOverviewWithRetry,
   openTabWheelHelp,
+  openTabWheelSearchTab,
   refreshCurrentTabWheel,
-  removeTaggedTabWheelTab,
   setTabWheelCycleScope,
-  toggleCurrentTabWheelTag,
 } from "../../lib/adapters/runtime/tabWheelApi";
 
 function presetLabel(preset: TabWheelPreset): string {
@@ -37,7 +34,7 @@ function presetLabel(preset: TabWheelPreset): string {
 }
 
 function cycleScopeLabel(scope: TabWheelCycleScope): string {
-  return scope === "tagged" ? "Wheel List" : "General";
+  return scope === "mru" ? "MRU" : "General";
 }
 
 const UNAVAILABLE_GESTURES_MESSAGE = "Page gestures unavailable here; popup buttons still work.";
@@ -59,21 +56,20 @@ document.addEventListener("DOMContentLoaded", async () => {
   const titlebarTextEl = document.getElementById("titlebarText")!;
   const refreshTabWheelBtn = document.getElementById("refreshTabWheelBtn") as HTMLButtonElement;
   const scopeLabel = document.getElementById("scopeLabel")!;
-  const tagCountLabel = document.getElementById("tagCountLabel")!;
-  const tagCurrentBtn = document.getElementById("tagCurrentBtn") as HTMLButtonElement;
   const generalModeBtn = document.getElementById("generalModeBtn") as HTMLButtonElement;
-  const wheelListModeBtn = document.getElementById("wheelListModeBtn") as HTMLButtonElement;
+  const mruModeBtn = document.getElementById("mruModeBtn") as HTMLButtonElement;
   const prevTabBtn = document.getElementById("prevTabBtn") as HTMLButtonElement;
   const nextTabBtn = document.getElementById("nextTabBtn") as HTMLButtonElement;
-  const wheelListSection = document.getElementById("wheelListSection")!;
-  const wheelListToggle = document.getElementById("wheelListToggle") as HTMLButtonElement;
-  const clearTagsBtn = document.getElementById("clearTagsBtn") as HTMLButtonElement;
-  const taggedTabsList = document.getElementById("taggedTabsList")!;
+  const searchForm = document.getElementById("searchForm") as HTMLFormElement;
+  const searchQueryInput = document.getElementById("searchQueryInput") as HTMLInputElement;
+  const recentTabBtn = document.getElementById("recentTabBtn") as HTMLButtonElement;
+  const closeRecentBtn = document.getElementById("closeRecentBtn") as HTMLButtonElement;
   const wheelPresetSelect = document.getElementById("wheelPreset") as HTMLSelectElement;
   const gestureModifierSelect = document.getElementById("gestureModifier") as HTMLSelectElement;
   const gestureWithShiftInput = document.getElementById("gestureWithShift") as HTMLInputElement;
   const invertScrollInput = document.getElementById("invertScroll") as HTMLInputElement;
   const skipPinnedTabsInput = document.getElementById("skipPinnedTabs") as HTMLInputElement;
+  const skipRestrictedPagesInput = document.getElementById("skipRestrictedPages") as HTMLInputElement;
   const wrapAroundInput = document.getElementById("wrapAround") as HTMLInputElement;
   const wheelAccelerationInput = document.getElementById("wheelAcceleration") as HTMLInputElement;
   const horizontalWheelInput = document.getElementById("horizontalWheel") as HTMLInputElement;
@@ -89,39 +85,23 @@ document.addEventListener("DOMContentLoaded", async () => {
   let settings = await loadTabWheelSettings();
   let overview: TabWheelOverview | null = null;
   let statusTimer = 0;
-  let statusHiddenCallback: (() => void) | null = null;
-  let isConfirmingClear = false;
-  let isWheelListOpen = false;
 
   function clearStatusTimer(): void {
     if (statusTimer) window.clearTimeout(statusTimer);
     statusTimer = 0;
   }
 
-  function runStatusHiddenCallback(): void {
-    const callback = statusHiddenCallback;
-    statusHiddenCallback = null;
-    callback?.();
-  }
-
-  function hideStatus(runHiddenCallback = true): void {
+  function hideStatus(): void {
     clearStatusTimer();
     toastEl.classList.remove("is-visible");
     toastEl.textContent = "";
-    if (runHiddenCallback) runStatusHiddenCallback();
-    else statusHiddenCallback = null;
   }
 
-  function showStatus(message: string, sticky = false, onHidden?: () => void): void {
+  function showStatus(message: string, sticky = false): void {
     clearStatusTimer();
-    runStatusHiddenCallback();
     toastEl.textContent = message;
     toastEl.classList.add("is-visible");
-    statusHiddenCallback = onHidden || null;
-    if (sticky) {
-      statusHiddenCallback = null;
-      return;
-    }
+    if (sticky) return;
     statusTimer = window.setTimeout(() => {
       hideStatus();
     }, 1800);
@@ -131,67 +111,8 @@ document.addEventListener("DOMContentLoaded", async () => {
     overview = await getTabWheelOverviewWithRetry().catch(() => null);
   }
 
-  function renderTaggedList(): void {
-    const taggedTabs = overview?.taggedTabs || [];
-    if (taggedTabs.length === 0) {
-      taggedTabsList.innerHTML = `
-        <div class="tagged-empty">
-          <strong>No Wheel List tabs</strong>
-          <span>Add tabs here to create a short wheel-cycling list. ${escapeHtml(formatTabWheelModifierCombo(settings.gestureModifier, settings.gestureWithShift))} + Left Click also adds the current tab.</span>
-        </div>
-      `;
-      clearTagsBtn.disabled = true;
-      return;
-    }
-
-    clearTagsBtn.disabled = false;
-    taggedTabsList.innerHTML = taggedTabs.map((entry) => {
-      const isActive = overview?.activeTabId === entry.tabId;
-      return `
-        <div class="tagged-row${isActive ? " is-active" : ""}">
-          <button class="tagged-main" data-action="activate" data-tab-id="${entry.tabId}" type="button">
-            <span class="tagged-title">${escapeHtml(entry.title || "Untitled")}</span>
-            <span class="tagged-url">${escapeHtml(extractDomain(entry.url) || entry.url || "Restricted page")}</span>
-          </button>
-          <span class="tagged-actions">
-            <button data-action="remove" data-tab-id="${entry.tabId}" type="button">Remove</button>
-          </span>
-        </div>
-      `;
-    }).join("");
-
-    taggedTabsList.querySelectorAll<HTMLButtonElement>('[data-action="activate"]').forEach((button) => {
-      button.addEventListener("click", async () => {
-        const tabId = Number(button.dataset.tabId);
-        const result = await activateTaggedTabWheelTab(tabId);
-        if (!result.ok) {
-          showStatus(result.reason || "Unable to activate tab");
-          return;
-        }
-        window.close();
-      });
-    });
-    taggedTabsList.querySelectorAll<HTMLButtonElement>('[data-action="remove"]').forEach((button) => {
-      button.addEventListener("click", async () => {
-        const tabId = Number(button.dataset.tabId);
-        const result = await removeTaggedTabWheelTab(tabId);
-        if (!result.ok) {
-          showStatus(result.reason || "Remove failed");
-          return;
-        }
-        await refreshAll();
-        showStatus("Removed from Wheel List");
-      });
-    });
-  }
-
-  function renderWheelListDisclosure(): void {
-    wheelListSection.classList.toggle("is-open", isWheelListOpen);
-    wheelListToggle.setAttribute("aria-expanded", String(isWheelListOpen));
-  }
-
   function renderModeButtons(cycleScope: TabWheelCycleScope): void {
-    for (const button of [generalModeBtn, wheelListModeBtn]) {
+    for (const button of [generalModeBtn, mruModeBtn]) {
       const isActive = button.dataset.cycleScope === cycleScope;
       button.classList.toggle("is-active", isActive);
       button.setAttribute("aria-pressed", String(isActive));
@@ -206,19 +127,15 @@ document.addEventListener("DOMContentLoaded", async () => {
       ? `TabWheel (${Math.max(1, overview.activeIndex + 1)}/${overview.tabCount})`
       : "TabWheel";
     scopeLabel.textContent = cycleScopeLabel(cycleScope);
-    tagCountLabel.textContent = `${overview?.taggedCount || 0}/${MAX_WHEEL_LIST_TABS} tagged`;
-    tagCurrentBtn.textContent = overview?.isCurrentTagged ? "Remove current" : "Add current";
     renderModeButtons(cycleScope);
     shortcutStatusEl.textContent = overview?.contentScriptStatus === "ready"
-      ? "Scroll switches tabs. Left click adds this tab. Right click changes mode."
-      : "Use popup buttons when page shortcuts are unavailable";
+      ? "Wheel cycles tabs. Left opens search. Middle jumps recent. Right closes to recent."
+      : "Use popup search and tab buttons when page shortcuts are unavailable";
     if (overview?.contentScriptStatus === "unavailable") {
       if (options.announceUnavailable) showStatus(UNAVAILABLE_GESTURES_MESSAGE, true);
     } else if (toastEl.textContent === UNAVAILABLE_GESTURES_MESSAGE) {
       hideStatus();
     }
-    renderWheelListDisclosure();
-    renderTaggedList();
   }
 
   function renderSettings(): void {
@@ -237,6 +154,7 @@ document.addEventListener("DOMContentLoaded", async () => {
     gestureWithShiftInput.checked = settings.gestureWithShift;
     invertScrollInput.checked = settings.invertScroll;
     skipPinnedTabsInput.checked = settings.skipPinnedTabs;
+    skipRestrictedPagesInput.checked = settings.skipRestrictedPages;
     wrapAroundInput.checked = settings.wrapAround;
     wheelAccelerationInput.checked = settings.wheelAcceleration;
     horizontalWheelInput.checked = settings.horizontalWheel;
@@ -266,16 +184,26 @@ document.addEventListener("DOMContentLoaded", async () => {
     showStatus("Saved");
   }
 
-  async function runPopupCycle(direction: "prev" | "next"): Promise<void> {
-    const result = await cycleTabWheel(direction).catch(() => ({
+  async function runPopupAction(
+    action: () => Promise<TabWheelActionResult>,
+    successMessage: string,
+    failureMessage: string,
+    shouldClose = false,
+  ): Promise<void> {
+    const result = await action().catch(() => ({
       ok: false,
-      reason: "Unable to switch tabs",
+      reason: failureMessage,
     }));
     await refreshAll();
     if (!result.ok) {
-      showStatus(result.reason || "Unable to switch tabs");
+      showStatus(result.reason || failureMessage);
       return;
     }
+    if (shouldClose) {
+      window.close();
+      return;
+    }
+    showStatus(successMessage);
   }
 
   async function setPopupCycleScope(cycleScope: TabWheelCycleScope): Promise<void> {
@@ -314,6 +242,7 @@ document.addEventListener("DOMContentLoaded", async () => {
       gestureWithShift: gestureWithShiftInput.checked,
       invertScroll: invertScrollInput.checked,
       skipPinnedTabs: skipPinnedTabsInput.checked,
+      skipRestrictedPages: skipRestrictedPagesInput.checked,
       wrapAround: wrapAroundInput.checked,
       wheelAcceleration: wheelAccelerationInput.checked,
       horizontalWheel: horizontalWheelInput.checked,
@@ -333,6 +262,7 @@ document.addEventListener("DOMContentLoaded", async () => {
     gestureWithShiftInput,
     invertScrollInput,
     skipPinnedTabsInput,
+    skipRestrictedPagesInput,
     wrapAroundInput,
     wheelAccelerationInput,
     horizontalWheelInput,
@@ -356,47 +286,55 @@ document.addEventListener("DOMContentLoaded", async () => {
     wheelPresetSelect.value = "custom";
   });
 
-  tagCurrentBtn.addEventListener("click", async () => {
-    const result = await toggleCurrentTabWheelTag();
-    await refreshAll();
-    showStatus(result.ok ? "Wheel List updated" : result.reason || "Could not update Wheel List");
-  });
-
-  wheelListToggle.addEventListener("click", () => {
-    isWheelListOpen = !isWheelListOpen;
-    renderWheelListDisclosure();
-  });
-
   generalModeBtn.addEventListener("click", () => {
     void setPopupCycleScope("general");
   });
-  wheelListModeBtn.addEventListener("click", () => {
-    void setPopupCycleScope("tagged");
+  mruModeBtn.addEventListener("click", () => {
+    void setPopupCycleScope("mru");
   });
 
   prevTabBtn.addEventListener("click", () => {
-    void runPopupCycle("prev");
+    void runPopupAction(
+      () => cycleTabWheel("prev"),
+      "Previous tab",
+      "Unable to switch tabs",
+    );
   });
   nextTabBtn.addEventListener("click", () => {
-    void runPopupCycle("next");
+    void runPopupAction(
+      () => cycleTabWheel("next"),
+      "Next tab",
+      "Unable to switch tabs",
+    );
+  });
+  searchForm.addEventListener("submit", (event) => {
+    event.preventDefault();
+    void runPopupAction(
+      () => openTabWheelSearchTab(searchQueryInput.value),
+      "Opened search",
+      "Unable to open search",
+      true,
+    );
+  });
+  recentTabBtn.addEventListener("click", () => {
+    void runPopupAction(
+      () => activateMostRecentTabWheelTab(),
+      "Most recent tab",
+      "Recent tab unavailable",
+      true,
+    );
+  });
+  closeRecentBtn.addEventListener("click", () => {
+    void runPopupAction(
+      () => closeCurrentTabWheelTabAndActivateRecent(),
+      "Closed tab",
+      "Unable to close tab",
+      true,
+    );
   });
 
   refreshTabWheelBtn.addEventListener("click", () => {
     void refreshCurrentTabWheelState();
-  });
-
-  clearTagsBtn.addEventListener("click", async () => {
-    if (!isConfirmingClear) {
-      isConfirmingClear = true;
-      showStatus("Click Remove all again to empty the Wheel List", false, () => {
-        isConfirmingClear = false;
-      });
-      return;
-    }
-    isConfirmingClear = false;
-    const result = await clearTaggedTabWheelTabs();
-    await refreshAll();
-    showStatus(result.ok ? "Wheel List emptied" : result.reason || "Could not empty Wheel List");
   });
 
   helpBtn.addEventListener("click", async () => {

@@ -9,6 +9,12 @@ declare module "*.css" {
 interface ScrollData {
   scrollX: number;
   scrollY: number;
+  scrollRatioX: number;
+  scrollRatioY: number;
+  scrollWidth: number;
+  scrollHeight: number;
+  viewportWidth: number;
+  viewportHeight: number;
 }
 
 interface TabWheelScrollMemoryEntry {
@@ -17,23 +23,22 @@ interface TabWheelScrollMemoryEntry {
   url: string;
   scrollX: number;
   scrollY: number;
-  updatedAt: number;
-}
-
-interface TabWheelTaggedTabEntry {
-  tabId: number;
-  windowId: number;
-  url: string;
-  title: string;
-  pinned: boolean;
-  createdAt: number;
+  scrollRatioX: number;
+  scrollRatioY: number;
+  scrollWidth: number;
+  scrollHeight: number;
+  viewportWidth: number;
+  viewportHeight: number;
+  zoom?: number;
   updatedAt: number;
 }
 
 type TabWheelModifierKey = "alt" | "ctrl" | "meta";
-type TabWheelCycleScope = "general" | "tagged";
+type TabWheelCycleScope = "general" | "mru";
 type TabWheelPreset = "precise" | "balanced" | "fast" | "custom";
 type TabWheelContentScriptStatus = "ready" | "unavailable";
+
+type TabWheelMruState = Record<string, number[]>;
 
 interface TabWheelSettings {
   invertScroll: boolean;
@@ -42,6 +47,8 @@ interface TabWheelSettings {
   allowGesturesInEditableFields: boolean;
   cycleScope: TabWheelCycleScope;
   skipPinnedTabs: boolean;
+  skipRestrictedPages: boolean;
+  searchUrlTemplate: string;
   wrapAround: boolean;
   wheelPreset: TabWheelPreset;
   wheelSensitivity: number;
@@ -54,15 +61,9 @@ interface TabWheelSettings {
 interface TabWheelActionResult {
   ok: boolean;
   reason?: string;
-  entry?: TabWheelTaggedTabEntry;
   count?: number;
-  alreadyTagged?: boolean;
-  isCurrentTagged?: boolean;
+  tabId?: number;
   cycleScope?: TabWheelCycleScope;
-}
-
-interface TabWheelFaviconFetchResult extends TabWheelActionResult {
-  dataUrl?: string;
 }
 
 interface TabWheelRefreshResult extends TabWheelActionResult {
@@ -80,8 +81,5 @@ interface TabWheelOverview {
   activeTabId?: number;
   tabCount: number;
   cycleScope: TabWheelCycleScope;
-  taggedCount: number;
-  isCurrentTagged: boolean;
-  taggedTabs: TabWheelTaggedTabEntry[];
   contentScriptStatus: TabWheelContentScriptStatus;
 }

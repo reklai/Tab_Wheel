@@ -2,60 +2,6 @@ import browser from "webextension-polyfill";
 import { TabWheelDomain } from "../domains/tabWheelDomain";
 import { RuntimeMessageHandler, UNHANDLED } from "./runtimeRouter";
 
-const MAX_FAVICON_BYTES = 512 * 1024;
-
-function arrayBufferToBase64(buffer: ArrayBuffer): string {
-  const bytes = new Uint8Array(buffer);
-  const chunkSize = 0x8000;
-  let binary = "";
-  for (let index = 0; index < bytes.length; index += chunkSize) {
-    binary += String.fromCharCode(...bytes.subarray(index, index + chunkSize));
-  }
-  return btoa(binary);
-}
-
-async function fetchFaviconData(href: string): Promise<TabWheelFaviconFetchResult> {
-  let parsedUrl: URL;
-  try {
-    parsedUrl = new URL(href);
-  } catch (_) {
-    return { ok: false, reason: "Invalid favicon URL" };
-  }
-
-  if (parsedUrl.protocol === "data:") {
-    return parsedUrl.href.startsWith("data:image/")
-      ? { ok: true, dataUrl: parsedUrl.href }
-      : { ok: false, reason: "Unsupported favicon data URL" };
-  }
-
-  if (parsedUrl.protocol !== "http:" && parsedUrl.protocol !== "https:") {
-    return { ok: false, reason: "Unsupported favicon URL" };
-  }
-
-  try {
-    const response = await fetch(parsedUrl.href, {
-      cache: "force-cache",
-      credentials: "omit",
-    });
-    if (!response.ok) return { ok: false, reason: "Favicon fetch failed" };
-
-    const blob = await response.blob();
-    if (blob.size <= 0 || blob.size > MAX_FAVICON_BYTES) {
-      return { ok: false, reason: "Favicon size unsupported" };
-    }
-
-    const mimeType = blob.type || response.headers.get("content-type") || "image/x-icon";
-    if (!mimeType.toLowerCase().startsWith("image/")) {
-      return { ok: false, reason: "Favicon type unsupported" };
-    }
-
-    const base64 = arrayBufferToBase64(await blob.arrayBuffer());
-    return { ok: true, dataUrl: `data:${mimeType};base64,${base64}` };
-  } catch (_) {
-    return { ok: false, reason: "Favicon fetch failed" };
-  }
-}
-
 async function openHelpInActiveTab(): Promise<TabWheelActionResult> {
   const [tab] = await browser.tabs.query({ active: true, currentWindow: true });
   if (tab?.id == null) {
@@ -95,21 +41,6 @@ export function createTabWheelMessageHandler(
       case "TABWHEEL_GET_OVERVIEW":
         return await domain.getOverview(sender.tab, message.windowId ?? sender.tab?.windowId);
 
-      case "TABWHEEL_TOGGLE_CURRENT_TAG":
-        return await domain.toggleCurrentTag(sender.tab, message.windowId);
-
-      case "TABWHEEL_REMOVE_TAGGED_TAB":
-        return await domain.removeTaggedTab(message.tabId, message.windowId);
-
-      case "TABWHEEL_CLEAR_TAGGED_TABS":
-        return await domain.clearTaggedTabs(message.windowId);
-
-      case "TABWHEEL_LIST_TAGGED_TABS":
-        return await domain.listTaggedTabs(message.windowId);
-
-      case "TABWHEEL_ACTIVATE_TAGGED_TAB":
-        return await domain.activateTaggedTab(message.tabId, message.windowId);
-
       case "TABWHEEL_TOGGLE_CYCLE_SCOPE":
         return await domain.toggleCycleScope(sender.tab, message.windowId);
 
@@ -118,8 +49,14 @@ export function createTabWheelMessageHandler(
           suppressPageStatus: message.suppressPageStatus,
         });
 
-      case "TABWHEEL_FETCH_FAVICON":
-        return await fetchFaviconData(message.href);
+      case "TABWHEEL_OPEN_SEARCH_TAB":
+        return await domain.openSearchTab(message.query, sender.tab, message.windowId);
+
+      case "TABWHEEL_ACTIVATE_MOST_RECENT_TAB":
+        return await domain.activateMostRecentTab(sender.tab, message.windowId);
+
+      case "TABWHEEL_CLOSE_CURRENT_TAB_AND_ACTIVATE_RECENT":
+        return await domain.closeCurrentTabAndActivateRecent(sender.tab, message.windowId);
 
       case "TABWHEEL_SAVE_SCROLL_POSITION": {
         const tabId = sender.tab?.id;
@@ -129,8 +66,7 @@ export function createTabWheelMessageHandler(
           tabId,
           windowId,
           sender.tab?.url,
-          message.scrollX,
-          message.scrollY,
+          message,
         );
       }
 

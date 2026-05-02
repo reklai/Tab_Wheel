@@ -5,22 +5,22 @@ TabWheel is a browser extension for switching tabs with the mouse scroll wheel. 
 It is built for a small, reliable workflow:
 
 - `Alt + Wheel`: switch tabs.
-- `Alt + Left Click`: tag or untag the current tab for the Wheel List.
-- `Alt + Right Click`: switch between General cycling and Wheel List cycling.
-- Toolbar popup: manage tagged tabs, change mode, tune wheel behavior, and use Previous / Next fallback controls.
+- `Alt + Left Click`: open the in-page search launcher.
+- `Alt + Middle Click`: jump to the most recently used tab.
+- `Alt + Right Click`: close the current tab and activate the most recently used tab.
+- Toolbar popup: change mode, tune wheel behavior, and use fallback controls.
 
 ## Features
 
-- Mouse wheel tab switching with configurable modifier: `Alt`, `Ctrl`, or `Meta`.
+- Mouse wheel tab switching with configurable modifier: `Alt / Option`, `Ctrl / Control`, or `Meta / Command`.
+- In-page search launcher that uses the browser's default search provider, with a configurable URL template fallback.
 - Optional `Shift` requirement to reduce accidental activation.
 - General mode for normal tab-order cycling.
-- Wheel List mode for cycling only tagged tabs.
+- MRU mode for most-recently-used cycling.
 - Precise, Balanced, Fast, and Custom wheel presets.
-- Sensitivity, cooldown, acceleration, horizontal wheel, wrap-around, pinned-tab, and overshoot guard settings.
-- Scroll memory for restoring recent scroll X/Y positions when returning to the same URL.
+- Sensitivity, cooldown, acceleration, horizontal wheel, wrap-around, pinned-tab, restricted-page skip, and overshoot guard settings.
+- Scroll memory for restoring recent root scroll position, normalized page position, and browser zoom when returning to the same URL.
 - Editable-field setting for wheel-cycling inside text boxes, search fields, and editors/docs.
-- Subtle in-page Wheel List indicator for tagged tabs.
-- Best-effort favicon badge for tagged tabs when the browser allows safe favicon composition.
 - Popup Refresh action that reconnects TabWheel on the current page without reloading it.
 
 ## Browser Support
@@ -28,15 +28,13 @@ It is built for a small, reliable workflow:
 - Chrome and Chromium-based browsers use the Manifest V3 build.
 - Firefox and Zen Browser use the Manifest V2 build.
 
-Browser UI pages, extension pages, browser stores, devtools, PDF viewers, and some restricted pages may block content scripts. The popup Previous / Next buttons remain available as a fallback where the toolbar popup can run.
+Browser UI pages, extension pages, browser stores, devtools, PDF viewers, and some restricted pages may block content scripts. TabWheel skips those pages during wheel cycling by default. The popup fallback search field and tab buttons remain available where the toolbar popup can run.
 
 ## Privacy
 
 TabWheel does not use telemetry, tracking, analytics, remote code, or developer-owned servers.
 
-The extension stores settings, Wheel List entries, recent scroll positions, and URL checks in browser-local storage. Wheel List entries include local tab metadata such as tab ID, window ID, URL, title, pinned state, and timestamps.
-
-The optional favicon badge may request the page favicon URL with credentials omitted so the badge can be drawn locally. The favicon image is not sent to a TabWheel server.
+The extension stores settings, including the fallback search URL template, MRU tab order, recent scroll positions, page geometry, tab zoom, and URL checks in browser-local storage.
 
 See [PRIVACY.md](./PRIVACY.md) for the full privacy policy.
 
@@ -115,20 +113,20 @@ src/
       optionsPage.ts     # settings load/save and dynamic labels
     toolbarPopup/
       toolbarPopup.html  # browser action popup markup
-      toolbarPopup.css   # popup layout, responsive controls, Wheel List styles
-      toolbarPopup.ts    # popup state, fallback actions, tagging, mode switching, refresh
+      toolbarPopup.css   # popup layout, responsive controls, and fallback actions
+      toolbarPopup.ts    # popup state, fallback actions, mode switching, refresh
   lib/
     appInit/
-      appInit.ts         # page-side listeners, indicators, scroll memory, help overlay trigger
+      appInit.ts         # page-side listeners, search/click gestures, scroll memory, help overlay trigger
     adapters/runtime/
       runtimeClient.ts   # typed runtime messaging helpers and retry behavior
       tabWheelApi.ts     # content/popup API wrappers around runtime messages
     backgroundRuntime/
       domains/
-        tabWheelDomain.ts        # tab cycling, Wheel List, scroll memory, refresh/injection logic
+        tabWheelDomain.ts        # tab cycling, MRU state, scroll memory, refresh/injection logic
       handlers/
         runtimeRouter.ts         # shared runtime message routing
-        tabWheelMessageHandler.ts # TabWheel message handler and favicon fetch helper
+        tabWheelMessageHandler.ts # TabWheel message handler
     common/
       contracts/
         runtimeMessages.ts # background/content/popup message shapes
@@ -146,6 +144,9 @@ src/
         help/
           help.ts          # in-page help overlay
           help.css         # help overlay styles
+        searchLauncher/
+          searchLauncher.ts  # in-page search launcher
+          searchLauncher.css # search launcher styles
   icons/                   # extension icons and image assets
   types.d.ts               # shared global TypeScript declarations
 esBuildConfig/
