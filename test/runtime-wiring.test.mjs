@@ -165,6 +165,7 @@ test("domain supports MRU cycling, restricted-page skipping, and URL-validated s
   assert.match(source, /normalizeSearchQuery/);
   assert.match(source, /Enter a search query/);
   assert.match(source, /activateMostRecentTab/);
+  assert.match(source, /activateMostRecentTab[\s\S]*void captureTabScroll\(activeTab\)\.catch\(\(\) => \{\}\)[\s\S]*activateTab\(targetTab,\s*\{\s*restoreScrollAsync:\s*true\s*\}\)/);
   assert.match(source, /closeCurrentTabAndActivateRecent/);
   assert.match(source, /browser\.tabs\.create/);
   assert.match(source, /browser\.tabs\.remove/);

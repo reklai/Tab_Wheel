@@ -855,10 +855,10 @@ export function createTabWheelDomain(): TabWheelDomain {
     await reconcileMruWindow(activeTab.windowId, tabs);
     const eligibleTabs = getEligibleTabs(tabs, settings).filter((candidate) => candidate.id !== activeTab.id);
     if (eligibleTabs.length === 0) return { ok: false, reason: "No recent tab" };
-    await captureTabScroll(activeTab);
     const targetTab = resolveMostRecentTab(activeTab, activeTab.windowId, eligibleTabs);
     if (!targetTab?.id) return { ok: false, reason: "No recent tab" };
-    await activateTab(targetTab);
+    void captureTabScroll(activeTab).catch(() => {});
+    await activateTab(targetTab, { restoreScrollAsync: true });
     return { ok: true, tabId: targetTab.id };
   }
 
