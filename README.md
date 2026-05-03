@@ -10,6 +10,14 @@ It is built for a small, reliable workflow:
 - `Alt + Right Click`: close the current tab and activate the most recently used tab.
 - Toolbar popup: change mode, tune wheel behavior, and use fallback controls.
 
+## Engineering Promise
+
+TabWheel follows a fast, feature-rich, and browser-native promise, with reliability first.
+
+- Fast: hot-path gestures do little work in the page, tab cycling serializes bursty wheel input, and scroll capture/restore is best-effort when it should not block activation.
+- Feature-rich: the core workflow includes configurable wheel cycling, MRU mode, search, recent-tab, close-to-recent, popup fallbacks, and scroll memory without turning the page into a custom application shell.
+- Browser-native: behavior is built on browser extension APIs, capture-phase DOM events, Shadow DOM overlays, and real browser lifecycle events such as fullscreen changes rather than trying to override reserved browser behavior.
+
 ## Features
 
 - Mouse wheel tab switching with configurable modifier: `Alt / Option`, `Ctrl / Control`, or `Meta / Command`.
