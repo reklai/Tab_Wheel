@@ -26,15 +26,10 @@ export async function openTabWheelSearchLauncher(): Promise<void> {
   shadow.appendChild(panel);
 
   panel.innerHTML = `
-    <div class="ht-search-titlebar">
-      <span class="ht-search-title">Search</span>
-      <div class="ht-search-actions">
-        <button class="ht-search-cancel" type="button">Cancel</button>
-        <button class="ht-search-submit" type="submit" form="ht-search-form">Search</button>
-      </div>
-    </div>
     <form class="ht-search-form" id="ht-search-form">
       <input class="ht-search-input" name="query" type="search" autocomplete="off" spellcheck="false" placeholder="Search" autofocus />
+      <button class="ht-search-cancel" type="button">Cancel</button>
+      <button class="ht-search-submit" type="submit">Search</button>
     </form>
     <div class="ht-search-status" role="status" aria-live="polite" hidden></div>
   `;

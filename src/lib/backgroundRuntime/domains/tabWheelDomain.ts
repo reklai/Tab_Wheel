@@ -722,9 +722,16 @@ export function createTabWheelDomain(): TabWheelDomain {
         .then(() => true)
         .catch(() => false);
       if (!didUseBrowserDefaultSearch) {
-        await browser.tabs.update(createdTab.id, {
-          url: buildSearchUrl(settings.searchUrlTemplate, normalizedQuery),
-        });
+        const didUseFallbackSearch = await browser.tabs
+          .update(createdTab.id, {
+            url: buildSearchUrl(settings.searchUrlTemplate, normalizedQuery),
+          })
+          .then(() => true)
+          .catch(() => false);
+        if (!didUseFallbackSearch) {
+          await browser.tabs.remove(createdTab.id).catch(() => {});
+          return { ok: false, reason: "Search unavailable" };
+        }
       }
     }
     if (createdTab.id != null && createdTab.windowId != null) {

@@ -38,7 +38,7 @@ function buildHelpSections(settings: TabWheelSettings): HelpSection[] {
         { value: `${gestureModifier} + Wheel switches tabs using the current cycle mode` },
         { value: `${gestureModifier} + Left Click opens the in-page search launcher` },
         { value: `${gestureModifier} + Middle Click jumps to the most recently used tab` },
-        { value: `${gestureModifier} + Right Click closes this tab and activates the most recently used tab` },
+        { value: `${gestureModifier} + Right Click closes this tab and returns to the most recently used tab when available` },
       ],
     },
     {
@@ -55,7 +55,7 @@ function buildHelpSections(settings: TabWheelSettings): HelpSection[] {
         { label: "Switch tabs", value: `${gestureModifier} + Wheel` },
         { label: "Search launcher", value: `${gestureModifier} + Left Click` },
         { label: "Most recent tab", value: `${gestureModifier} + Middle Click` },
-        { label: "Close to recent", value: `${gestureModifier} + Right Click` },
+        { label: "Close tab", value: `${gestureModifier} + Right Click` },
         { label: "Editable fields", value: editableFields },
         { label: "Wheel down/right", value: settings.invertScroll ? "goes to previous tab" : "goes to next tab" },
         { label: "Wheel up/left", value: settings.invertScroll ? "goes to next tab" : "goes to previous tab" },

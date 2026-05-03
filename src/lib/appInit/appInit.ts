@@ -221,7 +221,9 @@ export function initApp(): void {
   let overshootGuardUntil = 0;
   let areSettingsLoaded = false;
   let claimedMouseGesture: {
+    action: TabWheelMouseGestureAction;
     button: number;
+    hasRun: boolean;
     startedAt: number;
   } | null = null;
 
@@ -371,7 +373,11 @@ export function initApp(): void {
       void activateMostRecentTabWheelTab().catch(() => showStatus("Recent tab unavailable"));
       return;
     }
-    void closeCurrentTabWheelTabAndActivateRecent().catch(() => showStatus("Close tab failed"));
+    void closeCurrentTabWheelTabAndActivateRecent()
+      .then((result) => {
+        if (!result.ok) showStatus(result.reason || "Close tab failed");
+      })
+      .catch(() => showStatus("Close tab failed"));
   }
 
   function getTabCycleWheelDelta(event: WheelEvent): number {
@@ -420,6 +426,10 @@ export function initApp(): void {
     const activeClaim = getActiveMouseGestureClaim(event);
     if (activeClaim) {
       suppressPageEvent(event);
+      if (event.type === "contextmenu" && activeClaim.action === "closeToRecent" && !activeClaim.hasRun) {
+        activeClaim.hasRun = true;
+        runMouseGestureAction(activeClaim.action);
+      }
       if (event.type === "click" || event.type === "contextmenu" || event.type === "auxclick") {
         claimedMouseGesture = null;
       }
@@ -432,10 +442,15 @@ export function initApp(): void {
 
     if (isMouseGestureStartEvent(event) || event.type === "click" || event.type === "contextmenu" || event.type === "auxclick") {
       claimedMouseGesture = {
+        action,
         button: event.button,
+        hasRun: false,
         startedAt: Date.now(),
       };
-      runMouseGestureAction(action);
+      if (action !== "closeToRecent" || event.type === "contextmenu") {
+        claimedMouseGesture.hasRun = true;
+        runMouseGestureAction(action);
+      }
     }
   }
 

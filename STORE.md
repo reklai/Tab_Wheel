@@ -11,7 +11,7 @@ TabWheel - Mouse Wheel Tab Switcher
 
 ## Summary (short, <=132 chars)
 
-Mouse scroll wheel tab switcher with MRU mode, in-page search, recent-tab, and close-to-recent gestures.
+Mouse scroll wheel tab switcher with MRU mode, in-page search, recent-tab, and close-tab gestures.
 
 ## Description
 
@@ -19,7 +19,7 @@ TabWheel is a mouse scroll wheel-based browser navigation extension for quickly 
 
 Use Alt + Left Click to open an in-page search launcher that opens results in a new adjacent tab using the browser's current default search provider. A configurable search URL template is kept as a fallback. Use Alt + Middle Click to jump to the most recently used tab. Use Alt + Right Click to close the current tab and activate the most recently used tab. General mode cycles through eligible tabs in visible tab-strip order. MRU mode cycles through eligible tabs in most-recently-used order.
 
-The extension popup toolbar gives you the main controls in one place: current cycle mode, Previous / Next fallback buttons, search/recent-tab/close-to-recent controls, a Refresh action for reconnecting TabWheel on the current page, and wheel tuning.
+The extension popup toolbar gives you the main controls in one place: current cycle mode, Previous / Next fallback buttons, search, recent-tab, close-tab controls, a Refresh action for reconnecting TabWheel on the current page, and wheel tuning.
 
 Presets include Precise, Balanced, Fast, and Custom. Editable-field control lets you allow wheel-cycling when cursor is inside text boxes, search fields, and editors/docs. TabWheel can also remember recent root scroll positions, normalized page position, and browser zoom, then restore them when cycling back to the same URL using URL checks to avoid stale restores.
 
@@ -35,7 +35,7 @@ Customize controls:
 - Optionally require Shift to reduce accidental activation
 - Pick a wheel preset: Precise, Balanced, Fast, or Custom
 - Adjust sensitivity, cooldown, acceleration, horizontal wheel support, pinned-tab handling, restricted-page skipping, wrap-around, and safe overshoot guard
-- Use Previous / Next, search, recent tab, and close-to-recent when page shortcuts are unavailable
+- Use Previous / Next, search, recent tab, and close tab when page shortcuts are unavailable
 - Use Refresh TabWheel when a normal page needs the content script reconnected
 
 ## Privacy

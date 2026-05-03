@@ -327,7 +327,7 @@ document.addEventListener("DOMContentLoaded", async () => {
   closeRecentBtn.addEventListener("click", () => {
     void runPopupAction(
       () => closeCurrentTabWheelTabAndActivateRecent(),
-      "Closed tab",
+      "",
       "Unable to close tab",
       true,
     );
