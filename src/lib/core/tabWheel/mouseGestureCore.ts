@@ -1,5 +1,5 @@
 export type TabWheelMouseGestureAction = "search" | "recentTab" | "closeToRecent";
-export type TabWheelMouseGestureRunPhase = "sessionStart" | "contextmenu";
+export type TabWheelMouseGestureRunPhase = "sessionStart" | "auxclick" | "contextmenu";
 export type TabWheelMouseGestureEventType = "click" | "auxclick" | "contextmenu";
 
 export interface TabWheelMouseGesturePolicy {
@@ -32,8 +32,8 @@ export const MOUSE_GESTURE_POLICIES: readonly TabWheelMouseGesturePolicy[] = [
   {
     action: "recentTab",
     button: 1,
-    runPhase: "sessionStart",
-    finishEvents: ["click", "auxclick"],
+    runPhase: "auxclick",
+    finishEvents: ["auxclick"],
   },
   {
     action: "closeToRecent",

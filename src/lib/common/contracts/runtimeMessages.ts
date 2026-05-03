@@ -5,6 +5,7 @@ export type ContentRuntimeMessage =
   | { type: "GET_SCROLL" }
   | ({ type: "SET_SCROLL"; smooth?: boolean } & ScrollData)
   | { type: "TABWHEEL_STATUS"; message: string }
+  | { type: "TABWHEEL_DISMISS_PANEL" }
   | { type: "OPEN_TABWHEEL_HELP" };
 
 export type BackgroundRuntimeMessage =

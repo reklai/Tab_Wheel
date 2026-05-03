@@ -31,14 +31,14 @@ test("mouse gesture core resolves button policies", async () => {
   assert.equal(core.resolveMouseGesturePolicy(3), null);
 });
 
-test("mouse gesture core runs middle click immediately and finishes on auxclick", async () => {
+test("mouse gesture core claims middle click until auxclick", async () => {
   const core = await loadMouseGestureCoreModule();
   const policy = core.resolveMouseGesturePolicy(1);
   const session = core.createMouseGestureSession(policy, 1000);
 
-  assert.equal(core.shouldRunMouseGestureSession(session, "mousedown"), true);
-  session.hasRun = true;
-  assert.equal(core.shouldRunMouseGestureSession(session, "auxclick"), false);
+  assert.equal(core.shouldRunMouseGestureSession(session, "mousedown"), false);
+  assert.equal(core.shouldFinishMouseGestureSession(session, "mousedown"), false);
+  assert.equal(core.shouldRunMouseGestureSession(session, "auxclick"), true);
   assert.equal(core.shouldFinishMouseGestureSession(session, "auxclick"), true);
 });
 

@@ -206,6 +206,10 @@ function suppressPageEvent(event: Event): void {
   event.stopImmediatePropagation();
 }
 
+function isTabWheelPanelOpen(): boolean {
+  return document.getElementById("ht-panel-host") !== null;
+}
+
 function isTopFrame(): boolean {
   try {
     return window.top === window;
@@ -349,10 +353,26 @@ export function initApp(): void {
 
   function resolveMouseGesturePolicyForEvent(event: MouseEvent): TabWheelMouseGesturePolicy | null {
     if (!areSettingsLoaded) return null;
+    if (isTabWheelPanelOpen()) return null;
     if (!event.isTrusted) return null;
     if (!isTabWheelModifier(event, settings.gestureModifier, settings.gestureWithShift)) return null;
     if (isWheelGestureBlockedTarget(event.target)) return null;
     return resolveMouseGesturePolicyByButton(event.button, MOUSE_GESTURE_POLICIES);
+  }
+
+  function resolvePanelSuppressedMouseGesturePolicy(event: MouseEvent): TabWheelMouseGesturePolicy | null {
+    if (event.type === "contextmenu") {
+      return MOUSE_GESTURE_POLICIES.find((policy) => policy.action === "closeToRecent") || null;
+    }
+    return resolveMouseGesturePolicyByButton(event.button, MOUSE_GESTURE_POLICIES);
+  }
+
+  function shouldSuppressPanelMouseShortcut(event: MouseEvent): boolean {
+    if (!areSettingsLoaded) return false;
+    if (!isTabWheelPanelOpen()) return false;
+    if (!event.isTrusted) return false;
+    if (!isTabWheelModifier(event, settings.gestureModifier, settings.gestureWithShift)) return false;
+    return resolvePanelSuppressedMouseGesturePolicy(event)?.action === "closeToRecent";
   }
 
   function isMouseGestureSessionStartEvent(event: MouseEvent): boolean {
@@ -361,6 +381,19 @@ export function initApp(): void {
 
   function finishMouseGestureSession(): void {
     mouseGestureSession = null;
+  }
+
+  function resetWheelGestureState(): void {
+    wheelAccumulator = 0;
+    lastWheelCycleAt = 0;
+    wheelBurstCount = 0;
+    overshootGuardDirection = null;
+    overshootGuardUntil = 0;
+  }
+
+  function resetInputGestureState(): void {
+    resetWheelGestureState();
+    finishMouseGestureSession();
   }
 
   function getActiveMouseGestureSession(event: MouseEvent): TabWheelMouseGestureSession | null {
@@ -421,6 +454,7 @@ export function initApp(): void {
     lastWheelCycleAt = now;
     overshootGuardDirection = direction;
     overshootGuardUntil = settings.overshootGuard ? now + OVERSHOOT_GUARD_MS : 0;
+    if (isTabWheelPanelOpen()) dismissPanel();
     void cycleTabWheel(direction).catch(() => {});
   }
 
@@ -437,6 +471,11 @@ export function initApp(): void {
   }
 
   function mouseGestureHandler(event: MouseEvent): void {
+    if (shouldSuppressPanelMouseShortcut(event)) {
+      suppressPageEvent(event);
+      return;
+    }
+
     const activeSession = getActiveMouseGestureSession(event);
     if (activeSession) {
       suppressPageEvent(event);
@@ -468,11 +507,7 @@ export function initApp(): void {
     const settingsChange = changes[TABWHEEL_STORAGE_KEYS.settings];
     if (settingsChange) {
       settings = normalizeTabWheelSettings(settingsChange.newValue);
-      wheelAccumulator = 0;
-      wheelBurstCount = 0;
-      overshootGuardDirection = null;
-      overshootGuardUntil = 0;
-      finishMouseGestureSession();
+      resetInputGestureState();
     }
   }
 
@@ -489,6 +524,9 @@ export function initApp(): void {
       case "TABWHEEL_STATUS":
         showStatus(receivedMessage.message);
         return Promise.resolve({ ok: true });
+      case "TABWHEEL_DISMISS_PANEL":
+        dismissPanel();
+        return Promise.resolve({ ok: true });
       case "OPEN_TABWHEEL_HELP":
         void openTabWheelHelpOverlay();
         return Promise.resolve({ ok: true });
@@ -496,10 +534,11 @@ export function initApp(): void {
   }
 
   function visibilityHandler(): void {
-    if (document.visibilityState === "hidden") {
-      flushScrollSnapshot();
-      dismissPanel();
-    }
+    if (document.visibilityState !== "hidden") return;
+    resetInputGestureState();
+    if (!isTopFrameContext) return;
+    flushScrollSnapshot();
+    dismissPanel();
   }
 
   window.addEventListener("pointerdown", mouseGestureHandler, true);
@@ -518,10 +557,10 @@ export function initApp(): void {
   document.addEventListener("contextmenu", mouseGestureHandler, true);
   window.addEventListener("wheel", wheelHandler, { passive: false, capture: true });
   document.addEventListener("wheel", wheelHandler, { passive: false, capture: true });
+  document.addEventListener("visibilitychange", visibilityHandler);
   browser.storage.onChanged.addListener(storageChangedHandler);
 
   if (isTopFrameContext) {
-    document.addEventListener("visibilitychange", visibilityHandler);
     window.addEventListener("scroll", scheduleScrollSnapshot, { passive: true, capture: true });
     window.addEventListener("pagehide", flushScrollSnapshot);
     window.addEventListener("beforeunload", flushScrollSnapshot);
@@ -545,9 +584,9 @@ export function initApp(): void {
     document.removeEventListener("contextmenu", mouseGestureHandler, true);
     window.removeEventListener("wheel", wheelHandler, true);
     document.removeEventListener("wheel", wheelHandler, true);
+    document.removeEventListener("visibilitychange", visibilityHandler);
     browser.storage.onChanged.removeListener(storageChangedHandler);
     if (isTopFrameContext) {
-      document.removeEventListener("visibilitychange", visibilityHandler);
       window.removeEventListener("scroll", scheduleScrollSnapshot, true);
       window.removeEventListener("pagehide", flushScrollSnapshot);
       window.removeEventListener("beforeunload", flushScrollSnapshot);

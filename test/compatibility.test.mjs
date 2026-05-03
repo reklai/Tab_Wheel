@@ -30,13 +30,13 @@ test("manifests no longer declare legacy keyboard commands", () => {
   assert.equal(v3.commands, undefined);
 });
 
-test("manifests use TabWheel names and titles", () => {
+test("manifests use shared store names and titles", () => {
   const v2 = readJson("esBuildConfig/manifest_v2.json");
   const v3 = readJson("esBuildConfig/manifest_v3.json");
-  assert.equal(v2.name, "TabWheel - Mouse Wheel Tab Switcher");
-  assert.equal(v2.browser_action.default_title, "TabWheel - Mouse Wheel Tab Switcher");
-  assert.equal(v3.name, "TabWheel - Mouse Wheel Tab Switcher");
-  assert.equal(v3.action.default_title, "TabWheel - Mouse Wheel Tab Switcher");
+  assert.equal(v2.name, "Mouse Wheel Tab Switcher");
+  assert.equal(v2.browser_action.default_title, "Mouse Wheel Tab Switcher");
+  assert.equal(v3.name, "Mouse Wheel Tab Switcher");
+  assert.equal(v3.action.default_title, "Mouse Wheel Tab Switcher");
 });
 
 test("manifests are versioned for the 1.0.1 MRU gesture release", () => {

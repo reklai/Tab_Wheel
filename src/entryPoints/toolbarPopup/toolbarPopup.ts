@@ -37,12 +37,6 @@ function cycleScopeLabel(scope: TabWheelCycleScope): string {
   return scope === "mru" ? "MRU" : "General";
 }
 
-const UNAVAILABLE_GESTURES_MESSAGE = "Page gestures unavailable here; popup buttons still work.";
-
-interface RenderStateOptions {
-  announceUnavailable?: boolean;
-}
-
 function setSelectOptions(select: HTMLSelectElement, values: readonly string[], selected: string, label: (value: string) => string): void {
   select.innerHTML = values
     .map((value) => `<option value="${value}" ${value === selected ? "selected" : ""}>${label(value)}</option>`)
@@ -120,10 +114,10 @@ document.addEventListener("DOMContentLoaded", async () => {
     }
   }
 
-  function renderState(options: RenderStateOptions = {}): void {
+  function renderState(): void {
     const gesture = formatTabWheelModifierCombo(settings.gestureModifier, settings.gestureWithShift);
     const cycleScope = overview?.cycleScope || settings.cycleScope;
-    shortcutEl.textContent = `${gesture} + Wheel`;
+    shortcutEl.textContent = `Hold ${gesture} and Use Mouse Wheel or Clicks`;
     titlebarTextEl.textContent = overview
       ? `TabWheel (${Math.max(1, overview.activeIndex + 1)}/${overview.tabCount})`
       : "TabWheel";
@@ -131,14 +125,10 @@ document.addEventListener("DOMContentLoaded", async () => {
     renderModeButtons(cycleScope);
     const arePageShortcutsReady = overview?.contentScriptStatus === "ready";
     fallbackPanel.hidden = arePageShortcutsReady;
+    shortcutStatusEl.hidden = !arePageShortcutsReady;
     shortcutStatusEl.textContent = arePageShortcutsReady
-      ? "Wheel cycles tabs. Left opens search. Middle jumps recent. Right closes to recent."
-      : "Use popup search and tab buttons when page shortcuts are unavailable";
-    if (overview?.contentScriptStatus === "unavailable") {
-      if (options.announceUnavailable) showStatus(UNAVAILABLE_GESTURES_MESSAGE, true);
-    } else if (toastEl.textContent === UNAVAILABLE_GESTURES_MESSAGE) {
-      hideStatus();
-    }
+      ? "Wheel switches tabs. Left-click opens search. Middle-click opens recent tab. Right-click closes and returns."
+      : "";
   }
 
   function renderSettings(): void {
@@ -173,11 +163,11 @@ document.addEventListener("DOMContentLoaded", async () => {
     wheelCooldownValue.textContent = `Switch delay: ${Math.round(settings.wheelCooldownMs)}ms`;
   }
 
-  async function refreshAll(options: RenderStateOptions = {}): Promise<void> {
+  async function refreshAll(): Promise<void> {
     settings = await loadTabWheelSettings();
     await refreshOverview();
     renderSettings();
-    renderState(options);
+    renderState();
   }
 
   async function persist(nextSettings: TabWheelSettings): Promise<void> {
@@ -354,5 +344,5 @@ document.addEventListener("DOMContentLoaded", async () => {
     window.close();
   });
 
-  await refreshAll({ announceUnavailable: true });
+  await refreshAll();
 });

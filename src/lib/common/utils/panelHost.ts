@@ -32,6 +32,7 @@ export interface PanelModalSessionOptions {
   closeOnEscape?: boolean;
   closeOnFullscreenChange?: boolean;
   closeOnPageHide?: boolean;
+  closeOnVisibilityHidden?: boolean;
   eventTypes?: readonly PanelModalEventType[];
 }
 
@@ -255,6 +256,7 @@ export function createPanelModalSession(options: PanelModalSessionOptions): Pane
     }
     document.removeEventListener("keydown", documentKeyHandler, true);
     document.removeEventListener("fullscreenchange", fullscreenChangeHandler, true);
+    document.removeEventListener("visibilitychange", visibilityChangeHandler, true);
     window.removeEventListener("pagehide", pageHideHandler, true);
   };
 
@@ -294,11 +296,18 @@ export function createPanelModalSession(options: PanelModalSessionOptions): Pane
     requestClose();
   }
 
+  function visibilityChangeHandler(): void {
+    if (options.closeOnVisibilityHidden !== true) return;
+    if (document.visibilityState !== "hidden") return;
+    requestClose();
+  }
+
   for (const eventType of eventTypes) {
     root.addEventListener(eventType, modalEventHandler);
   }
   document.addEventListener("keydown", documentKeyHandler, true);
   document.addEventListener("fullscreenchange", fullscreenChangeHandler, true);
+  document.addEventListener("visibilitychange", visibilityChangeHandler, true);
   window.addEventListener("pagehide", pageHideHandler, true);
 
   return { dispose };

@@ -7,7 +7,7 @@ It is built for a small, reliable workflow:
 - `Alt + Wheel`: switch tabs.
 - `Alt + Left Click`: open the in-page search launcher.
 - `Alt + Middle Click`: jump to the most recently used tab.
-- `Alt + Right Click`: close the current tab and activate the most recently used tab.
+- `Alt + Right Click`: close the current tab and activate the most recently used tab when one is available.
 - Toolbar popup: change mode, tune wheel behavior, and use fallback controls.
 
 ## Engineering Promise
@@ -30,6 +30,7 @@ TabWheel follows a fast, feature-rich, and browser-native promise, with reliabil
 - Scroll memory for restoring recent root scroll position, normalized page position, and browser zoom when returning to the same URL.
 - Editable-field setting for wheel-cycling inside text boxes, search fields, and editors/docs.
 - Popup Refresh action that reconnects TabWheel on the current page without reloading it.
+- Reliability guards for mouse gestures: middle-click recent-tab switching runs on the completed click, search panels close when leaving the tab, and close-to-recent does not close the current tab unless a recent-tab target is available.
 
 ## Browser Support
 

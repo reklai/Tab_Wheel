@@ -103,6 +103,7 @@ export async function openTabWheelSearchLauncher(): Promise<void> {
     closeOnEscape: true,
     closeOnFullscreenChange: true,
     closeOnPageHide: true,
+    closeOnVisibilityHidden: true,
     onClose: close,
   });
   registerPanelCleanup(close);
