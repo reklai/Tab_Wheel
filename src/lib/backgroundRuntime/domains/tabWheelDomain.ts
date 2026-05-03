@@ -28,6 +28,15 @@ interface ExistingTabActivationResult {
   failed: number;
 }
 
+interface MruCycleSession {
+  tabIds: number[];
+  expiresAt: number;
+}
+
+interface ActivateTabOptions {
+  restoreScrollAsync?: boolean;
+}
+
 export interface TabWheelDomain {
   ensureLoaded(): Promise<void>;
   activateExistingContentScripts(): Promise<ExistingTabActivationResult>;
@@ -43,6 +52,9 @@ export interface TabWheelDomain {
   markContentScriptReady(tab?: Tabs.Tab): TabWheelActionResult;
   registerLifecycleListeners(): void;
 }
+
+const FALLBACK_CYCLE_LOCK_WINDOW_ID = 0;
+const MRU_CYCLE_SESSION_MS = 1400;
 
 function windowKey(windowId: number): string {
   return String(windowId);
@@ -214,6 +226,8 @@ export function createTabWheelDomain(): TabWheelDomain {
   let scrollMemoryByTabId: ScrollMemoryByTabId = {};
   let mruTabIdsByWindowId: MruTabIdsByWindowId = {};
   const contentScriptReadyUrlsByTabId = new Map<number, string>();
+  const cycleTasksByWindowId = new Map<number, Promise<void>>();
+  const mruCycleSessionsByWindowId = new Map<number, MruCycleSession>();
   let loaded = false;
 
   async function ensureLoaded(): Promise<void> {
@@ -242,20 +256,29 @@ export function createTabWheelDomain(): TabWheelDomain {
     });
   }
 
-  async function resolveActiveTab(tab?: Tabs.Tab, windowId?: number): Promise<Tabs.Tab | null> {
-    if (tab?.id != null && tab.windowId != null) {
-      try {
-        return await browser.tabs.get(tab.id);
-      } catch (_) {
-        return tab;
-      }
-    }
+  async function queryActiveTab(windowId?: number): Promise<Tabs.Tab | null> {
     if (windowId != null) {
       const [activeTab] = await browser.tabs.query({ active: true, windowId });
       return activeTab?.id != null && activeTab.windowId != null ? activeTab : null;
     }
     const [activeTab] = await browser.tabs.query({ active: true, currentWindow: true });
     return activeTab?.id != null && activeTab.windowId != null ? activeTab : null;
+  }
+
+  async function resolveActiveTab(tab?: Tabs.Tab, windowId?: number): Promise<Tabs.Tab | null> {
+    const fallbackWindowId = windowId ?? tab?.windowId;
+    if (tab?.id != null && tab.windowId != null) {
+      try {
+        const currentTab = await browser.tabs.get(tab.id);
+        if (currentTab?.id != null && currentTab.windowId != null && currentTab.active === true) {
+          return currentTab;
+        }
+        return await queryActiveTab(currentTab?.windowId ?? fallbackWindowId);
+      } catch (_) {
+        return await queryActiveTab(fallbackWindowId);
+      }
+    }
+    return await queryActiveTab(windowId);
   }
 
   async function resolveCurrentWindowId(windowId?: number): Promise<number | null> {
@@ -312,6 +335,49 @@ export function createTabWheelDomain(): TabWheelDomain {
       seenTabIds.add(tab.id);
     }
     return ordered;
+  }
+
+  function getTabIds(tabs: Tabs.Tab[]): number[] {
+    return tabs
+      .map((tab) => tab.id)
+      .filter((tabId): tabId is number => tabId != null);
+  }
+
+  function hasSameNumberSet(left: number[], right: number[]): boolean {
+    if (left.length !== right.length) return false;
+    const rightValues = new Set(right);
+    return left.every((value) => rightValues.has(value));
+  }
+
+  function resolveMruCycleSessionTabs(
+    windowId: number,
+    eligibleTabs: Tabs.Tab[],
+  ): Tabs.Tab[] {
+    const now = Date.now();
+    const eligibleById = new Map<number, Tabs.Tab>();
+    for (const tab of eligibleTabs) {
+      if (tab.id != null) eligibleById.set(tab.id, tab);
+    }
+
+    const eligibleTabIds = Array.from(eligibleById.keys());
+    const existingSession = mruCycleSessionsByWindowId.get(windowId);
+    if (
+      existingSession
+      && existingSession.expiresAt > now
+      && hasSameNumberSet(existingSession.tabIds, eligibleTabIds)
+    ) {
+      existingSession.expiresAt = now + MRU_CYCLE_SESSION_MS;
+      return existingSession.tabIds
+        .map((tabId) => eligibleById.get(tabId))
+        .filter((tab): tab is Tabs.Tab => tab != null);
+    }
+
+    const orderedTabs = getMruOrderedTabs(windowId, eligibleTabs);
+    mruCycleSessionsByWindowId.set(windowId, {
+      tabIds: getTabIds(orderedTabs),
+      expiresAt: now + MRU_CYCLE_SESSION_MS,
+    });
+    return orderedTabs;
   }
 
   function getCycleTabs(
@@ -461,7 +527,9 @@ export function createTabWheelDomain(): TabWheelDomain {
     const url = normalizePageUrl(tab.url);
     if (!url) return { ok: false, reason: "Unsupported page" };
     contentScriptReadyUrlsByTabId.set(tab.id, url);
-    if (tab.windowId != null) void recordMruTab(tab.id, tab.windowId).catch(() => {});
+    if (tab.active === true && tab.windowId != null) {
+      void recordMruTab(tab.id, tab.windowId).catch(() => {});
+    }
     return { ok: true };
   }
 
@@ -602,14 +670,41 @@ export function createTabWheelDomain(): TabWheelDomain {
     return resolveStripTargetTab(activeTab, eligibleTabs, "prev", true);
   }
 
-  async function activateTab(targetTab: Tabs.Tab): Promise<void> {
+  async function activateTab(targetTab: Tabs.Tab, options: ActivateTabOptions = {}): Promise<void> {
     if (targetTab.id == null) return;
     await browser.tabs.update(targetTab.id, { active: true });
     if (targetTab.windowId != null) await recordMruTab(targetTab.id, targetTab.windowId);
+    if (options.restoreScrollAsync === true) {
+      void restoreScroll(targetTab).catch(() => {});
+      return;
+    }
     await restoreScroll(targetTab);
   }
 
-  async function cycle(
+  async function runSerializedCycle<T>(
+    windowId: number,
+    task: () => Promise<T>,
+  ): Promise<T> {
+    const previousTask = cycleTasksByWindowId.get(windowId) ?? Promise.resolve();
+    let releaseTask = (): void => {};
+    const currentTask = new Promise<void>((resolve) => {
+      releaseTask = resolve;
+    });
+    const nextTask = previousTask.catch(() => {}).then(() => currentTask);
+    cycleTasksByWindowId.set(windowId, nextTask);
+
+    await previousTask.catch(() => {});
+    try {
+      return await task();
+    } finally {
+      releaseTask();
+      if (cycleTasksByWindowId.get(windowId) === nextTask) {
+        cycleTasksByWindowId.delete(windowId);
+      }
+    }
+  }
+
+  async function cycleUnlocked(
     direction: "prev" | "next",
     tab?: Tabs.Tab,
   ): Promise<TabWheelActionResult> {
@@ -624,9 +719,9 @@ export function createTabWheelDomain(): TabWheelDomain {
     const eligibleTabs = getEligibleTabs(tabs, settings);
     if (eligibleTabs.length === 0) return { ok: false, reason: "No eligible tabs" };
 
-    await captureTabScroll(activeTab);
-
-    const candidateTabs = getCycleTabs(activeTab.windowId, eligibleTabs, settings);
+    const candidateTabs = settings.cycleScope === "mru"
+      ? resolveMruCycleSessionTabs(activeTab.windowId, eligibleTabs)
+      : eligibleTabs;
     const targetTab = settings.cycleScope === "mru"
       ? resolveMruCycleTargetTab(activeTab, candidateTabs, direction, settings.wrapAround)
       : resolveStripTargetTab(activeTab, candidateTabs, direction, settings.wrapAround);
@@ -634,8 +729,19 @@ export function createTabWheelDomain(): TabWheelDomain {
       return { ok: false, reason: "Edge of tab list" };
     }
 
-    await activateTab(targetTab);
+    void captureTabScroll(activeTab).catch(() => {});
+    await activateTab(targetTab, { restoreScrollAsync: true });
     return { ok: true, tabId: targetTab.id };
+  }
+
+  async function cycle(
+    direction: "prev" | "next",
+    tab?: Tabs.Tab,
+  ): Promise<TabWheelActionResult> {
+    return await runSerializedCycle(
+      tab?.windowId ?? FALLBACK_CYCLE_LOCK_WINDOW_ID,
+      () => cycleUnlocked(direction, tab),
+    );
   }
 
   async function refreshCurrentTab(tab?: Tabs.Tab, windowId?: number): Promise<TabWheelRefreshResult> {
@@ -853,6 +959,9 @@ export function createTabWheelDomain(): TabWheelDomain {
       await ensureLoaded();
       delete scrollMemoryByTabId[tabKey(tabId)];
       contentScriptReadyUrlsByTabId.delete(tabId);
+      for (const [windowId, session] of mruCycleSessionsByWindowId) {
+        if (session.tabIds.includes(tabId)) mruCycleSessionsByWindowId.delete(windowId);
+      }
 
       let mruChanged = false;
       for (const [key, tabIds] of Object.entries(mruTabIdsByWindowId)) {
@@ -874,6 +983,8 @@ export function createTabWheelDomain(): TabWheelDomain {
       void (async () => {
         await ensureLoaded();
         delete mruTabIdsByWindowId[windowKey(windowId)];
+        cycleTasksByWindowId.delete(windowId);
+        mruCycleSessionsByWindowId.delete(windowId);
         for (const [key, entry] of Object.entries(scrollMemoryByTabId)) {
           if (entry.windowId === windowId) delete scrollMemoryByTabId[key];
         }
@@ -886,6 +997,8 @@ export function createTabWheelDomain(): TabWheelDomain {
       await ensureLoaded();
       scrollMemoryByTabId = trimScrollMemory(scrollMemoryByTabId);
       mruTabIdsByWindowId = {};
+      cycleTasksByWindowId.clear();
+      mruCycleSessionsByWindowId.clear();
       contentScriptReadyUrlsByTabId.clear();
       await saveScrollMemory();
       await browser.storage.local.remove(TABWHEEL_STORAGE_KEYS.mruState);

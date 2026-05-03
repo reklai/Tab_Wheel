@@ -138,10 +138,18 @@ test("domain supports MRU cycling, restricted-page skipping, and URL-validated s
   assert.match(source, /allFrames:\s*true/);
   assert.match(source, /TabWheel cannot run on this page\./);
   assert.match(source, /markContentScriptReady/);
+  assert.match(source, /tab\.active === true && tab\.windowId != null[\s\S]*recordMruTab\(tab\.id,\s*tab\.windowId\)/);
   assert.match(source, /resolveContentScriptStatus/);
   assert.match(source, /isRestrictedTab/);
   assert.match(source, /settings\.skipRestrictedPages/);
   assert.match(source, /recordMruTab/);
+  assert.match(source, /queryActiveTab/);
+  assert.match(source, /currentTab\?\.id != null && currentTab\.windowId != null && currentTab\.active === true/);
+  assert.match(source, /cycleTasksByWindowId/);
+  assert.match(source, /runSerializedCycle/);
+  assert.match(source, /cycleUnlocked/);
+  assert.match(source, /mruCycleSessionsByWindowId/);
+  assert.match(source, /resolveMruCycleSessionTabs/);
   assert.match(source, /getMruOrderedTabs/);
   assert.match(source, /resolveMruCycleTargetTab/);
   assert.match(source, /resolveMostRecentTab/);
@@ -164,7 +172,9 @@ test("domain supports MRU cycling, restricted-page skipping, and URL-validated s
   assert.match(source, /settings\.skipPinnedTabs/);
   assert.match(source, /settings\.wrapAround/);
   assert.match(source, /captureTabScroll\(activeTab\)/);
+  assert.match(source, /void captureTabScroll\(activeTab\)\.catch\(\(\) => \{\}\)/);
   assert.match(source, /restoreScroll\(targetTab\)/);
+  assert.match(source, /void restoreScroll\(targetTab\)\.catch\(\(\) => \{\}\)/);
   assert.match(source, /browser\.tabs\.getZoom/);
   assert.match(source, /browser\.tabs\.setZoom/);
   assert.match(source, /restoreTabZoom/);
