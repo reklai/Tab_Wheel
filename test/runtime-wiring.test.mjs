@@ -41,6 +41,7 @@ test("message handler routes cycling, MRU actions, scroll, help, and settings", 
 
 test("content script implements modifier-wheel and left/middle/right click actions", () => {
   const source = readText("src/lib/appInit/appInit.ts");
+  const gestureCore = readText("src/lib/core/tabWheel/mouseGestureCore.ts");
   const messages = readText("src/lib/common/contracts/runtimeMessages.ts");
 
   assert.match(source, /window\.addEventListener\("wheel",\s*wheelHandler,\s*\{\s*passive:\s*false,\s*capture:\s*true\s*\}\)/);
@@ -50,29 +51,29 @@ test("content script implements modifier-wheel and left/middle/right click actio
   assert.match(source, /window\.addEventListener\("pointerdown",\s*mouseGestureHandler,\s*true\)/);
   assert.match(source, /window\.addEventListener\("auxclick",\s*mouseGestureHandler,\s*true\)/);
   assert.match(source, /window\.addEventListener\("contextmenu",\s*mouseGestureHandler,\s*true\)/);
-  assert.match(source, /MOUSE_GESTURE_POLICIES/);
-  assert.match(source, /action:\s*"search"[\s\S]*button:\s*0[\s\S]*runPhase:\s*"sessionStart"/);
-  assert.match(source, /action:\s*"recentTab"[\s\S]*button:\s*1[\s\S]*runPhase:\s*"sessionStart"/);
-  assert.match(source, /action:\s*"closeToRecent"[\s\S]*button:\s*2[\s\S]*runPhase:\s*"contextmenu"/);
+  assert.match(gestureCore, /MOUSE_GESTURE_POLICIES/);
+  assert.match(gestureCore, /action:\s*"search"[\s\S]*button:\s*0[\s\S]*runPhase:\s*"sessionStart"/);
+  assert.match(gestureCore, /action:\s*"recentTab"[\s\S]*button:\s*1[\s\S]*runPhase:\s*"sessionStart"/);
+  assert.match(gestureCore, /action:\s*"closeToRecent"[\s\S]*button:\s*2[\s\S]*runPhase:\s*"contextmenu"/);
   assert.match(source, /openTabWheelSearchLauncher\(\)/);
   assert.match(source, /activateMostRecentTabWheelTab\(\)/);
   assert.match(source, /closeCurrentTabWheelTabAndActivateRecent\(\)/);
-  assert.match(source, /MOUSE_GESTURE_CLAIM_MS/);
+  assert.match(gestureCore, /MOUSE_GESTURE_CLAIM_MS/);
   assert.match(source, /areSettingsLoaded/);
-  assert.match(source, /isMouseGestureStartEvent/);
+  assert.match(gestureCore, /isMouseGestureStartEventType/);
   assert.match(source, /mouseGestureSession/);
-  assert.match(source, /createMouseGestureSession/);
+  assert.match(source, /createCoreMouseGestureSession/);
   assert.match(source, /getActiveMouseGestureSession/);
-  assert.match(source, /shouldRunMouseGestureSession/);
-  assert.match(source, /shouldFinishMouseGestureSession/);
+  assert.match(source, /shouldRunCoreMouseGestureSession/);
+  assert.match(source, /shouldFinishCoreMouseGestureSession/);
   assert.match(source, /finishMouseGestureSession/);
   assert.match(source, /hasRun/);
-  assert.match(source, /session\.policy\.runPhase === "sessionStart" \|\| event\.type === session\.policy\.runPhase/);
+  assert.match(gestureCore, /session\.policy\.runPhase === "sessionStart" \|\| eventType === session\.policy\.runPhase/);
   assert.match(source, /runMouseGestureAction\(session\.policy\.action\)/);
   assert.match(source, /suppressPageEvent\(event\)/);
   assert.match(source, /isWheelGestureBlockedTarget/);
   assert.match(source, /!settings\.allowGesturesInEditableFields && isEditableTarget\(target\)/);
-  assert.match(source, /isWheelGestureBlockedTarget\(event\.target\)[\s\S]*return null[\s\S]*MOUSE_GESTURE_POLICIES\.find\(\(policy\) => policy\.button === event\.button\)/);
+  assert.match(source, /isWheelGestureBlockedTarget\(event\.target\)[\s\S]*return null[\s\S]*resolveMouseGesturePolicyByButton\(event\.button,\s*MOUSE_GESTURE_POLICIES\)/);
   assert.match(source, /normalizeWheelDelta\(event,\s*window\.innerHeight,\s*window\.innerWidth,\s*settings\.horizontalWheel\)/);
   assert.match(source, /wheelAccumulator \+= wheelDelta \* settings\.wheelSensitivity/);
   assert.match(source, /getRootScrollSnapshot/);
@@ -148,6 +149,10 @@ test("domain supports MRU cycling, restricted-page skipping, and URL-validated s
   assert.match(source, /resolveContentScriptStatus/);
   assert.match(source, /isRestrictedTab/);
   assert.match(source, /settings\.skipRestrictedPages/);
+  assert.match(source, /let settingsCache:\s*TabWheelSettings \| null = null/);
+  assert.match(source, /async function getSettings\(\): Promise<TabWheelSettings>[\s\S]*settingsCache = await loadTabWheelSettings\(\)/);
+  assert.match(source, /function updateSettingsCache\(value: unknown\): void[\s\S]*settingsCache = normalizeTabWheelSettings\(value\)/);
+  assert.match(source, /browser\.storage\.onChanged\.addListener[\s\S]*TABWHEEL_STORAGE_KEYS\.settings[\s\S]*updateSettingsCache\(settingsChange\.newValue\)/);
   assert.match(source, /recordMruTab/);
   assert.match(source, /queryActiveTab/);
   assert.match(source, /currentTab\?\.id != null && currentTab\.windowId != null && currentTab\.active === true/);
@@ -211,8 +216,13 @@ test("popup exposes MRU mode and fallback controls", () => {
   assert.match(popupSource, /popupToast/);
   assert.match(popupSource, /announceUnavailable/);
   assert.match(popupSource, /await refreshAll\(\{\s*announceUnavailable:\s*true\s*\}\)/);
+  assert.match(popupSource, /fallbackPanel/);
+  assert.match(popupSource, /overview\?\.contentScriptStatus === "ready"/);
+  assert.match(popupSource, /fallbackPanel\.hidden = arePageShortcutsReady/);
   assert.match(popupHtml, /Current Cycle Mode/);
   assert.match(popupHtml, /class="mode-pill"/);
+  assert.match(popupHtml, /id="fallbackPanel"/);
+  assert.match(popupHtml, /Popup controls active/);
   assert.match(popupHtml, /id="generalModeBtn"/);
   assert.match(popupHtml, /id="mruModeBtn"/);
   assert.match(popupHtml, /id="prevTabBtn"/);
@@ -227,6 +237,8 @@ test("popup exposes MRU mode and fallback controls", () => {
   assert.match(popupHtml, /id="refreshTabWheelBtn"/);
   assert.match(popupHtml, /Refresh TabWheel on this tab/);
   assert.match(popupCss, /\.shortcut-panel[\s\S]*grid-template-columns:\s*repeat\(2,\s*minmax\(0,\s*1fr\)\)/);
+  assert.match(popupCss, /\.fallback-panel/);
+  assert.match(popupCss, /\.fallback-panel\[hidden\]/);
   assert.match(popupCss, /\.mode-pill/);
   assert.match(popupCss, /\.search-row[\s\S]*grid-template-columns:\s*minmax\(0,\s*1fr\)\s*auto/);
   assert.match(popupCss, /\.gesture-row[\s\S]*grid-template-columns:\s*repeat\(2,\s*minmax\(0,\s*1fr\)\)/);

@@ -52,6 +52,7 @@ function setSelectOptions(select: HTMLSelectElement, values: readonly string[], 
 document.addEventListener("DOMContentLoaded", async () => {
   const shortcutEl = document.getElementById("shortcutLabel")!;
   const shortcutStatusEl = document.getElementById("shortcutStatus")!;
+  const fallbackPanel = document.getElementById("fallbackPanel")!;
   const toastEl = document.getElementById("popupToast")!;
   const titlebarTextEl = document.getElementById("titlebarText")!;
   const refreshTabWheelBtn = document.getElementById("refreshTabWheelBtn") as HTMLButtonElement;
@@ -128,7 +129,9 @@ document.addEventListener("DOMContentLoaded", async () => {
       : "TabWheel";
     scopeLabel.textContent = cycleScopeLabel(cycleScope);
     renderModeButtons(cycleScope);
-    shortcutStatusEl.textContent = overview?.contentScriptStatus === "ready"
+    const arePageShortcutsReady = overview?.contentScriptStatus === "ready";
+    fallbackPanel.hidden = arePageShortcutsReady;
+    shortcutStatusEl.textContent = arePageShortcutsReady
       ? "Wheel cycles tabs. Left opens search. Middle jumps recent. Right closes to recent."
       : "Use popup search and tab buttons when page shortcuts are unavailable";
     if (overview?.contentScriptStatus === "unavailable") {

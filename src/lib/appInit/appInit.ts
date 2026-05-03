@@ -10,6 +10,21 @@ import {
 } from "../common/contracts/tabWheel";
 import { ContentRuntimeMessage } from "../common/contracts/runtimeMessages";
 import { dismissPanel } from "../common/utils/panelHost";
+import {
+  createMouseGestureSession as createCoreMouseGestureSession,
+  isMouseGestureEventForSession,
+  isMouseGestureSessionExpired,
+  isMouseGestureSessionStartEventType,
+  MOUSE_GESTURE_POLICIES,
+  resolveMouseGesturePolicy as resolveMouseGesturePolicyByButton,
+  shouldFinishMouseGestureSession as shouldFinishCoreMouseGestureSession,
+  shouldRunMouseGestureSession as shouldRunCoreMouseGestureSession,
+} from "../core/tabWheel/mouseGestureCore";
+import type {
+  TabWheelMouseGestureAction,
+  TabWheelMouseGesturePolicy,
+  TabWheelMouseGestureSession,
+} from "../core/tabWheel/mouseGestureCore";
 import { normalizeWheelDelta, resolveWheelDirection } from "../core/tabWheel/tabWheelCore";
 import {
   activateMostRecentTabWheelTab,
@@ -34,7 +49,6 @@ const MIN_ACCELERATED_COOLDOWN_MS = 80;
 const OVERSHOOT_GUARD_MS = 260;
 const STATUS_TIMEOUT_MS = 1500;
 const STATUS_ID = "tw-status-indicator";
-const MOUSE_GESTURE_CLAIM_MS = 900;
 const SCROLL_RESTORE_DELAYS_MS = [0, 80, 220, 500, 900, 1500, 2400, 3600];
 const LAYOUT_STABILITY_TIMEOUT_MS = 1600;
 const LAYOUT_STABILITY_REQUIRED_FRAMES = 3;
@@ -42,44 +56,8 @@ const LAYOUT_DIMENSION_TOLERANCE_PX = 4;
 const LAYOUT_DIMENSION_MATCH_RATIO = 0.08;
 
 type TabWheelEventModifierKey = TabWheelModifierKey | "shift";
-type TabWheelMouseGestureAction = "search" | "recentTab" | "closeToRecent";
-type TabWheelMouseGestureRunPhase = "sessionStart" | "contextmenu";
-type TabWheelMouseGestureEventType = "click" | "auxclick" | "contextmenu";
-
-interface TabWheelMouseGesturePolicy {
-  action: TabWheelMouseGestureAction;
-  button: number;
-  runPhase: TabWheelMouseGestureRunPhase;
-  finishEvents: readonly TabWheelMouseGestureEventType[];
-}
-
-interface TabWheelMouseGestureSession {
-  policy: TabWheelMouseGesturePolicy;
-  hasRun: boolean;
-  startedAt: number;
-}
 
 const EVENT_MODIFIER_KEYS: readonly TabWheelEventModifierKey[] = ["alt", "ctrl", "shift", "meta"];
-const MOUSE_GESTURE_POLICIES: readonly TabWheelMouseGesturePolicy[] = [
-  {
-    action: "search",
-    button: 0,
-    runPhase: "sessionStart",
-    finishEvents: ["click"],
-  },
-  {
-    action: "recentTab",
-    button: 1,
-    runPhase: "sessionStart",
-    finishEvents: ["click", "auxclick"],
-  },
-  {
-    action: "closeToRecent",
-    button: 2,
-    runPhase: "contextmenu",
-    finishEvents: ["click", "auxclick", "contextmenu"],
-  },
-];
 
 function isEditableTarget(target: EventTarget | null): boolean {
   if (!(target instanceof Element)) return false;
@@ -369,23 +347,16 @@ export function initApp(): void {
       && !isWheelGestureBlockedTarget(event.target);
   }
 
-  function resolveMouseGesturePolicy(event: MouseEvent): TabWheelMouseGesturePolicy | null {
+  function resolveMouseGesturePolicyForEvent(event: MouseEvent): TabWheelMouseGesturePolicy | null {
     if (!areSettingsLoaded) return null;
     if (!event.isTrusted) return null;
     if (!isTabWheelModifier(event, settings.gestureModifier, settings.gestureWithShift)) return null;
     if (isWheelGestureBlockedTarget(event.target)) return null;
-    return MOUSE_GESTURE_POLICIES.find((policy) => policy.button === event.button) || null;
-  }
-
-  function isMouseGestureStartEvent(event: MouseEvent): boolean {
-    return event.type === "pointerdown" || event.type === "mousedown";
+    return resolveMouseGesturePolicyByButton(event.button, MOUSE_GESTURE_POLICIES);
   }
 
   function isMouseGestureSessionStartEvent(event: MouseEvent): boolean {
-    return isMouseGestureStartEvent(event)
-      || event.type === "click"
-      || event.type === "contextmenu"
-      || event.type === "auxclick";
+    return isMouseGestureSessionStartEventType(event.type);
   }
 
   function finishMouseGestureSession(): void {
@@ -394,46 +365,17 @@ export function initApp(): void {
 
   function getActiveMouseGestureSession(event: MouseEvent): TabWheelMouseGestureSession | null {
     if (!mouseGestureSession) return null;
-    if (Date.now() - mouseGestureSession.startedAt > MOUSE_GESTURE_CLAIM_MS) {
+    if (isMouseGestureSessionExpired(mouseGestureSession, Date.now())) {
       finishMouseGestureSession();
       return null;
     }
-    if (event.type === "contextmenu" && mouseGestureSession.policy.button === 2) return mouseGestureSession;
-    return event.button === mouseGestureSession.policy.button ? mouseGestureSession : null;
-  }
-
-  function shouldRunMouseGestureSession(
-    session: TabWheelMouseGestureSession,
-    event: MouseEvent,
-  ): boolean {
-    if (session.hasRun) return false;
-    return session.policy.runPhase === "sessionStart" || event.type === session.policy.runPhase;
-  }
-
-  function isMouseGestureFinishEventType(eventType: string): eventType is TabWheelMouseGestureEventType {
-    return eventType === "click" || eventType === "auxclick" || eventType === "contextmenu";
-  }
-
-  function shouldFinishMouseGestureSession(
-    session: TabWheelMouseGestureSession,
-    event: MouseEvent,
-  ): boolean {
-    return isMouseGestureFinishEventType(event.type)
-      && session.policy.finishEvents.includes(event.type);
+    return isMouseGestureEventForSession(mouseGestureSession, event) ? mouseGestureSession : null;
   }
 
   function runMouseGestureSession(session: TabWheelMouseGestureSession): void {
     if (session.hasRun) return;
     session.hasRun = true;
     runMouseGestureAction(session.policy.action);
-  }
-
-  function createMouseGestureSession(policy: TabWheelMouseGesturePolicy): TabWheelMouseGestureSession {
-    return {
-      policy,
-      hasRun: false,
-      startedAt: Date.now(),
-    };
   }
 
   function runMouseGestureAction(action: TabWheelMouseGestureAction): void {
@@ -498,21 +440,21 @@ export function initApp(): void {
     const activeSession = getActiveMouseGestureSession(event);
     if (activeSession) {
       suppressPageEvent(event);
-      if (shouldRunMouseGestureSession(activeSession, event)) runMouseGestureSession(activeSession);
-      if (shouldFinishMouseGestureSession(activeSession, event)) finishMouseGestureSession();
+      if (shouldRunCoreMouseGestureSession(activeSession, event.type)) runMouseGestureSession(activeSession);
+      if (shouldFinishCoreMouseGestureSession(activeSession, event.type)) finishMouseGestureSession();
       return;
     }
 
-    const policy = resolveMouseGesturePolicy(event);
+    const policy = resolveMouseGesturePolicyForEvent(event);
     if (!policy) return;
     suppressPageEvent(event);
 
     if (isMouseGestureSessionStartEvent(event)) {
-      mouseGestureSession = createMouseGestureSession(policy);
-      if (shouldRunMouseGestureSession(mouseGestureSession, event)) {
+      mouseGestureSession = createCoreMouseGestureSession(policy, Date.now());
+      if (shouldRunCoreMouseGestureSession(mouseGestureSession, event.type)) {
         runMouseGestureSession(mouseGestureSession);
       }
-      if (shouldFinishMouseGestureSession(mouseGestureSession, event)) {
+      if (shouldFinishCoreMouseGestureSession(mouseGestureSession, event.type)) {
         finishMouseGestureSession();
       }
     }

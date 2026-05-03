@@ -112,6 +112,30 @@ body {
   text-align: left;
 }
 
+.fallback-panel {
+  display: grid;
+  gap: 4px;
+  padding: 10px 14px;
+  background: #211f1a;
+  border-bottom: 1px solid rgba(254,188,46,0.2);
+  color: #f4d58a;
+}
+
+.fallback-panel[hidden] {
+  display: none;
+}
+
+.fallback-panel strong {
+  color: #ffdf8a;
+  font-size: 12px;
+}
+
+.fallback-panel span {
+  color: #d0b36a;
+  font-size: 11px;
+  line-height: 1.35;
+}
+
 .popup-scroll {
   flex: 1 1 auto;
   min-height: 0;

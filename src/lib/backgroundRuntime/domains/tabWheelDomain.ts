@@ -4,6 +4,7 @@ import {
   loadTabWheelSettings,
   MAX_MRU_TABS,
   MAX_SCROLL_MEMORY_ENTRIES,
+  normalizeTabWheelSettings,
   normalizeSearchQuery,
   saveTabWheelSettings,
   TABWHEEL_STORAGE_KEYS,
@@ -228,6 +229,7 @@ export function createTabWheelDomain(): TabWheelDomain {
   const contentScriptReadyUrlsByTabId = new Map<number, string>();
   const cycleTasksByWindowId = new Map<number, Promise<void>>();
   const mruCycleSessionsByWindowId = new Map<number, MruCycleSession>();
+  let settingsCache: TabWheelSettings | null = null;
   let loaded = false;
 
   async function ensureLoaded(): Promise<void> {
@@ -241,6 +243,16 @@ export function createTabWheelDomain(): TabWheelDomain {
     );
     mruTabIdsByWindowId = normalizeMruState(stored[TABWHEEL_STORAGE_KEYS.mruState]);
     loaded = true;
+  }
+
+  async function getSettings(): Promise<TabWheelSettings> {
+    if (settingsCache) return settingsCache;
+    settingsCache = await loadTabWheelSettings();
+    return settingsCache;
+  }
+
+  function updateSettingsCache(value: unknown): void {
+    settingsCache = normalizeTabWheelSettings(value);
   }
 
   async function saveScrollMemory(): Promise<void> {
@@ -391,9 +403,10 @@ export function createTabWheelDomain(): TabWheelDomain {
   }
 
   async function saveCycleScope(cycleScope: TabWheelCycleScope): Promise<TabWheelSettings> {
-    const settings = await loadTabWheelSettings();
+    const settings = await getSettings();
     const nextSettings = { ...settings, cycleScope };
     await saveTabWheelSettings(nextSettings);
+    settingsCache = nextSettings;
     return nextSettings;
   }
 
@@ -591,7 +604,7 @@ export function createTabWheelDomain(): TabWheelDomain {
 
   async function getOverview(tab?: Tabs.Tab, windowId?: number): Promise<TabWheelOverview> {
     await ensureLoaded();
-    const settings = await loadTabWheelSettings();
+    const settings = await getSettings();
     const resolvedWindowId = await resolveCurrentWindowId(windowId ?? tab?.windowId);
     if (resolvedWindowId == null) {
       return {
@@ -709,7 +722,7 @@ export function createTabWheelDomain(): TabWheelDomain {
     tab?: Tabs.Tab,
   ): Promise<TabWheelActionResult> {
     await ensureLoaded();
-    const settings = await loadTabWheelSettings();
+    const settings = await getSettings();
     const activeTab = await resolveActiveTab(tab);
     if (!activeTab?.id || activeTab.windowId == null) {
       return { ok: false, reason: "No active tab" };
@@ -812,7 +825,7 @@ export function createTabWheelDomain(): TabWheelDomain {
     const normalizedQuery = normalizeSearchQuery(query);
     if (!normalizedQuery) return { ok: false, reason: "Enter a search query" };
     await ensureLoaded();
-    const settings = await loadTabWheelSettings();
+    const settings = await getSettings();
     const activeTab = await resolveActiveTab(tab, windowId);
     const searchApi = getBrowserDefaultSearchApi();
     const createProperties: Tabs.CreateCreatePropertiesType = {
@@ -848,7 +861,7 @@ export function createTabWheelDomain(): TabWheelDomain {
 
   async function activateMostRecentTab(tab?: Tabs.Tab, windowId?: number): Promise<TabWheelActionResult> {
     await ensureLoaded();
-    const settings = await loadTabWheelSettings();
+    const settings = await getSettings();
     const activeTab = await resolveActiveTab(tab, windowId);
     if (!activeTab?.id || activeTab.windowId == null) return { ok: false, reason: "No active tab" };
     const tabs = await getWindowTabs(activeTab.windowId);
@@ -864,7 +877,7 @@ export function createTabWheelDomain(): TabWheelDomain {
 
   async function closeCurrentTabAndActivateRecent(tab?: Tabs.Tab, windowId?: number): Promise<TabWheelActionResult> {
     await ensureLoaded();
-    const settings = await loadTabWheelSettings();
+    const settings = await getSettings();
     const activeTab = await resolveActiveTab(tab, windowId);
     if (!activeTab?.id || activeTab.windowId == null) return { ok: false, reason: "No active tab" };
     const tabs = await getWindowTabs(activeTab.windowId);
@@ -896,7 +909,7 @@ export function createTabWheelDomain(): TabWheelDomain {
   }
 
   async function toggleCycleScope(tab?: Tabs.Tab, windowId?: number): Promise<TabWheelActionResult> {
-    const settings = await loadTabWheelSettings();
+    const settings = await getSettings();
     return await setCycleScope(settings.cycleScope === "mru" ? "general" : "mru", tab, windowId);
   }
 
@@ -949,6 +962,12 @@ export function createTabWheelDomain(): TabWheelDomain {
   function registerLifecycleListeners(): void {
     browser.runtime.onInstalled.addListener(() => {
       void activateExistingContentScripts().catch(() => {});
+    });
+
+    browser.storage.onChanged.addListener((changes: Record<string, browser.Storage.StorageChange>, areaName: string) => {
+      if (areaName !== "local") return;
+      const settingsChange = changes[TABWHEEL_STORAGE_KEYS.settings];
+      if (settingsChange) updateSettingsCache(settingsChange.newValue);
     });
 
     browser.tabs.onActivated.addListener((activeInfo: { tabId: number; windowId: number }) => {
