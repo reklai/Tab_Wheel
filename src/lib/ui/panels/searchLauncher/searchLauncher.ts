@@ -10,6 +10,31 @@ import {
 import { openTabWheelSearchTab } from "../../../adapters/runtime/tabWheelApi";
 import styles from "./searchLauncher.css";
 
+type SearchLauncherEventType =
+  | "keydown"
+  | "keypress"
+  | "keyup"
+  | "pointerdown"
+  | "pointerup"
+  | "mousedown"
+  | "mouseup"
+  | "click"
+  | "auxclick"
+  | "contextmenu";
+
+const SEARCH_LAUNCHER_EVENT_TYPES: readonly SearchLauncherEventType[] = [
+  "keydown",
+  "keypress",
+  "keyup",
+  "pointerdown",
+  "pointerup",
+  "mousedown",
+  "mouseup",
+  "click",
+  "auxclick",
+  "contextmenu",
+];
+
 export async function openTabWheelSearchLauncher(): Promise<void> {
   const { host, shadow } = createPanelHost();
 
@@ -60,6 +85,9 @@ export async function openTabWheelSearchLauncher(): Promise<void> {
 
   function close(): void {
     document.removeEventListener("keydown", keyHandler, true);
+    for (const eventType of SEARCH_LAUNCHER_EVENT_TYPES) {
+      shadow.removeEventListener(eventType, searchLauncherEventHandler);
+    }
     removePanelHost();
   }
 
@@ -71,6 +99,14 @@ export async function openTabWheelSearchLauncher(): Promise<void> {
     if (event.key === "Escape") {
       event.preventDefault();
       event.stopPropagation();
+      close();
+    }
+  }
+
+  function searchLauncherEventHandler(event: Event): void {
+    event.stopPropagation();
+    if (event instanceof KeyboardEvent && event.key === "Escape") {
+      event.preventDefault();
       close();
     }
   }
@@ -106,6 +142,9 @@ export async function openTabWheelSearchLauncher(): Promise<void> {
   cancelButton.addEventListener("click", close);
   backdrop.addEventListener("click", close);
   backdrop.addEventListener("mousedown", (event) => event.preventDefault());
+  for (const eventType of SEARCH_LAUNCHER_EVENT_TYPES) {
+    shadow.addEventListener(eventType, searchLauncherEventHandler);
+  }
   document.addEventListener("keydown", keyHandler, true);
   registerPanelCleanup(close);
   host.focus({ preventScroll: true });

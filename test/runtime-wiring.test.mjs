@@ -289,6 +289,10 @@ test("search launcher uses panel host and opens search tabs", () => {
   assert.match(source, /registerPanelCleanup\(close\)/);
   assert.match(source, /openTabWheelSearchTab\(query\)/);
   assert.match(source, /normalizeSearchQuery/);
+  assert.match(source, /SEARCH_LAUNCHER_EVENT_TYPES/);
+  assert.match(source, /shadow\.addEventListener\(eventType,\s*searchLauncherEventHandler\)/);
+  assert.match(source, /shadow\.removeEventListener\(eventType,\s*searchLauncherEventHandler\)/);
+  assert.match(source, /event\.stopPropagation\(\)/);
   assert.match(source, /class="ht-search-cancel"[\s\S]*Cancel/);
   assert.match(source, /class="ht-search-submit"[\s\S]*Search/);
   assert.doesNotMatch(source, /ht-search-close|Close search/);
