@@ -2,38 +2,15 @@
 
 import { normalizeSearchQuery } from "../../../common/contracts/tabWheel";
 import {
+  createPanelModalSession,
   createPanelHost,
   getBaseStyles,
   registerPanelCleanup,
   removePanelHost,
 } from "../../../common/utils/panelHost";
+import type { PanelModalSession } from "../../../common/utils/panelHost";
 import { openTabWheelSearchTab } from "../../../adapters/runtime/tabWheelApi";
 import styles from "./searchLauncher.css";
-
-type SearchLauncherEventType =
-  | "keydown"
-  | "keypress"
-  | "keyup"
-  | "pointerdown"
-  | "pointerup"
-  | "mousedown"
-  | "mouseup"
-  | "click"
-  | "auxclick"
-  | "contextmenu";
-
-const SEARCH_LAUNCHER_EVENT_TYPES: readonly SearchLauncherEventType[] = [
-  "keydown",
-  "keypress",
-  "keyup",
-  "pointerdown",
-  "pointerup",
-  "mousedown",
-  "mouseup",
-  "click",
-  "auxclick",
-  "contextmenu",
-];
 
 export async function openTabWheelSearchLauncher(): Promise<void> {
   const { host, shadow } = createPanelHost();
@@ -65,6 +42,7 @@ export async function openTabWheelSearchLauncher(): Promise<void> {
   const input = panel.querySelector(".ht-search-input") as HTMLInputElement;
   const status = panel.querySelector(".ht-search-status") as HTMLDivElement;
   let isSubmitting = false;
+  let modalSession: PanelModalSession | null = null;
 
   function setStatus(message: string): void {
     status.textContent = message;
@@ -84,31 +62,9 @@ export async function openTabWheelSearchLauncher(): Promise<void> {
   }
 
   function close(): void {
-    document.removeEventListener("keydown", keyHandler, true);
-    for (const eventType of SEARCH_LAUNCHER_EVENT_TYPES) {
-      shadow.removeEventListener(eventType, searchLauncherEventHandler);
-    }
+    modalSession?.dispose();
+    modalSession = null;
     removePanelHost();
-  }
-
-  function keyHandler(event: KeyboardEvent): void {
-    if (!document.getElementById("ht-panel-host")) {
-      document.removeEventListener("keydown", keyHandler, true);
-      return;
-    }
-    if (event.key === "Escape") {
-      event.preventDefault();
-      event.stopPropagation();
-      close();
-    }
-  }
-
-  function searchLauncherEventHandler(event: Event): void {
-    event.stopPropagation();
-    if (event instanceof KeyboardEvent && event.key === "Escape") {
-      event.preventDefault();
-      close();
-    }
   }
 
   form.addEventListener("submit", (event) => {
@@ -142,10 +98,13 @@ export async function openTabWheelSearchLauncher(): Promise<void> {
   cancelButton.addEventListener("click", close);
   backdrop.addEventListener("click", close);
   backdrop.addEventListener("mousedown", (event) => event.preventDefault());
-  for (const eventType of SEARCH_LAUNCHER_EVENT_TYPES) {
-    shadow.addEventListener(eventType, searchLauncherEventHandler);
-  }
-  document.addEventListener("keydown", keyHandler, true);
+  modalSession = createPanelModalSession({
+    root: shadow,
+    closeOnEscape: true,
+    closeOnFullscreenChange: true,
+    closeOnPageHide: true,
+    onClose: close,
+  });
   registerPanelCleanup(close);
   host.focus({ preventScroll: true });
   focusSearchInput();

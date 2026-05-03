@@ -43,8 +43,43 @@ const LAYOUT_DIMENSION_MATCH_RATIO = 0.08;
 
 type TabWheelEventModifierKey = TabWheelModifierKey | "shift";
 type TabWheelMouseGestureAction = "search" | "recentTab" | "closeToRecent";
+type TabWheelMouseGestureRunPhase = "sessionStart" | "contextmenu";
+type TabWheelMouseGestureEventType = "click" | "auxclick" | "contextmenu";
+
+interface TabWheelMouseGesturePolicy {
+  action: TabWheelMouseGestureAction;
+  button: number;
+  runPhase: TabWheelMouseGestureRunPhase;
+  finishEvents: readonly TabWheelMouseGestureEventType[];
+}
+
+interface TabWheelMouseGestureSession {
+  policy: TabWheelMouseGesturePolicy;
+  hasRun: boolean;
+  startedAt: number;
+}
 
 const EVENT_MODIFIER_KEYS: readonly TabWheelEventModifierKey[] = ["alt", "ctrl", "shift", "meta"];
+const MOUSE_GESTURE_POLICIES: readonly TabWheelMouseGesturePolicy[] = [
+  {
+    action: "search",
+    button: 0,
+    runPhase: "sessionStart",
+    finishEvents: ["click"],
+  },
+  {
+    action: "recentTab",
+    button: 1,
+    runPhase: "sessionStart",
+    finishEvents: ["click", "auxclick"],
+  },
+  {
+    action: "closeToRecent",
+    button: 2,
+    runPhase: "contextmenu",
+    finishEvents: ["click", "auxclick", "contextmenu"],
+  },
+];
 
 function isEditableTarget(target: EventTarget | null): boolean {
   if (!(target instanceof Element)) return false;
@@ -220,12 +255,7 @@ export function initApp(): void {
   let overshootGuardDirection: "prev" | "next" | null = null;
   let overshootGuardUntil = 0;
   let areSettingsLoaded = false;
-  let claimedMouseGesture: {
-    action: TabWheelMouseGestureAction;
-    button: number;
-    hasRun: boolean;
-    startedAt: number;
-  } | null = null;
+  let mouseGestureSession: TabWheelMouseGestureSession | null = null;
 
   void loadTabWheelSettings()
     .then((loadedSettings) => {
@@ -339,29 +369,71 @@ export function initApp(): void {
       && !isWheelGestureBlockedTarget(event.target);
   }
 
-  function resolveMouseGestureAction(event: MouseEvent): TabWheelMouseGestureAction | null {
+  function resolveMouseGesturePolicy(event: MouseEvent): TabWheelMouseGesturePolicy | null {
     if (!areSettingsLoaded) return null;
     if (!event.isTrusted) return null;
     if (!isTabWheelModifier(event, settings.gestureModifier, settings.gestureWithShift)) return null;
     if (isWheelGestureBlockedTarget(event.target)) return null;
-    if (event.button === 0) return "search";
-    if (event.button === 1) return "recentTab";
-    if (event.button === 2) return "closeToRecent";
-    return null;
+    return MOUSE_GESTURE_POLICIES.find((policy) => policy.button === event.button) || null;
   }
 
   function isMouseGestureStartEvent(event: MouseEvent): boolean {
     return event.type === "pointerdown" || event.type === "mousedown";
   }
 
-  function getActiveMouseGestureClaim(event: MouseEvent): typeof claimedMouseGesture {
-    if (!claimedMouseGesture) return null;
-    if (Date.now() - claimedMouseGesture.startedAt > MOUSE_GESTURE_CLAIM_MS) {
-      claimedMouseGesture = null;
+  function isMouseGestureSessionStartEvent(event: MouseEvent): boolean {
+    return isMouseGestureStartEvent(event)
+      || event.type === "click"
+      || event.type === "contextmenu"
+      || event.type === "auxclick";
+  }
+
+  function finishMouseGestureSession(): void {
+    mouseGestureSession = null;
+  }
+
+  function getActiveMouseGestureSession(event: MouseEvent): TabWheelMouseGestureSession | null {
+    if (!mouseGestureSession) return null;
+    if (Date.now() - mouseGestureSession.startedAt > MOUSE_GESTURE_CLAIM_MS) {
+      finishMouseGestureSession();
       return null;
     }
-    if (event.type === "contextmenu" && claimedMouseGesture.button === 2) return claimedMouseGesture;
-    return event.button === claimedMouseGesture.button ? claimedMouseGesture : null;
+    if (event.type === "contextmenu" && mouseGestureSession.policy.button === 2) return mouseGestureSession;
+    return event.button === mouseGestureSession.policy.button ? mouseGestureSession : null;
+  }
+
+  function shouldRunMouseGestureSession(
+    session: TabWheelMouseGestureSession,
+    event: MouseEvent,
+  ): boolean {
+    if (session.hasRun) return false;
+    return session.policy.runPhase === "sessionStart" || event.type === session.policy.runPhase;
+  }
+
+  function isMouseGestureFinishEventType(eventType: string): eventType is TabWheelMouseGestureEventType {
+    return eventType === "click" || eventType === "auxclick" || eventType === "contextmenu";
+  }
+
+  function shouldFinishMouseGestureSession(
+    session: TabWheelMouseGestureSession,
+    event: MouseEvent,
+  ): boolean {
+    return isMouseGestureFinishEventType(event.type)
+      && session.policy.finishEvents.includes(event.type);
+  }
+
+  function runMouseGestureSession(session: TabWheelMouseGestureSession): void {
+    if (session.hasRun) return;
+    session.hasRun = true;
+    runMouseGestureAction(session.policy.action);
+  }
+
+  function createMouseGestureSession(policy: TabWheelMouseGesturePolicy): TabWheelMouseGestureSession {
+    return {
+      policy,
+      hasRun: false,
+      startedAt: Date.now(),
+    };
   }
 
   function runMouseGestureAction(action: TabWheelMouseGestureAction): void {
@@ -423,33 +495,25 @@ export function initApp(): void {
   }
 
   function mouseGestureHandler(event: MouseEvent): void {
-    const activeClaim = getActiveMouseGestureClaim(event);
-    if (activeClaim) {
+    const activeSession = getActiveMouseGestureSession(event);
+    if (activeSession) {
       suppressPageEvent(event);
-      if (event.type === "contextmenu" && activeClaim.action === "closeToRecent" && !activeClaim.hasRun) {
-        activeClaim.hasRun = true;
-        runMouseGestureAction(activeClaim.action);
-      }
-      if (event.type === "click" || event.type === "contextmenu" || event.type === "auxclick") {
-        claimedMouseGesture = null;
-      }
+      if (shouldRunMouseGestureSession(activeSession, event)) runMouseGestureSession(activeSession);
+      if (shouldFinishMouseGestureSession(activeSession, event)) finishMouseGestureSession();
       return;
     }
 
-    const action = resolveMouseGestureAction(event);
-    if (!action) return;
+    const policy = resolveMouseGesturePolicy(event);
+    if (!policy) return;
     suppressPageEvent(event);
 
-    if (isMouseGestureStartEvent(event) || event.type === "click" || event.type === "contextmenu" || event.type === "auxclick") {
-      claimedMouseGesture = {
-        action,
-        button: event.button,
-        hasRun: false,
-        startedAt: Date.now(),
-      };
-      if (action !== "closeToRecent" || event.type === "contextmenu") {
-        claimedMouseGesture.hasRun = true;
-        runMouseGestureAction(action);
+    if (isMouseGestureSessionStartEvent(event)) {
+      mouseGestureSession = createMouseGestureSession(policy);
+      if (shouldRunMouseGestureSession(mouseGestureSession, event)) {
+        runMouseGestureSession(mouseGestureSession);
+      }
+      if (shouldFinishMouseGestureSession(mouseGestureSession, event)) {
+        finishMouseGestureSession();
       }
     }
   }
@@ -466,7 +530,7 @@ export function initApp(): void {
       wheelBurstCount = 0;
       overshootGuardDirection = null;
       overshootGuardUntil = 0;
-      claimedMouseGesture = null;
+      finishMouseGestureSession();
     }
   }
 
