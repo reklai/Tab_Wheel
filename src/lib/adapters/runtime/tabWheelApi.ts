@@ -59,6 +59,13 @@ export function openTabWheelSearchTab(query: string, windowId?: number): Promise
   });
 }
 
+export function openNativeNewTabWheelTab(windowId?: number): Promise<TabWheelActionResult> {
+  return sendRuntimeMessage<TabWheelActionResult>({
+    type: "TABWHEEL_OPEN_NATIVE_NEW_TAB",
+    windowId,
+  });
+}
+
 export function activateMostRecentTabWheelTab(windowId?: number): Promise<TabWheelActionResult> {
   return sendRuntimeMessage<TabWheelActionResult>({
     type: "TABWHEEL_ACTIVATE_MOST_RECENT_TAB",

@@ -173,7 +173,7 @@ body {
 }
 
 .mode-pill {
-  min-width: 220px;
+  min-width: 280px;
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
   padding: 3px;
@@ -189,7 +189,9 @@ body {
   background: transparent;
   color: #9c9c9c;
   cursor: pointer;
+  font-size: 11px;
   font-weight: 650;
+  white-space: nowrap;
 }
 
 .mode-pill button.is-active {

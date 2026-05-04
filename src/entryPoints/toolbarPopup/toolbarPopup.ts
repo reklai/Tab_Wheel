@@ -26,6 +26,8 @@ import {
   setTabWheelCycleScope,
 } from "../../lib/adapters/runtime/tabWheelApi";
 
+const EXTENSION_TITLE = "Mouse Wheel Tab Switcher";
+
 function presetLabel(preset: TabWheelPreset): string {
   if (preset === "precise") return "Precise";
   if (preset === "fast") return "Fast";
@@ -34,7 +36,7 @@ function presetLabel(preset: TabWheelPreset): string {
 }
 
 function cycleScopeLabel(scope: TabWheelCycleScope): string {
-  return scope === "mru" ? "MRU" : "General";
+  return scope === "mru" ? "Most Recently Used" : "Left-To-Right";
 }
 
 function setSelectOptions(select: HTMLSelectElement, values: readonly string[], selected: string, label: (value: string) => string): void {
@@ -53,6 +55,9 @@ document.addEventListener("DOMContentLoaded", async () => {
   const scopeLabel = document.getElementById("scopeLabel")!;
   const generalModeBtn = document.getElementById("generalModeBtn") as HTMLButtonElement;
   const mruModeBtn = document.getElementById("mruModeBtn") as HTMLButtonElement;
+  const leftClickActionLabel = document.getElementById("leftClickActionLabel")!;
+  const leftClickSearchBtn = document.getElementById("leftClickSearchBtn") as HTMLButtonElement;
+  const leftClickNativeBtn = document.getElementById("leftClickNativeBtn") as HTMLButtonElement;
   const prevTabBtn = document.getElementById("prevTabBtn") as HTMLButtonElement;
   const nextTabBtn = document.getElementById("nextTabBtn") as HTMLButtonElement;
   const searchForm = document.getElementById("searchForm") as HTMLFormElement;
@@ -114,20 +119,31 @@ document.addEventListener("DOMContentLoaded", async () => {
     }
   }
 
+  function renderLeftClickActionButtons(): void {
+    leftClickActionLabel.textContent = settings.openNativeNewTabOnLeftClick
+      ? "Browser Default"
+      : "Tabwheel";
+    for (const button of [leftClickSearchBtn, leftClickNativeBtn]) {
+      const isNativeNewTabButton = button.dataset.nativeNewTab === "true";
+      const isActive = isNativeNewTabButton === settings.openNativeNewTabOnLeftClick;
+      button.classList.toggle("is-active", isActive);
+      button.setAttribute("aria-pressed", String(isActive));
+    }
+  }
+
   function renderState(): void {
     const gesture = formatTabWheelModifierCombo(settings.gestureModifier, settings.gestureWithShift);
     const cycleScope = overview?.cycleScope || settings.cycleScope;
     shortcutEl.textContent = `Hold ${gesture} and Use Mouse Wheel or Clicks`;
-    titlebarTextEl.textContent = overview
-      ? `TabWheel (${Math.max(1, overview.activeIndex + 1)}/${overview.tabCount})`
-      : "TabWheel";
+    titlebarTextEl.textContent = EXTENSION_TITLE;
     scopeLabel.textContent = cycleScopeLabel(cycleScope);
     renderModeButtons(cycleScope);
+    renderLeftClickActionButtons();
     const arePageShortcutsReady = overview?.contentScriptStatus === "ready";
     fallbackPanel.hidden = arePageShortcutsReady;
     shortcutStatusEl.hidden = !arePageShortcutsReady;
     shortcutStatusEl.textContent = arePageShortcutsReady
-      ? "Wheel switches tabs. Left-click opens search. Middle-click opens recent tab. Right-click closes and returns."
+      ? "Wheel switches tab. Left-click opens new tab. Middle-click opens most recent tab. Right-click closes current tab."
       : "";
   }
 
@@ -286,6 +302,15 @@ document.addEventListener("DOMContentLoaded", async () => {
     void setPopupCycleScope("mru");
   });
 
+  leftClickSearchBtn.addEventListener("click", () => {
+    if (!settings.openNativeNewTabOnLeftClick) return;
+    void persist({ ...readSettings(), openNativeNewTabOnLeftClick: false });
+  });
+  leftClickNativeBtn.addEventListener("click", () => {
+    if (settings.openNativeNewTabOnLeftClick) return;
+    void persist({ ...readSettings(), openNativeNewTabOnLeftClick: true });
+  });
+
   prevTabBtn.addEventListener("click", () => {
     void runPopupAction(
       () => cycleTabWheel("prev"),
@@ -312,7 +337,7 @@ document.addEventListener("DOMContentLoaded", async () => {
   recentTabBtn.addEventListener("click", () => {
     void runPopupAction(
       () => activateMostRecentTabWheelTab(),
-      "Most recent tab",
+      "Most Recent Tab",
       "Recent tab unavailable",
       true,
     );

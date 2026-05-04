@@ -18,6 +18,7 @@ test("store and privacy docs include local-only/no-telemetry policy", () => {
   const store = readText("STORE.md");
   const privacy = readText("PRIVACY.md");
   assert.match(store, /No data leaves your browser/);
+  assert.match(store, /Google fallback/);
   assert.match(privacy, /does not collect, transmit, or share/);
 });
 

@@ -22,6 +22,7 @@ Reliability release for mouse gestures, search-panel lifecycle, and restricted-p
 - Made modifier + right click fail closed when no eligible recent tab exists, leaving the current tab open instead of relying on browser tab fallback behavior.
 - Kept normal right click native while the search launcher is open, and suppresses modifier + right click there so search mode cannot accidentally close a tab.
 - Search launcher now closes when its tab is hidden or when TabWheel switches away from that tab.
+- Added a Browser Default new tab option so modifier + left click can open the browser's normal new tab page instead of TabWheel search.
 - Popup restricted-page fallback copy now explains that browser restrictions block page shortcuts while popup buttons still use extension APIs.
 - Removed the restricted-page toast so the popup has one clear fallback state.
 - Kept the package and browser manifests aligned at `1.0.1`.
@@ -32,7 +33,7 @@ Initial public release focused on reliability over surface area:
 
 - Modifier-wheel tab cycling on normal web pages.
 - General and MRU wheel cycling modes.
-- Modifier + left click opens an in-page search launcher using the browser's default search provider, with a configurable URL-template fallback.
+- Modifier + left click opens an in-page search launcher using the browser's default search provider, with a fixed Google fallback if the browser search API is unavailable.
 - Modifier + middle click activates the most recently used tab.
 - Modifier + right click closes the current tab and activates the most recently used tab.
 - Popup fallback controls for restricted pages.

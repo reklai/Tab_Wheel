@@ -19,13 +19,16 @@ import styles from "./help.css";
 interface HelpSection {
   title: string;
   layout?: "rows" | "centered";
-  items: { label?: string; value: string }[];
+  items: { label?: string; token?: string; value: string }[];
 }
 
 const SCROLL_STEP = 80;
 
 function buildHelpSections(settings: TabWheelSettings): HelpSection[] {
   const gestureModifier = formatTabWheelModifierCombo(settings.gestureModifier, settings.gestureWithShift);
+  const leftClickAction = settings.openNativeNewTabOnLeftClick
+    ? "opens the browser's normal new tab page"
+    : "opens the in-page search launcher";
   const editableFields = settings.allowGesturesInEditableFields
     ? "Allow wheel-cycling when cursor is inside text boxes, search fields, and editors/docs"
     : "Skip wheel-cycling when cursor is inside text boxes, search fields, and editors/docs";
@@ -35,25 +38,25 @@ function buildHelpSections(settings: TabWheelSettings): HelpSection[] {
       title: "How To Use",
       layout: "centered",
       items: [
-        { value: `${gestureModifier} + Wheel switches tabs using the current cycle mode` },
-        { value: `${gestureModifier} + Left Click opens the in-page search launcher` },
-        { value: `${gestureModifier} + Middle Click jumps to the most recently used tab` },
-        { value: `${gestureModifier} + Right Click closes this tab and returns to the most recently used tab when available` },
+        { token: `${gestureModifier} + Wheel`, value: "switches tabs using the current cycle mode" },
+        { token: `${gestureModifier} + Left Click`, value: leftClickAction },
+        { token: `${gestureModifier} + Middle Click`, value: "jumps to the most recently used tab" },
+        { token: `${gestureModifier} + Right Click`, value: "closes this tab and returns to the most recently used tab when available" },
       ],
     },
     {
       title: "Caveats",
       layout: "centered",
       items: [
-        { value: "Modifier-click caveat: modifier + left/middle/right click can be reserved by sites, browsers, or the OS; change modifier or require Shift if it conflicts" },
-        { value: "Extension constraints: page gestures work on normal web pages; browser UI, stores, PDFs, and internal pages can block content scripts" },
+        { token: "Modifier-click caveat", value: "modifier + left/middle/right click can be reserved by sites, browsers, or the OS; change modifier or require Shift if it conflicts" },
+        { token: "Extension constraints", value: "page gestures work on normal web pages; browser UI, stores, PDFs, and internal pages can block content scripts" },
       ],
     },
     {
       title: "Shortcuts",
       items: [
         { label: "Switch tabs", value: `${gestureModifier} + Wheel` },
-        { label: "Search launcher", value: `${gestureModifier} + Left Click` },
+        { label: "Left click", value: `${gestureModifier} + Left Click ${leftClickAction}` },
         { label: "Most recent tab", value: `${gestureModifier} + Middle Click` },
         { label: "Close tab", value: `${gestureModifier} + Right Click` },
         { label: "Editable fields", value: editableFields },
@@ -91,7 +94,11 @@ function buildSectionsHtml(sections: HelpSection[]): string {
     const isCentered = section.layout === "centered";
     const itemsHtml = isCentered
       ? section.items.map((item) => `
-          <div class="ht-help-step">${escapeHtml(item.value)}</div>
+          <div class="ht-help-step${item.token ? " ht-help-step-with-token" : ""}">${
+            item.token
+              ? `<span class="ht-help-step-token">${escapeHtml(item.token)}</span><span class="ht-help-step-action">${escapeHtml(item.value)}</span>`
+              : escapeHtml(item.value)
+          }</div>
         `).join("")
       : section.items.map((item) => `
           <div class="ht-help-row">
@@ -134,7 +141,7 @@ export async function openTabWheelHelpOverlay(): Promise<void> {
           <button class="ht-dot ht-dot-close" title="Close"></button>
         </div>
         <span class="ht-help-titlebar-text">
-          <span class="ht-help-title-label">TabWheel Help</span>
+          <span class="ht-help-title-label">Mouse Wheel Tab Switcher Help</span>
         </span>
         <button class="ht-help-settings" data-action="settings" title="Settings" aria-label="Open settings">&#9881;</button>
       </div>

@@ -1,13 +1,13 @@
 {
   "input": {
-    "storageSchemaVersion": 11,
+    "storageSchemaVersion": 13,
     "tabWheelSettings": {
       "invertScroll": false
     },
     "futureKey": true
   },
   "expected": {
-    "storageSchemaVersion": 11,
+    "storageSchemaVersion": 13,
     "tabWheelSettings": {
       "invertScroll": false
     },

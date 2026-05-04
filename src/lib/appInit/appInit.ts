@@ -30,6 +30,7 @@ import {
   activateMostRecentTabWheelTab,
   closeCurrentTabWheelTabAndActivateRecent,
   cycleTabWheel,
+  openNativeNewTabWheelTab,
   saveTabWheelScrollPosition,
 } from "../adapters/runtime/tabWheelApi";
 import { openTabWheelHelpOverlay } from "../ui/panels/help/help";
@@ -410,6 +411,14 @@ export function initApp(): void {
 
   function runMouseGestureAction(action: TabWheelMouseGestureAction): void {
     if (action === "search") {
+      if (settings.openNativeNewTabOnLeftClick) {
+        void openNativeNewTabWheelTab()
+          .then((result) => {
+            if (!result.ok) showStatus(result.reason || "New tab unavailable");
+          })
+          .catch(() => showStatus("New tab unavailable"));
+        return;
+      }
       void openTabWheelSearchLauncher().catch(() => showStatus("Search unavailable"));
       return;
     }

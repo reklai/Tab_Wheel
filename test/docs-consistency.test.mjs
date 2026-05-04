@@ -29,6 +29,7 @@ test("store and privacy docs match current TabWheel limits", () => {
   assert.ok(store.includes("modifier-wheel cycling"));
   assert.ok(store.includes("MRU mode"));
   assert.ok(store.includes("Alt + Left Click"));
+  assert.ok(store.includes("Browser Default"));
   assert.ok(store.includes("Alt + Middle Click"));
   assert.ok(store.includes("Alt + Right Click"));
   assert.ok(store.includes("Previous / Next"));
@@ -38,6 +39,9 @@ test("store and privacy docs match current TabWheel limits", () => {
   assert.ok(privacy.includes("tabWheelMruState"));
   assert.ok(privacy.includes("browser's current default search provider"));
   assert.ok(store.includes("browser's current default search provider"));
+  assert.ok(privacy.includes("Google fallback"));
+  assert.ok(store.includes("Google fallback"));
+  assert.doesNotMatch(`${store}\n${privacy}`, /configurable search URL template|fallback search URL template/);
   assert.ok(privacy.includes("scripting"));
   assert.doesNotMatch(store, /Alt \+ T(?![a-z])/);
   assert.doesNotMatch(store, /Alt \+ M(?!iddle)/);

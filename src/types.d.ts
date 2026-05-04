@@ -44,10 +44,10 @@ interface TabWheelSettings {
   gestureModifier: TabWheelModifierKey;
   gestureWithShift: boolean;
   allowGesturesInEditableFields: boolean;
+  openNativeNewTabOnLeftClick: boolean;
   cycleScope: TabWheelCycleScope;
   skipPinnedTabs: boolean;
   skipRestrictedPages: boolean;
-  searchUrlTemplate: string;
   wrapAround: boolean;
   wheelPreset: TabWheelPreset;
   wheelSensitivity: number;

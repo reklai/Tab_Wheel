@@ -59,6 +59,33 @@
   line-height: 1.45;
   overflow-wrap: anywhere;
 }
+.ht-help-step-with-token {
+  display: grid;
+  grid-template-columns: max-content minmax(0, 1fr);
+  align-items: center;
+  gap: 10px;
+  text-align: left;
+}
+.ht-help-step-token {
+  display: inline-block;
+  padding: 1px 5px;
+  border: 1px solid rgba(254,188,46,0.32);
+  border-radius: 4px;
+  background: rgba(254,188,46,0.12);
+  color: #ffdf8a;
+  font-weight: 700;
+  white-space: nowrap;
+}
+.ht-help-step-action {
+  min-width: 0;
+  padding: 1px 6px;
+  border: 1px solid rgba(191,90,242,0.32);
+  border-radius: 4px;
+  background: rgba(191,90,242,0.12);
+  color: #e6c8ff;
+  font-weight: 650;
+  overflow-wrap: anywhere;
+}
 .ht-help-items { overflow: hidden; }
 .ht-help-row {
   display: flex; align-items: center; justify-content: space-between;
@@ -78,4 +105,9 @@
   .ht-help-key { margin-left: 8px; padding: 2px 6px; }
   .ht-help-section-centered { padding: 6px 10px 10px; }
   .ht-help-step { font-size: 11px; padding: 6px 8px; }
+  .ht-help-step-with-token {
+    grid-template-columns: minmax(0, 1fr);
+    justify-items: center;
+    text-align: center;
+  }
 }

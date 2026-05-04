@@ -18,7 +18,7 @@ if (!["firefox", "chrome"].includes(target)) {
 }
 
 const manifestFile = target === "chrome" ? "manifest_v3.json" : "manifest_v2.json";
-const targetBrand = "TabWheel";
+const targetBrand = "Mouse Wheel Tab Switcher";
 console.log(`[build] Target: ${target} (${manifestFile}, ${targetBrand})`);
 
 // Shared esbuild options — IIFE bundles for extension contexts

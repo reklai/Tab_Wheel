@@ -4,8 +4,7 @@ const TABWHEEL_SCROLL_MEMORY_KEY = "tabWheelScrollMemory";
 const TABWHEEL_MRU_STATE_KEY = "tabWheelMruState";
 const TABWHEEL_LEGACY_TAGGED_TABS_KEY = "tabWheelTaggedTabs";
 const TABWHEEL_WHEEL_LIST_KEY = "tabWheelWheelList";
-export const STORAGE_SCHEMA_VERSION = 10;
-const DEFAULT_SEARCH_URL_TEMPLATE = "https://www.google.com/search?q=%s";
+export const STORAGE_SCHEMA_VERSION = 12;
 
 type StorageSnapshot = Record<string, unknown>;
 
@@ -71,10 +70,11 @@ function migrateTabWheelSettings(storage: StorageSnapshot): boolean {
     nextSettings.skipRestrictedPages = true;
     changed = true;
   }
-  if (typeof nextSettings.searchUrlTemplate !== "string") {
-    nextSettings.searchUrlTemplate = DEFAULT_SEARCH_URL_TEMPLATE;
+  if (typeof nextSettings.openNativeNewTabOnLeftClick !== "boolean") {
+    nextSettings.openNativeNewTabOnLeftClick = false;
     changed = true;
   }
+  if (deleteKey(nextSettings, "searchUrlTemplate")) changed = true;
   if (deleteKey(nextSettings, "cycleOrder")) changed = true;
   if (typeof nextSettings.wheelPreset !== "string") {
     nextSettings.wheelPreset = "balanced";
@@ -209,6 +209,12 @@ export function migrateStorageSnapshot(input: StorageSnapshot): StorageMigration
   }
   if (fromVersion < 10) {
     changed = removeScrollMemoryZoom(migratedStorage) || changed;
+  }
+  if (fromVersion < 11) {
+    changed = migrateTabWheelSettings(migratedStorage) || changed;
+  }
+  if (fromVersion < 12) {
+    changed = deleteSettingKey(migratedStorage, "searchUrlTemplate") || changed;
   }
 
   if (migratedStorage[STORAGE_SCHEMA_VERSION_KEY] !== STORAGE_SCHEMA_VERSION) {

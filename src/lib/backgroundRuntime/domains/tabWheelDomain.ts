@@ -45,6 +45,7 @@ export interface TabWheelDomain {
   cycle(direction: "prev" | "next", tab?: Tabs.Tab): Promise<TabWheelActionResult>;
   refreshCurrentTab(tab?: Tabs.Tab, windowId?: number): Promise<TabWheelRefreshResult>;
   openSearchTab(query: string, tab?: Tabs.Tab, windowId?: number): Promise<TabWheelActionResult>;
+  openNativeNewTab(tab?: Tabs.Tab, windowId?: number): Promise<TabWheelActionResult>;
   activateMostRecentTab(tab?: Tabs.Tab, windowId?: number): Promise<TabWheelActionResult>;
   closeCurrentTabAndActivateRecent(tab?: Tabs.Tab, windowId?: number): Promise<TabWheelActionResult>;
   toggleCycleScope(tab?: Tabs.Tab, windowId?: number): Promise<TabWheelActionResult>;
@@ -811,12 +812,11 @@ export function createTabWheelDomain(): TabWheelDomain {
     const normalizedQuery = normalizeSearchQuery(query);
     if (!normalizedQuery) return { ok: false, reason: "Enter a search query" };
     await ensureLoaded();
-    const settings = await getSettings();
     const activeTab = await resolveActiveTab(tab, windowId);
     const searchApi = getBrowserDefaultSearchApi();
     const createProperties: Tabs.CreateCreatePropertiesType = {
       active: true,
-      url: searchApi ? "about:blank" : buildSearchUrl(settings.searchUrlTemplate, normalizedQuery),
+      url: searchApi ? "about:blank" : buildSearchUrl(normalizedQuery),
       ...(activeTab?.windowId != null ? { windowId: activeTab.windowId } : {}),
       ...(activeTab?.index != null ? { index: activeTab.index + 1 } : {}),
     };
@@ -829,7 +829,7 @@ export function createTabWheelDomain(): TabWheelDomain {
       if (!didUseBrowserDefaultSearch) {
         const didUseFallbackSearch = await browser.tabs
           .update(createdTab.id, {
-            url: buildSearchUrl(settings.searchUrlTemplate, normalizedQuery),
+            url: buildSearchUrl(normalizedQuery),
           })
           .then(() => true)
           .catch(() => false);
@@ -839,6 +839,31 @@ export function createTabWheelDomain(): TabWheelDomain {
         }
       }
     }
+    if (createdTab.id != null && createdTab.windowId != null) {
+      await recordMruTab(createdTab.id, createdTab.windowId);
+    }
+    return { ok: true, tabId: createdTab.id };
+  }
+
+  async function openNativeNewTab(tab?: Tabs.Tab, windowId?: number): Promise<TabWheelActionResult> {
+    await ensureLoaded();
+    const activeTab = await resolveActiveTab(tab, windowId);
+    const createProperties: Tabs.CreateCreatePropertiesType = {
+      active: true,
+      ...(activeTab?.windowId != null ? { windowId: activeTab.windowId } : {}),
+      ...(activeTab?.index != null ? { index: activeTab.index + 1 } : {}),
+    };
+    const fallbackCreateProperties: Tabs.CreateCreatePropertiesType = {
+      active: true,
+      ...(activeTab?.windowId != null ? { windowId: activeTab.windowId } : {}),
+    };
+    const createdTab = await browser.tabs
+      .create(createProperties)
+      .catch(() => browser.tabs.create(fallbackCreateProperties))
+      .catch(() => browser.tabs.create({ active: true }))
+      .catch(() => browser.tabs.create({ active: true, url: "about:blank" }))
+      .catch(() => null);
+    if (!createdTab) return { ok: false, reason: "New tab unavailable" };
     if (createdTab.id != null && createdTab.windowId != null) {
       await recordMruTab(createdTab.id, createdTab.windowId);
     }
@@ -1027,6 +1052,7 @@ export function createTabWheelDomain(): TabWheelDomain {
     cycle,
     refreshCurrentTab,
     openSearchTab,
+    openNativeNewTab,
     activateMostRecentTab,
     closeCurrentTabAndActivateRecent,
     toggleCycleScope,

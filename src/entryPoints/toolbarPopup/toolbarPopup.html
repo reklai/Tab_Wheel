@@ -12,13 +12,13 @@
         <span class="dot dot-minimize"></span>
         <span class="dot dot-maximize"></span>
       </div>
-      <span class="titlebar-text" id="titlebarText">TabWheel</span>
+      <span class="titlebar-text" id="titlebarText">__EXTENSION_NAME__</span>
       <button class="titlebar-button" id="refreshTabWheelBtn" type="button" title="Refresh TabWheel on this tab">Refresh</button>
     </div>
 
     <div class="shortcut-panel">
       <strong id="shortcutLabel">Hold Alt / Option and Use Mouse Wheel or Clicks</strong>
-      <span id="shortcutStatus">Wheel switches tabs. Left-click opens search. Middle-click opens recent tab. Right-click closes and returns.</span>
+      <span id="shortcutStatus">Wheel switches tab. Left-click opens new tab. Middle-click opens most recent tab. Right-click closes current tab.</span>
     </div>
 
     <section class="fallback-panel" id="fallbackPanel" aria-live="polite" hidden>
@@ -29,12 +29,12 @@
     <main class="popup-scroll">
       <section class="cycle-mode-panel" aria-label="Cycle mode">
         <div class="mode-heading">
-          <span>Current Cycle Mode</span>
-          <strong id="scopeLabel">General</strong>
+          <span>Mouse Scroll Wheel Cycle Mode</span>
+          <strong id="scopeLabel">Left-To-Right</strong>
         </div>
         <div class="mode-pill" role="group" aria-label="Change cycle mode">
-          <button id="generalModeBtn" data-cycle-scope="general" type="button">General</button>
-          <button id="mruModeBtn" data-cycle-scope="mru" type="button">MRU</button>
+          <button id="generalModeBtn" data-cycle-scope="general" type="button">Left-To-Right</button>
+          <button id="mruModeBtn" data-cycle-scope="mru" type="button">Most Recently Used</button>
         </div>
       </section>
 
@@ -43,14 +43,25 @@
         <button id="nextTabBtn" type="button">Next tab</button>
       </div>
 
-      <form class="search-row" id="searchForm" aria-label="Search fallback">
+      <section class="cycle-mode-panel" aria-label="Left click action">
+        <div class="mode-heading">
+          <span>Browser New Tab Page Mode</span>
+          <strong id="leftClickActionLabel">Tabwheel</strong>
+        </div>
+        <div class="mode-pill" role="group" aria-label="Change left click action">
+          <button id="leftClickSearchBtn" data-native-new-tab="false" type="button">Tabwheel</button>
+          <button id="leftClickNativeBtn" data-native-new-tab="true" type="button">Browser Default</button>
+        </div>
+      </section>
+
+      <form class="search-row" id="searchForm" aria-label="TabWheel Search">
         <input id="searchQueryInput" type="search" autocomplete="off" spellcheck="false" placeholder="Search" />
         <button id="searchSubmitBtn" type="submit">Search</button>
       </form>
 
       <div class="gesture-row" aria-label="Click gesture fallback controls">
-        <button id="recentTabBtn" type="button">Most recent tab</button>
-        <button id="closeRecentBtn" type="button">Close tab</button>
+        <button id="recentTabBtn" type="button">Most Recent Tab</button>
+        <button id="closeRecentBtn" type="button">Close Tab</button>
       </div>
 
       <section class="control-grid" aria-label="TabWheel controls">

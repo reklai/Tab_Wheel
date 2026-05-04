@@ -52,6 +52,9 @@ export function createTabWheelMessageHandler(
       case "TABWHEEL_OPEN_SEARCH_TAB":
         return await domain.openSearchTab(message.query, sender.tab, message.windowId);
 
+      case "TABWHEEL_OPEN_NATIVE_NEW_TAB":
+        return await domain.openNativeNewTab(sender.tab, message.windowId);
+
       case "TABWHEEL_ACTIVATE_MOST_RECENT_TAB":
         return await domain.activateMostRecentTab(sender.tab, message.windowId);
 

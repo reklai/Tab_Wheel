@@ -24,7 +24,7 @@ function presetLabel(preset: TabWheelPreset): string {
 }
 
 function cycleScopeLabel(scope: TabWheelCycleScope): string {
-  return scope === "mru" ? "MRU" : "General";
+  return scope === "mru" ? "Most Recently Used" : "Left-To-Right";
 }
 
 document.addEventListener("DOMContentLoaded", async () => {
@@ -32,8 +32,8 @@ document.addEventListener("DOMContentLoaded", async () => {
   const allowGesturesInEditableFieldsInput = document.getElementById("allowGesturesInEditableFields") as HTMLInputElement;
   const gestureModifierSelect = document.getElementById("gestureModifier") as HTMLSelectElement;
   const gestureWithShiftInput = document.getElementById("gestureWithShift") as HTMLInputElement;
+  const openNativeNewTabOnLeftClickSelect = document.getElementById("openNativeNewTabOnLeftClick") as HTMLSelectElement;
   const cycleScopeSelect = document.getElementById("cycleScope") as HTMLSelectElement;
-  const searchUrlTemplateInput = document.getElementById("searchUrlTemplate") as HTMLInputElement;
   const skipPinnedTabsInput = document.getElementById("skipPinnedTabs") as HTMLInputElement;
   const skipRestrictedPagesInput = document.getElementById("skipRestrictedPages") as HTMLInputElement;
   const wrapAroundInput = document.getElementById("wrapAround") as HTMLInputElement;
@@ -48,6 +48,7 @@ document.addEventListener("DOMContentLoaded", async () => {
   const invertScrollHelp = document.getElementById("invertScrollHelp")!;
   const wheelShortcut = document.getElementById("wheelShortcut")!;
   const searchShortcut = document.getElementById("searchShortcut")!;
+  const leftClickShortcutDescription = document.getElementById("leftClickShortcutDescription")!;
   const recentShortcut = document.getElementById("recentShortcut")!;
   const closeShortcut = document.getElementById("closeShortcut")!;
   const statusBar = document.getElementById("statusBar")!;
@@ -89,8 +90,8 @@ document.addEventListener("DOMContentLoaded", async () => {
       allowGesturesInEditableFields: allowGesturesInEditableFieldsInput.checked,
       gestureModifier: gestureModifierSelect.value as TabWheelModifierKey,
       gestureWithShift: gestureWithShiftInput.checked,
+      openNativeNewTabOnLeftClick: openNativeNewTabOnLeftClickSelect.value === "true",
       cycleScope: cycleScopeSelect.value as TabWheelCycleScope,
-      searchUrlTemplate: searchUrlTemplateInput.value,
       skipPinnedTabs: skipPinnedTabsInput.checked,
       skipRestrictedPages: skipRestrictedPagesInput.checked,
       wrapAround: wrapAroundInput.checked,
@@ -114,8 +115,8 @@ document.addEventListener("DOMContentLoaded", async () => {
     allowGesturesInEditableFieldsInput.checked = settings.allowGesturesInEditableFields;
     gestureModifierSelect.value = settings.gestureModifier;
     gestureWithShiftInput.checked = settings.gestureWithShift;
+    openNativeNewTabOnLeftClickSelect.value = settings.openNativeNewTabOnLeftClick ? "true" : "false";
     cycleScopeSelect.value = settings.cycleScope;
-    searchUrlTemplateInput.value = settings.searchUrlTemplate;
     skipPinnedTabsInput.checked = settings.skipPinnedTabs;
     skipRestrictedPagesInput.checked = settings.skipRestrictedPages;
     wrapAroundInput.checked = settings.wrapAround;
@@ -134,6 +135,9 @@ document.addEventListener("DOMContentLoaded", async () => {
     invertScrollHelp.textContent = `${gestureModifier} + wheel down/right becomes previous, and ${gestureModifier} + wheel up/left becomes next.`;
     wheelShortcut.textContent = `${gestureModifier} + Wheel`;
     searchShortcut.textContent = `${gestureModifier} + Left Click`;
+    leftClickShortcutDescription.textContent = settings.openNativeNewTabOnLeftClick
+      ? "Open the browser's normal new tab page."
+      : "Open the in-page search launcher.";
     recentShortcut.textContent = `${gestureModifier} + Middle Click`;
     closeShortcut.textContent = `${gestureModifier} + Right Click`;
   }
@@ -161,8 +165,8 @@ document.addEventListener("DOMContentLoaded", async () => {
   allowGesturesInEditableFieldsInput.addEventListener("change", () => void saveSettings());
   gestureModifierSelect.addEventListener("change", () => void saveSettings());
   gestureWithShiftInput.addEventListener("change", () => void saveSettings());
+  openNativeNewTabOnLeftClickSelect.addEventListener("change", () => void saveSettings());
   cycleScopeSelect.addEventListener("change", () => void saveSettings());
-  searchUrlTemplateInput.addEventListener("change", () => void saveSettings());
   skipPinnedTabsInput.addEventListener("change", () => void saveSettings());
   skipRestrictedPagesInput.addEventListener("change", () => void saveSettings());
   wrapAroundInput.addEventListener("change", () => void saveSettings());

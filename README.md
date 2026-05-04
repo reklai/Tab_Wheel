@@ -5,7 +5,7 @@ TabWheel is a browser extension for switching tabs with the mouse scroll wheel. 
 It is built for a small, reliable workflow:
 
 - `Alt + Wheel`: switch tabs.
-- `Alt + Left Click`: open the in-page search launcher.
+- `Alt + Left Click`: open the in-page search launcher by default, or the browser's normal new tab page when enabled.
 - `Alt + Middle Click`: jump to the most recently used tab.
 - `Alt + Right Click`: close the current tab and activate the most recently used tab when one is available.
 - Toolbar popup: change mode, tune wheel behavior, and use fallback controls.
@@ -21,7 +21,7 @@ TabWheel follows a fast, feature-rich, and browser-native promise, with reliabil
 ## Features
 
 - Mouse wheel tab switching with configurable modifier: `Alt / Option`, `Ctrl / Control`, or `Meta / Command`.
-- In-page search launcher that uses the browser's default search provider, with a configurable URL template fallback.
+- In-page search launcher that uses the browser's default search provider first, with a fixed Google fallback if the browser search API is unavailable and an optional Browser Default left-click new tab mode.
 - Optional `Shift` requirement to reduce accidental activation.
 - General mode for normal tab-order cycling.
 - MRU mode for most-recently-used cycling.
@@ -43,7 +43,7 @@ Browser UI pages, extension pages, browser stores, devtools, PDF viewers, and so
 
 TabWheel does not use telemetry, tracking, analytics, remote code, or developer-owned servers.
 
-The extension stores settings, including the fallback search URL template, MRU tab order, recent scroll positions, page geometry, and URL checks in browser-local storage.
+The extension stores settings, MRU tab order, recent scroll positions, page geometry, and URL checks in browser-local storage. Submitted TabWheel Search queries go to the browser's default search provider, with the fixed Google fallback used only if the browser search API is unavailable.
 
 See [PRIVACY.md](./PRIVACY.md) for the full privacy policy.
 

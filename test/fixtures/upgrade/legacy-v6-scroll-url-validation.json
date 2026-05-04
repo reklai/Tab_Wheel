@@ -27,7 +27,7 @@
     }
   },
   "expected": {
-    "storageSchemaVersion": 10,
+    "storageSchemaVersion": 12,
     "tabWheelScrollMemory": {
       "8": {
         "tabId": 8,
@@ -41,7 +41,7 @@
     "tabWheelSettings": {
       "cycleScope": "general",
       "skipRestrictedPages": true,
-      "searchUrlTemplate": "https://www.google.com/search?q=%s",
+      "openNativeNewTabOnLeftClick": false,
       "wheelPreset": "balanced",
       "horizontalWheel": true,
       "overshootGuard": true,

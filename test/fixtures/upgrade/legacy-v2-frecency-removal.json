@@ -31,12 +31,12 @@
     ]
   },
   "expected": {
-    "storageSchemaVersion": 10,
+    "storageSchemaVersion": 12,
     "tabWheelSettings": {
       "allowGesturesInEditableFields": true,
       "cycleScope": "general",
       "skipRestrictedPages": true,
-      "searchUrlTemplate": "https://www.google.com/search?q=%s",
+      "openNativeNewTabOnLeftClick": false,
       "wheelPreset": "balanced",
       "horizontalWheel": true,
       "overshootGuard": true,

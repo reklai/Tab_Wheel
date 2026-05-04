@@ -18,9 +18,36 @@
 
     <section class="settings-body">
       <div class="settings-header">
-        <h1>TabWheel</h1>
-        <p class="subtitle">Reliable modifier-wheel cycling with MRU mode, click gestures, and toolbar fallbacks.</p>
+        <h1>__EXTENSION_NAME__</h1>
+        <p class="subtitle">Reliable mouse scroll wheel cycling with New Tab mode, click gestures, and toolbar fallbacks.</p>
       </div>
+
+      <label class="setting-row" for="cycleScope" title="Choose left-to-right or most-recently-used wheel cycling.">
+        <span>
+          <strong>Mouse Scroll Wheel Cycle Mode</strong>
+          <small>Left-To-Right follows tab strip order. Most Recently Used follows most-recently-used tab order.</small>
+        </span>
+        <select class="setting-control" id="cycleScope"></select>
+      </label>
+
+      <label class="setting-row" for="openNativeNewTabOnLeftClick" title="Use the browser's normal new tab page for modifier + left click instead of the TabWheel search launcher.">
+        <span>
+          <strong>Browser New Tab Page Mode</strong>
+          <small>Choose whether modifier + left click opens Tabwheel search or the browser default new tab page.</small>
+        </span>
+        <select class="setting-control" id="openNativeNewTabOnLeftClick">
+          <option value="false">Tabwheel</option>
+          <option value="true">Browser Default</option>
+        </select>
+      </label>
+
+      <label class="setting-row" for="wheelPreset" title="Apply a preset for sensitivity, cooldown, acceleration, and overshoot guard.">
+        <span>
+          <strong>Preset</strong>
+          <small>Apply a sensitivity and timing profile: Precise, Balanced, Fast, or Custom.</small>
+        </span>
+        <select class="setting-control" id="wheelPreset"></select>
+      </label>
 
       <label class="setting-row" for="gestureModifier" title="Base key for wheel and click shortcuts.">
         <span>
@@ -38,41 +65,9 @@
         <input id="gestureWithShift" type="checkbox" />
       </label>
 
-      <label class="setting-row" for="wheelPreset" title="Apply a preset for sensitivity, cooldown, acceleration, and overshoot guard.">
-        <span>
-          <strong>Wheel preset</strong>
-          <small>Apply a sensitivity and timing profile: Precise, Balanced, Fast, or Custom.</small>
-        </span>
-        <select class="setting-control" id="wheelPreset"></select>
-      </label>
-
-      <label class="setting-row" for="cycleScope" title="Choose tab-order or most-recently-used wheel cycling.">
-        <span>
-          <strong>Cycle mode</strong>
-          <small>General follows tab strip order. MRU follows most-recently-used tab order.</small>
-        </span>
-        <select class="setting-control" id="cycleScope"></select>
-      </label>
-
-      <label class="setting-row" for="searchUrlTemplate" title="Fallback search results URL. Use %s where the encoded query should go.">
-        <span>
-          <strong>Search fallback</strong>
-          <small>Used only if browser default search is unavailable. Use %s for the query.</small>
-        </span>
-        <input class="setting-text" id="searchUrlTemplate" type="text" />
-      </label>
-
-      <label class="setting-row" for="allowGesturesInEditableFields" title="Allow wheel-cycling when cursor is inside text boxes, search fields, and editors/docs">
-        <span>
-          <strong>Editable fields</strong>
-          <small>Allow wheel-cycling when cursor is inside text boxes, search fields, and editors/docs</small>
-        </span>
-        <input id="allowGesturesInEditableFields" type="checkbox" />
-      </label>
-
       <label class="setting-row" for="invertScroll" title="Swap wheel down/up so down goes previous and up goes next.">
         <span>
-          <strong>Invert wheel direction</strong>
+          <strong>Invert wheel</strong>
           <small id="invertScrollHelp">Alt + wheel down becomes previous, and Alt + wheel up becomes next.</small>
         </span>
         <input id="invertScroll" type="checkbox" />
@@ -80,7 +75,7 @@
 
       <label class="setting-row" for="skipPinnedTabs" title="Keep pinned utility tabs out of the cycling path.">
         <span>
-          <strong>Skip pinned tabs</strong>
+          <strong>Skip pinned</strong>
           <small>Keep utility tabs out of wheel cycling.</small>
         </span>
         <input id="skipPinnedTabs" type="checkbox" />
@@ -88,7 +83,7 @@
 
       <label class="setting-row" for="skipRestrictedPages" title="Skip browser UI, extension pages, stores, PDF viewers, and other unsupported pages when cycling.">
         <span>
-          <strong>Skip restricted pages</strong>
+          <strong>Skip restricted</strong>
           <small>Skip browser UI, extension pages, stores, PDF viewers, and unsupported pages when cycling.</small>
         </span>
         <input id="skipRestrictedPages" type="checkbox" />
@@ -126,6 +121,14 @@
         <input id="overshootGuard" type="checkbox" />
       </label>
 
+      <label class="setting-row" for="allowGesturesInEditableFields" title="Allow wheel-cycling when cursor is inside text boxes, search fields, and editors/docs">
+        <span>
+          <strong>Editable fields</strong>
+          <small>Allow wheel-cycling when cursor is inside text boxes, search fields, and editors/docs</small>
+        </span>
+        <input id="allowGesturesInEditableFields" type="checkbox" />
+      </label>
+
       <label class="setting-row" for="wheelSensitivity" title="Higher values need less wheel movement before switching tabs.">
         <span>
           <strong>Sensitivity</strong>
@@ -144,10 +147,9 @@
 
       <div class="reference-grid" aria-label="Shortcut reference">
         <div><strong id="wheelShortcut">Alt + Wheel</strong><span>Cycle tabs using the current cycle mode.</span></div>
-        <div><strong id="searchShortcut">Alt + Left Click</strong><span>Open the in-page search launcher.</span></div>
+        <div><strong id="searchShortcut">Alt + Left Click</strong><span id="leftClickShortcutDescription">Open the in-page search launcher.</span></div>
         <div><strong id="recentShortcut">Alt + Middle Click</strong><span>Jump to the most recently used tab.</span></div>
         <div><strong id="closeShortcut">Alt + Right Click</strong><span>Close the current tab and return to the most recently used tab when available.</span></div>
-        <div><strong>Toolbar popup</strong><span>Use fallback buttons, change mode, and tune wheel behavior.</span></div>
       </div>
 
       <div class="constraint-grid" aria-label="Gesture and page constraints">
