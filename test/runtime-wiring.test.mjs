@@ -230,7 +230,7 @@ test("domain supports MRU cycling, restricted-page skipping, and URL-validated s
   assert.match(source, /activateMostRecentTab[\s\S]*void captureTabScroll\(activeTab\)\.catch\(\(\) => \{\}\)[\s\S]*activateTab\(targetTab,\s*\{\s*restoreScrollAsync:\s*true\s*\}\)/);
   assert.match(source, /activateMostRecentTab[\s\S]*await dismissTabWheelPanel\(activeTab\)[\s\S]*activateTab\(targetTab,\s*\{\s*restoreScrollAsync:\s*true\s*\}\)/);
   assert.match(source, /closeCurrentTabAndActivateRecent/);
-  assert.match(source, /closeCurrentTabAndActivateRecent[\s\S]*if \(!targetTab\?\.id\) return \{ ok: false,\s*reason: "No recent tab" \}[\s\S]*await dismissTabWheelPanel\(activeTab\)[\s\S]*await activateTab\(targetTab\)[\s\S]*browser\.tabs\.remove\(activeTab\.id\)/);
+  assert.match(source, /closeCurrentTabAndActivateRecent[\s\S]*await dismissTabWheelPanel\(activeTab\)[\s\S]*if \(targetTab\?\.id\) \{[\s\S]*await activateTab\(targetTab,\s*\{\s*restoreScrollAsync:\s*true\s*\}\)[\s\S]*browser\.tabs\.remove\(activeTab\.id\)[\s\S]*tabId: targetTab\?\.id/);
   assert.match(source, /browser\.tabs\.create/);
   assert.match(source, /browser\.tabs\.remove/);
   assert.match(source, /browser\.tabs\.onCreated\.addListener[\s\S]*invalidateWindowTabsCache\(createdTab\.windowId\)/);
@@ -267,7 +267,7 @@ test("popup exposes MRU mode and fallback controls", () => {
   const popupCss = readText("src/entryPoints/toolbarPopup/toolbarPopup.css");
 
   assert.match(popupSource, /getTabWheelOverviewWithRetry/);
-  assert.match(popupSource, /EXTENSION_TITLE = "Mouse Wheel Tab Switcher"/);
+  assert.match(popupSource, /EXTENSION_TITLE = "Scroll Wheel Tab Switcher"/);
   assert.match(popupSource, /titlebarTextEl\.textContent = EXTENSION_TITLE/);
   assert.doesNotMatch(popupSource, /titlebarTextEl\.textContent = overview[\s\S]*overview\.tabCount/);
   assert.match(popupSource, /cycleTabWheel/);
@@ -397,7 +397,7 @@ test("options and help document the MRU click gesture model", () => {
   assert.doesNotMatch(optionsHtml, /id="searchUrlTemplate"|Search fallback|Fallback search results URL/);
   assert.match(optionsHtml, /id="openNativeNewTabOnLeftClick"/);
   assert.match(optionsHtml, /<h1>__EXTENSION_NAME__<\/h1>/);
-  assert.match(buildSource, /targetBrand = "Mouse Wheel Tab Switcher"/);
+  assert.match(buildSource, /targetBrand = "Scroll Wheel Tab Switcher"/);
   assert.match(optionsHtml, /Mouse Scroll Wheel Cycle Mode/);
   assert.match(optionsHtml, /Left-To-Right follows tab strip order\. Most Recently Used follows most-recently-used tab order\./);
   assert.match(optionsHtml, /Browser New Tab Page Mode/);
@@ -411,13 +411,13 @@ test("options and help document the MRU click gesture model", () => {
   assert.match(optionsHtml, /id="skipRestrictedPages"/);
   assert.match(optionsHtml, /Open the in-page search launcher/);
   assert.match(optionsHtml, /Jump to the most recently used tab/);
-  assert.match(optionsHtml, /Close the current tab and return to the most recently used tab when available/);
+  assert.match(optionsHtml, /Close the current tab; return to the most recently used tab first when available/);
   assert.match(optionsHtml, /Modifier-click caveat/);
   assert.match(optionsHtml, /Some sites and browsers reserve modifier \+ left\/middle\/right click combinations/);
   assert.match(optionsHtml, /Extension constraints/);
   assert.match(optionsHtml, /chrome:\/\/extensions/);
   assert.match(optionsHtml, /about:addons/);
-  assert.match(helpSource, /Mouse Wheel Tab Switcher Help/);
+  assert.match(helpSource, /Scroll Wheel Tab Switcher Help/);
   assert.match(helpSource, /MRU/);
   assert.match(helpSource, /token:\s*`\$\{gestureModifier\} \+ Left Click`/);
   assert.match(helpSource, /ht-help-step-token/);

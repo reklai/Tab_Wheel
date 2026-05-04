@@ -14,21 +14,23 @@ Run `npm run ci` before preparing a release, then run:
 npm run release:package
 ```
 
-## 1.0.2
+## 1.0.4
 
 Store-listing and release packaging update:
 
-- Renamed the store-facing extension title for Firefox/Zen and Chrome to `Mouse Wheel Tab Switcher`.
+- Renamed the store-facing extension title for Firefox/Zen and Chrome to `Scroll Wheel Tab Switcher`.
 - Updated the store short summary and description around mouse-wheel tab switching, left-click new tab mode, recent-tab, close-tab, privacy, constraints, and scroll memory.
+- Updated modifier + right click so it always closes the current tab, activating the most recent eligible tab first when available.
+- Made right-click close-to-recent use asynchronous scroll restore so closing the original tab does not wait on the restored page.
 - Rebuilt Chrome, Firefox, and source release artifacts from the current implementation.
-- Kept the package and browser manifests aligned at `1.0.2`.
+- Kept the package and browser manifests aligned at `1.0.4`.
 
 ## 1.0.1
 
 Reliability release for mouse gestures, search-panel lifecycle, and restricted-page fallback clarity:
 
 - Stabilized modifier + middle click by activating the recent tab on the completed middle-click event instead of the initial button-down event.
-- Made modifier + right click fail closed when no eligible recent tab exists, leaving the current tab open instead of relying on browser tab fallback behavior.
+- Added a no-recent-tab guard for modifier + right click in that release; 1.0.4 restores the always-close behavior while still preferring a recent-tab target when available.
 - Kept normal right click native while the search launcher is open, and suppresses modifier + right click there so search mode cannot accidentally close a tab.
 - Search launcher now closes when its tab is hidden or when TabWheel switches away from that tab.
 - Added a Browser Default new tab option so modifier + left click can open the browser's normal new tab page instead of TabWheel search.

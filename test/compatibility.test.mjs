@@ -33,18 +33,18 @@ test("manifests no longer declare legacy keyboard commands", () => {
 test("manifests use shared store names and titles", () => {
   const v2 = readJson("esBuildConfig/manifest_v2.json");
   const v3 = readJson("esBuildConfig/manifest_v3.json");
-  assert.equal(v2.name, "Mouse Wheel Tab Switcher");
-  assert.equal(v2.browser_action.default_title, "Mouse Wheel Tab Switcher");
-  assert.equal(v3.name, "Mouse Wheel Tab Switcher");
-  assert.equal(v3.action.default_title, "Mouse Wheel Tab Switcher");
+  assert.equal(v2.name, "Scroll Wheel Tab Switcher");
+  assert.equal(v2.browser_action.default_title, "Scroll Wheel Tab Switcher");
+  assert.equal(v3.name, "Scroll Wheel Tab Switcher");
+  assert.equal(v3.action.default_title, "Scroll Wheel Tab Switcher");
 });
 
-test("manifests are versioned for the 1.0.2 store listing release", () => {
+test("manifests are versioned for the 1.0.4 store listing release", () => {
   const v2 = readJson("esBuildConfig/manifest_v2.json");
   const v3 = readJson("esBuildConfig/manifest_v3.json");
   const packageJson = readJson("package.json");
 
-  assert.equal(packageJson.version, "1.0.2");
+  assert.equal(packageJson.version, "1.0.4");
   assert.equal(v2.version, packageJson.version);
   assert.equal(v3.version, packageJson.version);
 });

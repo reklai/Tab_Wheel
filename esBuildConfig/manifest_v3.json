@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
-  "name": "Mouse Wheel Tab Switcher",
-  "version": "1.0.2",
+  "name": "Scroll Wheel Tab Switcher",
+  "version": "1.0.4",
   "description": "Alt + mouse wheel scrolls tabs. Alt + left-click opens new tab, middle jumps recent, right closes current. Mods & more customizable.",
   "permissions": [
     "scripting",
@@ -34,7 +34,7 @@
       "96": "icons/icon-96.png"
     },
     "default_popup": "toolbarPopup/toolbarPopup.html",
-    "default_title": "Mouse Wheel Tab Switcher"
+    "default_title": "Scroll Wheel Tab Switcher"
   },
   "icons": {
     "48": "icons/icon-48.png",

@@ -985,13 +985,14 @@ export function createTabWheelDomain(): TabWheelDomain {
     const targetTab = eligibleTabs.length > 0
       ? resolveMostRecentTab(activeTab, activeTab.windowId, eligibleTabs)
       : null;
-    if (!targetTab?.id) return { ok: false, reason: "No recent tab" };
     cancelScrollRestore(activeTab.id);
     await dismissTabWheelPanel(activeTab);
-    await activateTab(targetTab);
+    if (targetTab?.id) {
+      await activateTab(targetTab, { restoreScrollAsync: true });
+    }
     await browser.tabs.remove(activeTab.id);
     invalidateWindowTabsCache(activeTab.windowId);
-    return { ok: true, tabId: targetTab.id };
+    return { ok: true, tabId: targetTab?.id };
   }
 
   async function setCycleScope(

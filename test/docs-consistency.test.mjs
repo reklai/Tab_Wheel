@@ -22,8 +22,8 @@ test("store and privacy docs match current TabWheel limits", () => {
   const store = readText("STORE.md");
   const privacy = readText("PRIVACY.md");
 
-  assert.ok(store.includes("Firefox / Zen: Mouse Wheel Tab Switcher"));
-  assert.ok(store.includes("Chrome: Mouse Wheel Tab Switcher"));
+  assert.ok(store.includes("Firefox / Zen: Scroll Wheel Tab Switcher"));
+  assert.ok(store.includes("Chrome: Scroll Wheel Tab Switcher"));
   assert.ok(store.includes("TagWheel") === false);
   assert.ok(store.includes("Alt + Wheel"));
   assert.ok(store.includes("Alt + mouse wheel scrolls tabs"));

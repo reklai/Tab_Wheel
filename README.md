@@ -1,4 +1,4 @@
-# TabWheel - Mouse Wheel Tab Switcher
+# Scroll Wheel Tab Switcher
 
 TabWheel is a browser extension for switching tabs with the mouse scroll wheel. By default, hold `Alt` and scroll on a normal web page to move to the next or previous tab.
 
@@ -7,7 +7,7 @@ It is built for a small, reliable workflow:
 - `Alt + Wheel`: switch tabs.
 - `Alt + Left Click`: open the in-page search launcher by default, or the browser's normal new tab page when enabled.
 - `Alt + Middle Click`: jump to the most recently used tab.
-- `Alt + Right Click`: close the current tab and activate the most recently used tab when one is available.
+- `Alt + Right Click`: close the current tab; when available, activate the most recently used tab first.
 - Toolbar popup: change mode, tune wheel behavior, and use fallback controls.
 
 ## Engineering Promise
@@ -103,9 +103,9 @@ npm run release:package
 
 Generated output:
 
-- `release/tabwheel-chrome-v1.0.2.zip`
-- `release/tabwheel-firefox-v1.0.2.xpi`
-- `release/tabwheel-source-v1.0.2.zip`
+- `release/tabwheel-chrome-v1.0.4.zip`
+- `release/tabwheel-firefox-v1.0.4.xpi`
+- `release/tabwheel-source-v1.0.4.zip`
 
 ## Project Structure
 

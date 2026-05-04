@@ -26,7 +26,7 @@ import {
   setTabWheelCycleScope,
 } from "../../lib/adapters/runtime/tabWheelApi";
 
-const EXTENSION_TITLE = "Mouse Wheel Tab Switcher";
+const EXTENSION_TITLE = "Scroll Wheel Tab Switcher";
 
 function presetLabel(preset: TabWheelPreset): string {
   if (preset === "precise") return "Precise";

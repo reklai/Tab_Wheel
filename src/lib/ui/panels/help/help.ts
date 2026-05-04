@@ -41,7 +41,7 @@ function buildHelpSections(settings: TabWheelSettings): HelpSection[] {
         { token: `${gestureModifier} + Wheel`, value: "switches tabs using the current cycle mode" },
         { token: `${gestureModifier} + Left Click`, value: leftClickAction },
         { token: `${gestureModifier} + Middle Click`, value: "jumps to the most recently used tab" },
-        { token: `${gestureModifier} + Right Click`, value: "closes this tab and returns to the most recently used tab when available" },
+        { token: `${gestureModifier} + Right Click`, value: "closes this tab; returns to the most recently used tab first when available" },
       ],
     },
     {
@@ -141,7 +141,7 @@ export async function openTabWheelHelpOverlay(): Promise<void> {
           <button class="ht-dot ht-dot-close" title="Close"></button>
         </div>
         <span class="ht-help-titlebar-text">
-          <span class="ht-help-title-label">Mouse Wheel Tab Switcher Help</span>
+          <span class="ht-help-title-label">Scroll Wheel Tab Switcher Help</span>
         </span>
         <button class="ht-help-settings" data-action="settings" title="Settings" aria-label="Open settings">&#9881;</button>
       </div>
