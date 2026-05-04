@@ -34,6 +34,11 @@ interface MruCycleSession {
   expiresAt: number;
 }
 
+interface WindowTabsCacheEntry {
+  tabs: Tabs.Tab[];
+  expiresAt: number;
+}
+
 interface ActivateTabOptions {
   restoreScrollAsync?: boolean;
 }
@@ -57,6 +62,9 @@ export interface TabWheelDomain {
 
 const FALLBACK_CYCLE_LOCK_WINDOW_ID = 0;
 const MRU_CYCLE_SESSION_MS = 1400;
+const WINDOW_TABS_CACHE_TTL_MS = 350;
+const SCROLL_MEMORY_SAVE_DEBOUNCE_MS = 120;
+const SCROLL_RESTORE_RETRY_DELAYS_MS = [0, 80, 220, 500, 900, 1500, 2400, 3600] as const;
 
 function windowKey(windowId: number): string {
   return String(windowId);
@@ -219,10 +227,19 @@ function hasSameNumberList(left: number[], right: number[]): boolean {
 export function createTabWheelDomain(): TabWheelDomain {
   let scrollMemoryByTabId: ScrollMemoryByTabId = {};
   let mruTabIdsByWindowId: MruTabIdsByWindowId = {};
+  const windowTabsCacheByWindowId = new Map<number, WindowTabsCacheEntry>();
   const contentScriptReadyUrlsByTabId = new Map<number, string>();
   const cycleTasksByWindowId = new Map<number, Promise<void>>();
   const mruCycleSessionsByWindowId = new Map<number, MruCycleSession>();
   const activeTabIdsByWindowId = new Map<number, number>();
+  const scrollRestoreTokensByTabId = new Map<number, number>();
+  let scrollRestoreSerial = 0;
+  let scrollMemorySaveTimer: ReturnType<typeof setTimeout> | null = null;
+  let scrollMemorySaveResolvers: Array<{
+    resolve: () => void;
+    reject: (error: unknown) => void;
+  }> = [];
+  let scrollMemoryWriteChain: Promise<void> = Promise.resolve();
   let settingsCache: TabWheelSettings | null = null;
   let loaded = false;
 
@@ -249,11 +266,45 @@ export function createTabWheelDomain(): TabWheelDomain {
     settingsCache = normalizeTabWheelSettings(value);
   }
 
-  async function saveScrollMemory(): Promise<void> {
+  async function persistScrollMemory(): Promise<void> {
     scrollMemoryByTabId = trimScrollMemory(scrollMemoryByTabId);
     await browser.storage.local.set({
       [TABWHEEL_STORAGE_KEYS.scrollMemory]: scrollMemoryByTabId,
     });
+  }
+
+  function flushScrollMemorySave(): Promise<void> {
+    if (scrollMemorySaveTimer) {
+      clearTimeout(scrollMemorySaveTimer);
+      scrollMemorySaveTimer = null;
+    }
+    const resolvers = scrollMemorySaveResolvers;
+    scrollMemorySaveResolvers = [];
+    if (resolvers.length === 0) return scrollMemoryWriteChain.catch(() => {});
+
+    scrollMemoryWriteChain = scrollMemoryWriteChain
+      .catch(() => {})
+      .then(() => persistScrollMemory());
+    scrollMemoryWriteChain
+      .then(() => {
+        for (const pending of resolvers) pending.resolve();
+      })
+      .catch((error: unknown) => {
+        for (const pending of resolvers) pending.reject(error);
+      });
+    return scrollMemoryWriteChain;
+  }
+
+  function saveScrollMemory(): Promise<void> {
+    const pendingSave = new Promise<void>((resolve, reject) => {
+      scrollMemorySaveResolvers.push({ resolve, reject });
+    });
+    if (scrollMemorySaveTimer) clearTimeout(scrollMemorySaveTimer);
+    scrollMemorySaveTimer = setTimeout(() => {
+      scrollMemorySaveTimer = null;
+      void flushScrollMemorySave().catch(() => {});
+    }, SCROLL_MEMORY_SAVE_DEBOUNCE_MS);
+    return pendingSave;
   }
 
   async function saveMruState(): Promise<void> {
@@ -293,8 +344,38 @@ export function createTabWheelDomain(): TabWheelDomain {
     return activeTab?.windowId ?? null;
   }
 
+  function invalidateWindowTabsCache(windowId: number | undefined): void {
+    if (windowId == null) {
+      windowTabsCacheByWindowId.clear();
+      return;
+    }
+    windowTabsCacheByWindowId.delete(windowId);
+  }
+
   async function getWindowTabs(windowId: number): Promise<Tabs.Tab[]> {
-    return await browser.tabs.query({ windowId });
+    const cached = windowTabsCacheByWindowId.get(windowId);
+    if (cached && cached.expiresAt > Date.now()) return cached.tabs;
+    const tabs = await browser.tabs.query({ windowId });
+    windowTabsCacheByWindowId.set(windowId, {
+      tabs,
+      expiresAt: Date.now() + WINDOW_TABS_CACHE_TTL_MS,
+    });
+    return tabs;
+  }
+
+  function beginScrollRestore(tabId: number): number {
+    const token = ++scrollRestoreSerial;
+    scrollRestoreTokensByTabId.set(tabId, token);
+    return token;
+  }
+
+  function cancelScrollRestore(tabId: number | undefined): void {
+    if (tabId == null) return;
+    scrollRestoreTokensByTabId.set(tabId, ++scrollRestoreSerial);
+  }
+
+  function isScrollRestoreCurrent(tabId: number, token: number): boolean {
+    return scrollRestoreTokensByTabId.get(tabId) === token;
   }
 
   async function reconcileMruWindow(windowId: number, tabs: Tabs.Tab[]): Promise<void> {
@@ -537,13 +618,15 @@ export function createTabWheelDomain(): TabWheelDomain {
 
   async function restoreScroll(tab: Tabs.Tab): Promise<boolean> {
     if (tab.id == null) return false;
+    const restoreToken = beginScrollRestore(tab.id);
     const entry = scrollMemoryByTabId[tabKey(tab.id)];
     const currentUrl = normalizePageUrl(tab.url);
     if (!currentUrl || entry?.url !== currentUrl) return false;
     if (!entry) return false;
-    const retryDelaysMs = [0, 80, 220, 500, 900, 1500, 2400, 3600];
-    for (const delay of retryDelaysMs) {
+    for (const delay of SCROLL_RESTORE_RETRY_DELAYS_MS) {
+      if (!isScrollRestoreCurrent(tab.id, restoreToken)) return false;
       if (delay > 0) await sleep(delay);
+      if (!isScrollRestoreCurrent(tab.id, restoreToken)) return false;
       try {
         await browser.tabs.sendMessage(tab.id, {
           type: "SET_SCROLL",
@@ -728,6 +811,7 @@ export function createTabWheelDomain(): TabWheelDomain {
       return { ok: false, reason: "Edge of tab list" };
     }
 
+    cancelScrollRestore(activeTab.id);
     void captureTabScroll(activeTab).catch(() => {});
     await dismissTabWheelPanel(activeTab);
     await activateTab(targetTab, { restoreScrollAsync: true });
@@ -821,6 +905,7 @@ export function createTabWheelDomain(): TabWheelDomain {
       ...(activeTab?.index != null ? { index: activeTab.index + 1 } : {}),
     };
     const createdTab = await browser.tabs.create(createProperties);
+    invalidateWindowTabsCache(createdTab.windowId);
     if (createdTab.id != null && searchApi) {
       const didUseBrowserDefaultSearch = await searchApi
         .query({ text: normalizedQuery, tabId: createdTab.id })
@@ -864,6 +949,7 @@ export function createTabWheelDomain(): TabWheelDomain {
       .catch(() => browser.tabs.create({ active: true, url: "about:blank" }))
       .catch(() => null);
     if (!createdTab) return { ok: false, reason: "New tab unavailable" };
+    invalidateWindowTabsCache(createdTab.windowId);
     if (createdTab.id != null && createdTab.windowId != null) {
       await recordMruTab(createdTab.id, createdTab.windowId);
     }
@@ -881,6 +967,7 @@ export function createTabWheelDomain(): TabWheelDomain {
     if (eligibleTabs.length === 0) return { ok: false, reason: "No recent tab" };
     const targetTab = resolveMostRecentTab(activeTab, activeTab.windowId, eligibleTabs);
     if (!targetTab?.id) return { ok: false, reason: "No recent tab" };
+    cancelScrollRestore(activeTab.id);
     void captureTabScroll(activeTab).catch(() => {});
     await dismissTabWheelPanel(activeTab);
     await activateTab(targetTab, { restoreScrollAsync: true });
@@ -899,9 +986,11 @@ export function createTabWheelDomain(): TabWheelDomain {
       ? resolveMostRecentTab(activeTab, activeTab.windowId, eligibleTabs)
       : null;
     if (!targetTab?.id) return { ok: false, reason: "No recent tab" };
+    cancelScrollRestore(activeTab.id);
     await dismissTabWheelPanel(activeTab);
     await activateTab(targetTab);
     await browser.tabs.remove(activeTab.id);
+    invalidateWindowTabsCache(activeTab.windowId);
     return { ok: true, tabId: targetTab.id };
   }
 
@@ -981,19 +1070,38 @@ export function createTabWheelDomain(): TabWheelDomain {
       if (settingsChange) updateSettingsCache(settingsChange.newValue);
     });
 
+    browser.tabs.onCreated.addListener((createdTab: Tabs.Tab) => {
+      invalidateWindowTabsCache(createdTab.windowId);
+    });
+
     browser.tabs.onActivated.addListener((activeInfo: { tabId: number; windowId: number }) => {
       const previousTabId = activeTabIdsByWindowId.get(activeInfo.windowId);
       activeTabIdsByWindowId.set(activeInfo.windowId, activeInfo.tabId);
       if (previousTabId != null && previousTabId !== activeInfo.tabId) {
+        cancelScrollRestore(previousTabId);
         void dismissTabWheelPanelById(previousTabId).catch(() => {});
       }
       void recordMruTab(activeInfo.tabId, activeInfo.windowId).catch(() => {});
     });
 
-    browser.tabs.onRemoved.addListener(async (tabId: number) => {
+    browser.tabs.onMoved.addListener((_tabId: number, moveInfo: { windowId?: number }) => {
+      invalidateWindowTabsCache(moveInfo.windowId);
+    });
+
+    browser.tabs.onAttached.addListener((_tabId: number, attachInfo: { newWindowId?: number }) => {
+      invalidateWindowTabsCache(attachInfo.newWindowId);
+    });
+
+    browser.tabs.onDetached.addListener((_tabId: number, detachInfo: { oldWindowId?: number }) => {
+      invalidateWindowTabsCache(detachInfo.oldWindowId);
+    });
+
+    browser.tabs.onRemoved.addListener(async (tabId: number, removeInfo?: { windowId?: number }) => {
+      invalidateWindowTabsCache(removeInfo?.windowId);
       await ensureLoaded();
       delete scrollMemoryByTabId[tabKey(tabId)];
       contentScriptReadyUrlsByTabId.delete(tabId);
+      scrollRestoreTokensByTabId.delete(tabId);
       for (const [windowId, activeTabId] of activeTabIdsByWindowId) {
         if (activeTabId === tabId) activeTabIdsByWindowId.delete(windowId);
       }
@@ -1013,19 +1121,29 @@ export function createTabWheelDomain(): TabWheelDomain {
       await saveScrollMemory();
     });
 
-    browser.tabs.onUpdated.addListener((tabId: number, changeInfo: { url?: string }) => {
-      if (changeInfo.url) contentScriptReadyUrlsByTabId.delete(tabId);
+    browser.tabs.onUpdated.addListener((tabId: number, changeInfo: { url?: string; pinned?: boolean }, updatedTab?: Tabs.Tab) => {
+      if (changeInfo.url || changeInfo.pinned != null) {
+        invalidateWindowTabsCache(updatedTab?.windowId);
+      }
+      if (changeInfo.url) {
+        contentScriptReadyUrlsByTabId.delete(tabId);
+        cancelScrollRestore(tabId);
+      }
     });
 
     browser.windows.onRemoved.addListener((windowId: number) => {
       void (async () => {
         await ensureLoaded();
+        invalidateWindowTabsCache(windowId);
         delete mruTabIdsByWindowId[windowKey(windowId)];
         cycleTasksByWindowId.delete(windowId);
         mruCycleSessionsByWindowId.delete(windowId);
         activeTabIdsByWindowId.delete(windowId);
         for (const [key, entry] of Object.entries(scrollMemoryByTabId)) {
-          if (entry.windowId === windowId) delete scrollMemoryByTabId[key];
+          if (entry.windowId === windowId) {
+            delete scrollMemoryByTabId[key];
+            scrollRestoreTokensByTabId.delete(entry.tabId);
+          }
         }
         await saveMruState();
         await saveScrollMemory();
@@ -1036,9 +1154,11 @@ export function createTabWheelDomain(): TabWheelDomain {
       await ensureLoaded();
       scrollMemoryByTabId = trimScrollMemory(scrollMemoryByTabId);
       mruTabIdsByWindowId = {};
+      windowTabsCacheByWindowId.clear();
       cycleTasksByWindowId.clear();
       mruCycleSessionsByWindowId.clear();
       contentScriptReadyUrlsByTabId.clear();
+      scrollRestoreTokensByTabId.clear();
       activeTabIdsByWindowId.clear();
       await saveScrollMemory();
       await browser.storage.local.remove(TABWHEEL_STORAGE_KEYS.mruState);

@@ -173,14 +173,16 @@ function resolveRootScrollTarget(snapshot: ScrollData): { left: number; top: num
   };
 }
 
-async function waitForLayoutStability(): Promise<void> {
+async function waitForLayoutStability(shouldContinue: () => boolean): Promise<boolean> {
   const startedAt = performance.now();
   let stableFrames = 0;
   let previousWidth = getPageScrollWidth();
   let previousHeight = getPageScrollHeight();
 
   while (performance.now() - startedAt < LAYOUT_STABILITY_TIMEOUT_MS) {
+    if (!shouldContinue()) return false;
     await new Promise<void>((resolve) => window.requestAnimationFrame(() => resolve()));
+    if (!shouldContinue()) return false;
     const width = getPageScrollWidth();
     const height = getPageScrollHeight();
     if (
@@ -188,13 +190,14 @@ async function waitForLayoutStability(): Promise<void> {
       && Math.abs(height - previousHeight) <= LAYOUT_DIMENSION_TOLERANCE_PX
     ) {
       stableFrames += 1;
-      if (stableFrames >= LAYOUT_STABILITY_REQUIRED_FRAMES) return;
+      if (stableFrames >= LAYOUT_STABILITY_REQUIRED_FRAMES) return true;
     } else {
       stableFrames = 0;
       previousWidth = width;
       previousHeight = height;
     }
   }
+  return shouldContinue();
 }
 
 function sleep(ms: number): Promise<void> {
@@ -311,30 +314,42 @@ export function initApp(): void {
     }, SCROLL_SAVE_DEBOUNCE_MS);
   }
 
+  function cancelScrollRestore(): void {
+    scrollRestoreToken += 1;
+  }
+
+  async function applyScrollRestoreAttempt(snapshot: ScrollData): Promise<boolean> {
+    suppressScrollSaveUntil = Date.now() + SCROLL_RESTORE_SUPPRESS_SAVE_MS;
+    if (scrollSaveTimer) {
+      window.clearTimeout(scrollSaveTimer);
+      scrollSaveTimer = 0;
+    }
+
+    const target = resolveRootScrollTarget(snapshot);
+    window.scrollTo({
+      left: target.left,
+      top: target.top,
+      behavior: "auto",
+    });
+
+    await new Promise<void>((resolve) => window.requestAnimationFrame(() => resolve()));
+    return Math.abs(window.scrollX - target.left) <= 2 && Math.abs(window.scrollY - target.top) <= 2;
+  }
+
   async function restoreWindowScroll(snapshot: ScrollData): Promise<void> {
     const token = ++scrollRestoreToken;
-    await waitForLayoutStability();
+    const isCurrentRestore = () => token === scrollRestoreToken && document.visibilityState !== "hidden";
+    if (!isCurrentRestore()) return;
+
+    await applyScrollRestoreAttempt(snapshot);
+    if (!isCurrentRestore()) return;
+    if (!await waitForLayoutStability(isCurrentRestore)) return;
 
     for (const delay of SCROLL_RESTORE_DELAYS_MS) {
-      if (token !== scrollRestoreToken) return;
+      if (!isCurrentRestore()) return;
       if (delay > 0) await sleep(delay);
-      if (token !== scrollRestoreToken) return;
-
-      suppressScrollSaveUntil = Date.now() + SCROLL_RESTORE_SUPPRESS_SAVE_MS;
-      if (scrollSaveTimer) {
-        window.clearTimeout(scrollSaveTimer);
-        scrollSaveTimer = 0;
-      }
-
-      const target = resolveRootScrollTarget(snapshot);
-      window.scrollTo({
-        left: target.left,
-        top: target.top,
-        behavior: "auto",
-      });
-
-      await new Promise<void>((resolve) => window.requestAnimationFrame(() => resolve()));
-      if (Math.abs(window.scrollX - target.left) <= 2 && Math.abs(window.scrollY - target.top) <= 2) return;
+      if (!isCurrentRestore()) return;
+      if (await applyScrollRestoreAttempt(snapshot)) return;
     }
   }
 
@@ -541,10 +556,21 @@ export function initApp(): void {
 
   function visibilityHandler(): void {
     if (document.visibilityState !== "hidden") return;
+    cancelScrollRestore();
     resetInputGestureState();
     if (!isTopFrameContext) return;
     flushScrollSnapshot();
     dismissPanel();
+  }
+
+  function pageHideHandler(): void {
+    cancelScrollRestore();
+    flushScrollSnapshot();
+  }
+
+  function beforeUnloadHandler(): void {
+    cancelScrollRestore();
+    flushScrollSnapshot();
   }
 
   window.addEventListener("pointerdown", mouseGestureHandler, true);
@@ -568,8 +594,8 @@ export function initApp(): void {
 
   if (isTopFrameContext) {
     window.addEventListener("scroll", scheduleScrollSnapshot, { passive: true, capture: true });
-    window.addEventListener("pagehide", flushScrollSnapshot);
-    window.addEventListener("beforeunload", flushScrollSnapshot);
+    window.addEventListener("pagehide", pageHideHandler);
+    window.addEventListener("beforeunload", beforeUnloadHandler);
     browser.runtime.onMessage.addListener(messageHandler);
   }
 
@@ -594,10 +620,11 @@ export function initApp(): void {
     browser.storage.onChanged.removeListener(storageChangedHandler);
     if (isTopFrameContext) {
       window.removeEventListener("scroll", scheduleScrollSnapshot, true);
-      window.removeEventListener("pagehide", flushScrollSnapshot);
-      window.removeEventListener("beforeunload", flushScrollSnapshot);
+      window.removeEventListener("pagehide", pageHideHandler);
+      window.removeEventListener("beforeunload", beforeUnloadHandler);
       browser.runtime.onMessage.removeListener(messageHandler);
     }
+    cancelScrollRestore();
     if (scrollSaveTimer) window.clearTimeout(scrollSaveTimer);
     if (statusTimer) window.clearTimeout(statusTimer);
     document.getElementById(STATUS_ID)?.remove();

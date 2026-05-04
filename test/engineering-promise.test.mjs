@@ -38,8 +38,13 @@ test("core architecture keeps promise mechanisms explicit", () => {
 
   assert.match(appInit, /MOUSE_GESTURE_POLICIES/);
   assert.match(appInit, /mouseGestureSession/);
+  assert.match(appInit, /applyScrollRestoreAttempt/);
+  assert.match(appInit, /cancelScrollRestore/);
   assert.match(domain, /runSerializedCycle/);
   assert.match(domain, /resolveMruCycleSessionTabs/);
+  assert.match(domain, /windowTabsCacheByWindowId/);
+  assert.match(domain, /scrollMemorySaveResolvers/);
+  assert.match(domain, /scrollRestoreTokensByTabId/);
   assert.match(panelHost, /createPanelModalSession/);
   assert.match(panelHost, /fullscreenchange/);
 });
