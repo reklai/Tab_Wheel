@@ -37,6 +37,6 @@ Initial public release focused on reliability over surface area:
 - Modifier + right click closes the current tab and activates the most recently used tab.
 - Popup fallback controls for restricted pages.
 - Popup Refresh action that reconnects TabWheel without reloading the page.
-- Local-only scroll memory with URL validation, normalized root position, layout-stability restore, and browser zoom restore.
+- Local-only scroll memory with URL validation, normalized root position, and layout-stability restore.
 - Wheel presets, sensitivity, cooldown, horizontal wheel support, restricted-page skipping, safe overshoot guard, and optional acceleration.
 - Clear store/privacy language: no page content leaves the browser.

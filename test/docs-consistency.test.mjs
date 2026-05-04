@@ -42,6 +42,7 @@ test("store and privacy docs match current TabWheel limits", () => {
   assert.doesNotMatch(store, /Alt \+ T(?![a-z])/);
   assert.doesNotMatch(store, /Alt \+ M(?!iddle)/);
   assert.ok(privacy.includes("bounded to 300 entries"));
+  assert.doesNotMatch(`${store}\n${privacy}`, /tab zoom|browser zoom/i);
   assert.equal(store.includes("sidePanel"), false);
   assert.equal(privacy.includes("sidePanel"), false);
 });

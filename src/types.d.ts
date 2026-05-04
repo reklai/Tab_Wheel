@@ -29,7 +29,6 @@ interface TabWheelScrollMemoryEntry {
   scrollHeight: number;
   viewportWidth: number;
   viewportHeight: number;
-  zoom?: number;
   updatedAt: number;
 }
 

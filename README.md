@@ -27,7 +27,7 @@ TabWheel follows a fast, feature-rich, and browser-native promise, with reliabil
 - MRU mode for most-recently-used cycling.
 - Precise, Balanced, Fast, and Custom wheel presets.
 - Sensitivity, cooldown, acceleration, horizontal wheel, wrap-around, pinned-tab, restricted-page skip, and overshoot guard settings.
-- Scroll memory for restoring recent root scroll position, normalized page position, and browser zoom when returning to the same URL.
+- Scroll memory for restoring recent root scroll position and normalized page position when returning to the same URL.
 - Editable-field setting for wheel-cycling inside text boxes, search fields, and editors/docs.
 - Popup Refresh action that reconnects TabWheel on the current page without reloading it.
 - Reliability guards for mouse gestures: middle-click recent-tab switching runs on the completed click, search panels close when leaving the tab, and close-to-recent does not close the current tab unless a recent-tab target is available.
@@ -43,7 +43,7 @@ Browser UI pages, extension pages, browser stores, devtools, PDF viewers, and so
 
 TabWheel does not use telemetry, tracking, analytics, remote code, or developer-owned servers.
 
-The extension stores settings, including the fallback search URL template, MRU tab order, recent scroll positions, page geometry, tab zoom, and URL checks in browser-local storage.
+The extension stores settings, including the fallback search URL template, MRU tab order, recent scroll positions, page geometry, and URL checks in browser-local storage.
 
 See [PRIVACY.md](./PRIVACY.md) for the full privacy policy.
 

@@ -15,6 +15,7 @@
         "url": "https://example.com/docs",
         "scrollX": 0,
         "scrollY": 120,
+        "zoom": 1.25,
         "updatedAt": 1710000000001
       }
     },
@@ -26,7 +27,7 @@
     }
   },
   "expected": {
-    "storageSchemaVersion": 9,
+    "storageSchemaVersion": 10,
     "tabWheelScrollMemory": {
       "8": {
         "tabId": 8,

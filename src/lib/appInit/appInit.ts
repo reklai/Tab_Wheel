@@ -310,10 +310,7 @@ export function initApp(): void {
     }, SCROLL_SAVE_DEBOUNCE_MS);
   }
 
-  async function restoreWindowScroll(
-    snapshot: ScrollData,
-    smooth?: boolean,
-  ): Promise<void> {
+  async function restoreWindowScroll(snapshot: ScrollData): Promise<void> {
     const token = ++scrollRestoreToken;
     await waitForLayoutStability();
 
@@ -332,7 +329,7 @@ export function initApp(): void {
       window.scrollTo({
         left: target.left,
         top: target.top,
-        behavior: smooth && delay === 0 ? "smooth" : "auto",
+        behavior: "auto",
       });
 
       await new Promise<void>((resolve) => window.requestAnimationFrame(() => resolve()));
@@ -519,7 +516,7 @@ export function initApp(): void {
       case "GET_SCROLL":
         return Promise.resolve(getRootScrollSnapshot());
       case "SET_SCROLL":
-        void restoreWindowScroll(receivedMessage, receivedMessage.smooth);
+        void restoreWindowScroll(receivedMessage);
         return Promise.resolve({ ok: true });
       case "TABWHEEL_STATUS":
         showStatus(receivedMessage.message);

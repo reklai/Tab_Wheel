@@ -25,7 +25,7 @@
     ]
   },
   "expected": {
-    "storageSchemaVersion": 9,
+    "storageSchemaVersion": 10,
     "tabWheelSettings": {
       "invertScroll": true,
       "allowGesturesInEditableFields": true,

@@ -21,11 +21,11 @@ Use Alt + Left Click to open an in-page search launcher that opens results in a 
 
 The extension popup toolbar gives you the main controls in one place: current cycle mode, Previous / Next fallback buttons, search, recent-tab, close-tab controls, a Refresh action for reconnecting TabWheel on the current page, and wheel tuning.
 
-Presets include Precise, Balanced, Fast, and Custom. Editable-field control lets you allow wheel-cycling when cursor is inside text boxes, search fields, and editors/docs. Middle-click recent-tab switching runs on the completed click to avoid duplicate activation from browser event timing. TabWheel can also remember recent root scroll positions, normalized page position, and browser zoom, then restore them when cycling back to the same URL using URL checks to avoid stale restores.
+Presets include Precise, Balanced, Fast, and Custom. Editable-field control lets you allow wheel-cycling when cursor is inside text boxes, search fields, and editors/docs. Middle-click recent-tab switching runs on the completed click to avoid duplicate activation from browser event timing. TabWheel can also remember recent root scroll positions and normalized page position, then restore them when cycling back to the same URL using URL checks to avoid stale restores.
 
 TabWheel tries to activate existing normal web tabs after install or update, and the popup Refresh action can reconnect TabWheel on the current page without reloading the page. Browser-reserved pages such as `chrome://`, extension pages, browser stores, devtools, PDF viewers, and some restricted pages do not allow page shortcuts; TabWheel skips those pages during wheel cycling by default, and the toolbar popup search field and tab controls remain available where the popup can run.
 
-Everything runs locally in your browser using extension storage. TabWheel stores settings, the fallback search URL template, MRU tab order, recent scroll positions, page geometry, tab zoom, and URL checks locally. TabWheel does not use telemetry, tracking, analytics, remote code, or external data transfer.
+Everything runs locally in your browser using extension storage. TabWheel stores settings, the fallback search URL template, MRU tab order, recent scroll positions, page geometry, and URL checks locally. TabWheel does not use telemetry, tracking, analytics, remote code, or external data transfer.
 
 Customize controls:
 
@@ -40,12 +40,12 @@ Customize controls:
 
 ## Privacy
 
-No data leaves your browser. TabWheel stores settings, the fallback search URL template, MRU tab order, recent scroll positions, page geometry, tab zoom, and URL checks for scroll restore through browser storage.
+No data leaves your browser. TabWheel stores settings, the fallback search URL template, MRU tab order, recent scroll positions, page geometry, and URL checks for scroll restore through browser storage.
 
 ## Permissions
 
 - `tabs`: Read, activate, create, and close tabs for cycling and click actions.
-- `storage`: Store settings, fallback search URL template, MRU tab order, scroll positions, page geometry, tab zoom, and schema version locally.
+- `storage`: Store settings, fallback search URL template, MRU tab order, scroll positions, page geometry, and schema version locally.
 - `search`: Run searches with the browser's current default search provider.
 - `scripting` (Chrome): Activate the content script on already-open normal web tabs after install or update.
 - `<all_urls>`: Run the content script on pages so modifier-wheel cycling and scroll memory can work.

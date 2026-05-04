@@ -100,12 +100,6 @@ function normalizeScrollDimension(value: unknown): number {
   return Math.max(0, numeric);
 }
 
-function normalizeZoom(value: unknown): number | undefined {
-  const numeric = Number(value);
-  if (!Number.isFinite(numeric) || numeric <= 0 || numeric > 10) return undefined;
-  return numeric;
-}
-
 function normalizeScrollData(value: Partial<ScrollData>): ScrollData {
   const scroll = normalizeScroll(Number(value.scrollX), Number(value.scrollY));
   const scrollWidth = normalizeScrollDimension(value.scrollWidth);
@@ -140,7 +134,6 @@ function normalizeScrollMemoryEntry(rawEntry: unknown): TabWheelScrollMemoryEntr
   if (!Number.isInteger(windowId) || windowId <= 0) return null;
   if (!url) return null;
   const scroll = normalizeScrollData(entry);
-  const zoom = normalizeZoom(entry.zoom);
   return {
     tabId,
     windowId,
@@ -153,7 +146,6 @@ function normalizeScrollMemoryEntry(rawEntry: unknown): TabWheelScrollMemoryEntr
     scrollHeight: scroll.scrollHeight,
     viewportWidth: scroll.viewportWidth,
     viewportHeight: scroll.viewportHeight,
-    ...(zoom != null ? { zoom } : {}),
     updatedAt: Number.isFinite(Number(entry.updatedAt)) ? Number(entry.updatedAt) : Date.now(),
   };
 }
@@ -508,25 +500,6 @@ export function createTabWheelDomain(): TabWheelDomain {
     }
   }
 
-  async function getTabZoom(tabId: number): Promise<number | undefined> {
-    try {
-      return normalizeZoom(await browser.tabs.getZoom(tabId));
-    } catch (_) {
-      return undefined;
-    }
-  }
-
-  async function restoreTabZoom(tabId: number, zoom: number | undefined): Promise<void> {
-    if (zoom == null) return;
-    try {
-      const currentZoom = await getTabZoom(tabId);
-      if (currentZoom != null && Math.abs(currentZoom - zoom) <= 0.001) return;
-      await browser.tabs.setZoom(tabId, zoom);
-    } catch (_) {
-      // Zoom restore is best-effort; some pages reject extension zoom changes.
-    }
-  }
-
   async function dismissTabWheelPanelById(tabId: number): Promise<void> {
     try {
       await browser.tabs.sendMessage(tabId, { type: "TABWHEEL_DISMISS_PANEL" });
@@ -567,7 +540,6 @@ export function createTabWheelDomain(): TabWheelDomain {
     const currentUrl = normalizePageUrl(tab.url);
     if (!currentUrl || entry?.url !== currentUrl) return false;
     if (!entry) return false;
-    await restoreTabZoom(tab.id, entry.zoom);
     const retryDelaysMs = [0, 80, 220, 500, 900, 1500, 2400, 3600];
     for (const delay of retryDelaysMs) {
       if (delay > 0) await sleep(delay);
@@ -598,7 +570,6 @@ export function createTabWheelDomain(): TabWheelDomain {
     const scroll = await getScroll(tab.id);
     if (!scroll) return;
     const normalized = normalizeScrollData(scroll);
-    const zoom = await getTabZoom(tab.id);
     scrollMemoryByTabId[tabKey(tab.id)] = {
       tabId: tab.id,
       windowId: tab.windowId,
@@ -611,7 +582,6 @@ export function createTabWheelDomain(): TabWheelDomain {
       scrollHeight: normalized.scrollHeight,
       viewportWidth: normalized.viewportWidth,
       viewportHeight: normalized.viewportHeight,
-      ...(zoom != null ? { zoom } : {}),
       updatedAt: Date.now(),
     };
     await saveScrollMemory();
@@ -942,7 +912,6 @@ export function createTabWheelDomain(): TabWheelDomain {
     const url = normalizePageUrl(rawUrl);
     if (!url) return { ok: false, reason: "Unsupported page" };
     const scroll = normalizeScrollData(scrollData);
-    const zoom = await getTabZoom(tabId);
     const key = tabKey(tabId);
     const existing = scrollMemoryByTabId[key];
     if (
@@ -955,7 +924,6 @@ export function createTabWheelDomain(): TabWheelDomain {
       && existing.scrollHeight === scroll.scrollHeight
       && existing.viewportWidth === scroll.viewportWidth
       && existing.viewportHeight === scroll.viewportHeight
-      && existing.zoom === zoom
     ) {
       return { ok: true };
     }
@@ -971,7 +939,6 @@ export function createTabWheelDomain(): TabWheelDomain {
       scrollHeight: scroll.scrollHeight,
       viewportWidth: scroll.viewportWidth,
       viewportHeight: scroll.viewportHeight,
-      ...(zoom != null ? { zoom } : {}),
       updatedAt: Date.now(),
     };
     await saveScrollMemory();

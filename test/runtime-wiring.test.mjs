@@ -137,7 +137,7 @@ test("settings contract exposes MRU scope, restricted-page skipping, and wheel t
   assert.match(types, /scrollRatioX: number/);
   assert.match(types, /scrollWidth: number/);
   assert.match(types, /viewportWidth: number/);
-  assert.match(types, /zoom\?: number/);
+  assert.doesNotMatch(types, /zoom\?: number/);
   assert.match(types, /skipRestrictedPages: boolean/);
   assert.match(types, /searchUrlTemplate: string/);
   assert.match(types, /type TabWheelContentScriptStatus = "ready" \| "unavailable"/);
@@ -211,9 +211,9 @@ test("domain supports MRU cycling, restricted-page skipping, and URL-validated s
   assert.match(source, /void captureTabScroll\(activeTab\)\.catch\(\(\) => \{\}\)/);
   assert.match(source, /restoreScroll\(targetTab\)/);
   assert.match(source, /void restoreScroll\(targetTab\)\.catch\(\(\) => \{\}\)/);
-  assert.match(source, /browser\.tabs\.getZoom/);
-  assert.match(source, /browser\.tabs\.setZoom/);
-  assert.match(source, /restoreTabZoom/);
+  assert.doesNotMatch(source, /browser\.tabs\.getZoom/);
+  assert.doesNotMatch(source, /browser\.tabs\.setZoom/);
+  assert.doesNotMatch(source, /restoreTabZoom/);
   assert.match(source, /normalizeScrollData/);
   assert.match(source, /entry\?\.url !== currentUrl/);
   assert.match(source, /TABWHEEL_STORAGE_KEYS\.scrollMemory/);

@@ -4,7 +4,7 @@ const TABWHEEL_SCROLL_MEMORY_KEY = "tabWheelScrollMemory";
 const TABWHEEL_MRU_STATE_KEY = "tabWheelMruState";
 const TABWHEEL_LEGACY_TAGGED_TABS_KEY = "tabWheelTaggedTabs";
 const TABWHEEL_WHEEL_LIST_KEY = "tabWheelWheelList";
-export const STORAGE_SCHEMA_VERSION = 9;
+export const STORAGE_SCHEMA_VERSION = 10;
 const DEFAULT_SEARCH_URL_TEMPLATE = "https://www.google.com/search?q=%s";
 
 type StorageSnapshot = Record<string, unknown>;
@@ -138,6 +138,32 @@ function removeScrollMemoryWithoutUrls(storage: StorageSnapshot): boolean {
   return changed;
 }
 
+function removeScrollMemoryZoom(storage: StorageSnapshot): boolean {
+  const scrollMemory = storage[TABWHEEL_SCROLL_MEMORY_KEY];
+  if (typeof scrollMemory !== "object" || scrollMemory === null || Array.isArray(scrollMemory)) return false;
+  const nextScrollMemory: Record<string, unknown> = {};
+  let changed = false;
+
+  for (const [key, rawEntry] of Object.entries(scrollMemory as Record<string, unknown>)) {
+    if (typeof rawEntry !== "object" || rawEntry === null || Array.isArray(rawEntry)) {
+      nextScrollMemory[key] = rawEntry;
+      continue;
+    }
+    const entry = rawEntry as Record<string, unknown>;
+    if (!hasKey(entry, "zoom")) {
+      nextScrollMemory[key] = entry;
+      continue;
+    }
+    const nextEntry = { ...entry };
+    delete nextEntry.zoom;
+    nextScrollMemory[key] = nextEntry;
+    changed = true;
+  }
+
+  if (changed) storage[TABWHEEL_SCROLL_MEMORY_KEY] = nextScrollMemory;
+  return changed;
+}
+
 export function migrateStorageSnapshot(input: StorageSnapshot): StorageMigrationResult {
   const migratedStorage: StorageSnapshot = { ...input };
   const fromVersion = readSchemaVersion(input);
@@ -180,6 +206,9 @@ export function migrateStorageSnapshot(input: StorageSnapshot): StorageMigration
     changed = deleteKey(migratedStorage, TABWHEEL_LEGACY_TAGGED_TABS_KEY) || changed;
     changed = deleteKey(migratedStorage, TABWHEEL_WHEEL_LIST_KEY) || changed;
     changed = migrateTabWheelSettings(migratedStorage) || changed;
+  }
+  if (fromVersion < 10) {
+    changed = removeScrollMemoryZoom(migratedStorage) || changed;
   }
 
   if (migratedStorage[STORAGE_SCHEMA_VERSION_KEY] !== STORAGE_SCHEMA_VERSION) {
