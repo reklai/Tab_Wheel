@@ -37,7 +37,7 @@ PRIVACY MODEL:
 Scroll Wheel Tab Switcher does not use telemetry, tracking, analytics, remote code, or developer-owned servers. Extension settings, most-recently-used tab order, recent scroll positions, page geometry, and scroll-restore URL checks are stored locally in browser storage. Submitted TabWheel Search queries go to the browser's current default search provider, with Google fallback only if the browser search API is unavailable.
 
 CONSTRAINTS / LIMITATIONS:
-Page gestures work on normal web pages. Browser UI pages, extension pages, browser stores, devtools, PDF viewers, and some restricted pages may block content scripts. Some modifier + click combinations may also be reserved by websites, the browser, or the operating system. When that happens, use the popup toolbar or choose a different modifier / Shift setting.
+Page gestures work on normal web pages. Browser UI pages, extension pages, browser stores such as Chrome Web Store and Mozilla Add-ons, devtools, PDF viewers, and some restricted pages may block content scripts. Some modifier + click combinations may also be reserved by websites, the browser, or the operating system. When that happens, use the popup toolbar or choose a different modifier / Shift setting.
 
 EXTENSION POPUP TOOLBAR:
 The popup toolbar provides reliable controls when page shortcuts are blocked. It includes Mouse Scroll Wheel Cycle Mode, Browser New Tab Page Mode, Previous / Next buttons, TabWheel Search, Most Recent Tab, Close Tab, Refresh Scroll Wheel Tab Switcher, and wheel tuning controls.

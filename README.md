@@ -10,14 +10,6 @@ It is built for a small, reliable workflow:
 - `Alt + Right Click`: close the current tab; when available, activate the most recently used tab first.
 - Toolbar popup: change mode, tune wheel behavior, and use fallback controls.
 
-## Engineering Promise
-
-TabWheel follows a fast, feature-rich, and browser-native promise, with reliability first.
-
-- Fast: hot-path gestures do little work in the page, tab cycling serializes bursty wheel input, and scroll capture/restore is best-effort when it should not block activation.
-- Feature-rich: the core workflow includes configurable wheel cycling, MRU mode, search, recent-tab, close-to-recent, popup fallbacks, and scroll memory without turning the page into a custom application shell.
-- Browser-native: behavior is built on browser extension APIs, capture-phase DOM events, Shadow DOM overlays, and real browser lifecycle events such as fullscreen changes rather than trying to override reserved browser behavior.
-
 ## Features
 
 - Mouse wheel tab switching with configurable modifier: `Alt / Option`, `Ctrl / Control`, or `Meta / Command`.
@@ -37,7 +29,7 @@ TabWheel follows a fast, feature-rich, and browser-native promise, with reliabil
 - Chrome and Chromium-based browsers use the Manifest V3 build.
 - Firefox and Zen Browser use the Manifest V2 build.
 
-Browser UI pages, extension pages, browser stores, devtools, PDF viewers, and some restricted pages may block content scripts. TabWheel skips those pages during wheel cycling by default. The popup fallback search field and tab buttons remain available where the toolbar popup can run.
+Browser UI pages, extension pages, browser stores such as Chrome Web Store and Mozilla Add-ons, devtools, PDF viewers, and some restricted pages may block content scripts. TabWheel skips those pages during wheel cycling by default. The popup fallback search field and tab buttons remain available where the toolbar popup can run.
 
 ## Privacy
 
@@ -103,9 +95,9 @@ npm run release:package
 
 Generated output:
 
-- `release/tabwheel-chrome-v1.0.4.zip`
-- `release/tabwheel-firefox-v1.0.4.xpi`
-- `release/tabwheel-source-v1.0.4.zip`
+- `release/tabwheel-chrome-v1.0.5.zip`
+- `release/tabwheel-firefox-v1.0.5.xpi`
+- `release/tabwheel-source-v1.0.5.zip`
 
 ## Project Structure
 

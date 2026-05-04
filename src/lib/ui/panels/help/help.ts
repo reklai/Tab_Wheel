@@ -49,7 +49,7 @@ function buildHelpSections(settings: TabWheelSettings): HelpSection[] {
       layout: "centered",
       items: [
         { token: "Modifier-click caveat", value: "modifier + left/middle/right click can be reserved by sites, browsers, or the OS; change modifier or require Shift if it conflicts" },
-        { token: "Extension constraints", value: "page gestures work on normal web pages; browser UI, stores, PDFs, and internal pages can block content scripts" },
+        { token: "Extension constraints", value: "page gestures work on normal web pages; browser UI, browser stores, PDFs, and internal pages can block content scripts" },
       ],
     },
     {

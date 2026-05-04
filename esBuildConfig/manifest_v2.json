@@ -1,7 +1,7 @@
 {
   "manifest_version": 2,
   "name": "Scroll Wheel Tab Switcher",
-  "version": "1.0.4",
+  "version": "1.0.5",
   "description": "Alt + mouse wheel scrolls tabs. Alt + left-click opens new tab, middle jumps recent, right closes current. Mods & more customizable.",
   "browser_specific_settings": {
     "gecko": {

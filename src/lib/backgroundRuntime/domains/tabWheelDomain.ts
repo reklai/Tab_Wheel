@@ -43,6 +43,11 @@ interface ActivateTabOptions {
   restoreScrollAsync?: boolean;
 }
 
+interface ContentScriptUnavailableEntry {
+  url: string;
+  expiresAt: number;
+}
+
 export interface TabWheelDomain {
   ensureLoaded(): Promise<void>;
   activateExistingContentScripts(): Promise<ExistingTabActivationResult>;
@@ -64,6 +69,9 @@ const FALLBACK_CYCLE_LOCK_WINDOW_ID = 0;
 const MRU_CYCLE_SESSION_MS = 1400;
 const WINDOW_TABS_CACHE_TTL_MS = 350;
 const SCROLL_MEMORY_SAVE_DEBOUNCE_MS = 120;
+const GESTURE_TARGET_PROBE_TIMEOUT_MS = 320;
+const CONTENT_SCRIPT_UNAVAILABLE_CACHE_TTL_MS = 2500;
+const GESTURE_CONTENT_SCRIPT_READY_RETRY_DELAYS_MS = [0, 80, 180] as const;
 const SCROLL_RESTORE_RETRY_DELAYS_MS = [0, 80, 220, 500, 900, 1500, 2400, 3600] as const;
 
 function windowKey(windowId: number): string {
@@ -78,6 +86,23 @@ function sleep(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
+async function resolveWithTimeout<T>(
+  task: Promise<T>,
+  timeoutMs: number,
+  fallback: T,
+): Promise<T> {
+  let timeoutId: ReturnType<typeof setTimeout> | null = null;
+  const guardedTask = task.catch(() => fallback);
+  const timeout = new Promise<T>((resolve) => {
+    timeoutId = setTimeout(() => resolve(fallback), timeoutMs);
+  });
+  try {
+    return await Promise.race([guardedTask, timeout]);
+  } finally {
+    if (timeoutId) clearTimeout(timeoutId);
+  }
+}
+
 function normalizePageUrl(url: string | undefined): string | null {
   if (!url) return null;
   try {
@@ -88,6 +113,32 @@ function normalizePageUrl(url: string | undefined): string | null {
   } catch (_) {
     return null;
   }
+}
+
+const KNOWN_BROWSER_STORE_RESTRICTED_HOSTS = new Set([
+  "addons.mozilla.org",
+  "chromewebstore.google.com",
+]);
+
+function normalizeHostname(hostname: string): string {
+  return hostname.toLowerCase().replace(/^www\./, "");
+}
+
+function isKnownBrowserStoreRestrictedUrl(url: string | undefined): boolean {
+  if (!url) return false;
+  try {
+    const parsed = new URL(url);
+    if (parsed.protocol !== "http:" && parsed.protocol !== "https:") return false;
+    const hostname = normalizeHostname(parsed.hostname);
+    if (KNOWN_BROWSER_STORE_RESTRICTED_HOSTS.has(hostname)) return true;
+    return hostname === "chrome.google.com" && parsed.pathname.toLowerCase().startsWith("/webstore");
+  } catch (_) {
+    return false;
+  }
+}
+
+function isPageGestureRestrictedUrl(url: string | undefined): boolean {
+  return !normalizePageUrl(url) || isKnownBrowserStoreRestrictedUrl(url);
 }
 
 function normalizeScroll(scrollX: number, scrollY: number): { scrollX: number; scrollY: number } {
@@ -202,7 +253,7 @@ function getTabIndex(tab: Tabs.Tab): number {
 }
 
 function isRestrictedTab(tab: Tabs.Tab): boolean {
-  return !normalizePageUrl(tab.url);
+  return isPageGestureRestrictedUrl(tab.url);
 }
 
 function getBrowserDefaultSearchApi(): BrowserDefaultSearchApi | null {
@@ -233,6 +284,7 @@ export function createTabWheelDomain(): TabWheelDomain {
   const mruCycleSessionsByWindowId = new Map<number, MruCycleSession>();
   const activeTabIdsByWindowId = new Map<number, number>();
   const scrollRestoreTokensByTabId = new Map<number, number>();
+  const contentScriptUnavailableUrlsByTabId = new Map<number, ContentScriptUnavailableEntry>();
   let scrollRestoreSerial = 0;
   let scrollMemorySaveTimer: ReturnType<typeof setTimeout> | null = null;
   let scrollMemorySaveResolvers: Array<{
@@ -361,6 +413,43 @@ export function createTabWheelDomain(): TabWheelDomain {
       expiresAt: Date.now() + WINDOW_TABS_CACHE_TTL_MS,
     });
     return tabs;
+  }
+
+  function markContentScriptAvailable(tab: Tabs.Tab, url: string): void {
+    if (tab.id == null) return;
+    contentScriptReadyUrlsByTabId.set(tab.id, url);
+    contentScriptUnavailableUrlsByTabId.delete(tab.id);
+  }
+
+  function markContentScriptUnavailable(
+    tab: Tabs.Tab,
+    ttlMs = CONTENT_SCRIPT_UNAVAILABLE_CACHE_TTL_MS,
+  ): void {
+    if (tab.id == null) return;
+    contentScriptReadyUrlsByTabId.delete(tab.id);
+    const url = normalizePageUrl(tab.url);
+    if (!url) return;
+    contentScriptUnavailableUrlsByTabId.set(tab.id, {
+      url,
+      expiresAt: Date.now() + ttlMs,
+    });
+  }
+
+  function isContentScriptKnownUnavailable(tab: Tabs.Tab): boolean {
+    if (tab.id == null) return false;
+    const url = normalizePageUrl(tab.url);
+    const entry = contentScriptUnavailableUrlsByTabId.get(tab.id);
+    if (!url || !entry || entry.url !== url) return false;
+    if (entry.expiresAt > Date.now()) return true;
+    contentScriptUnavailableUrlsByTabId.delete(tab.id);
+    return false;
+  }
+
+  function getGestureEligibleTabs(tabs: Tabs.Tab[], settings: TabWheelSettings): Tabs.Tab[] {
+    const eligibleTabs = getEligibleTabs(tabs, settings);
+    return settings.skipRestrictedPages
+      ? eligibleTabs.filter((tab) => !isContentScriptKnownUnavailable(tab))
+      : eligibleTabs;
   }
 
   function beginScrollRestore(tabId: number): number {
@@ -495,7 +584,7 @@ export function createTabWheelDomain(): TabWheelDomain {
   }
 
   async function injectContentScriptIntoTab(tab: Tabs.Tab): Promise<"injected" | "skipped" | "failed"> {
-    if (tab.id == null || tab.discarded === true || !normalizePageUrl(tab.url)) return "skipped";
+    if (tab.id == null || tab.discarded === true || isPageGestureRestrictedUrl(tab.url)) return "skipped";
     const runtimeBrowser = browser as typeof browser & {
       scripting?: {
         executeScript(details: { target: { tabId: number; allFrames?: boolean }; files: string[] }): Promise<unknown>;
@@ -557,7 +646,7 @@ export function createTabWheelDomain(): TabWheelDomain {
     if (!url) return false;
     try {
       await browser.tabs.sendMessage(tab.id, { type: "TABWHEEL_PING" });
-      contentScriptReadyUrlsByTabId.set(tab.id, url);
+      markContentScriptAvailable(tab, url);
       return true;
     } catch (_) {
       contentScriptReadyUrlsByTabId.delete(tab.id);
@@ -565,8 +654,10 @@ export function createTabWheelDomain(): TabWheelDomain {
     }
   }
 
-  async function waitForContentScriptReady(tab: Tabs.Tab): Promise<boolean> {
-    const retryDelaysMs = [0, 90, 240, 450, 800];
+  async function waitForContentScriptReady(
+    tab: Tabs.Tab,
+    retryDelaysMs: readonly number[] = [0, 90, 240, 450, 800],
+  ): Promise<boolean> {
     for (const delay of retryDelaysMs) {
       if (delay > 0) await sleep(delay);
       if (await pingContentScript(tab)) return true;
@@ -597,6 +688,8 @@ export function createTabWheelDomain(): TabWheelDomain {
 
   async function resolveContentScriptStatus(tab: Tabs.Tab | null): Promise<TabWheelContentScriptStatus> {
     if (!tab?.id) return "unavailable";
+    if (isPageGestureRestrictedUrl(tab.url)) return "unavailable";
+    if (isContentScriptKnownUnavailable(tab)) return "unavailable";
     const url = normalizePageUrl(tab.url);
     if (!url) return "unavailable";
     if (contentScriptReadyUrlsByTabId.get(tab.id) === url) return "ready";
@@ -606,14 +699,45 @@ export function createTabWheelDomain(): TabWheelDomain {
 
   function markContentScriptReady(tab?: Tabs.Tab): TabWheelActionResult {
     if (!tab?.id) return { ok: false, reason: "No sender tab" };
+    if (isPageGestureRestrictedUrl(tab.url)) return { ok: false, reason: "Unsupported page" };
     const url = normalizePageUrl(tab.url);
     if (!url) return { ok: false, reason: "Unsupported page" };
-    contentScriptReadyUrlsByTabId.set(tab.id, url);
+    markContentScriptAvailable(tab, url);
     if (tab.active === true && tab.windowId != null) {
       activeTabIdsByWindowId.set(tab.windowId, tab.id);
       void recordMruTab(tab.id, tab.windowId).catch(() => {});
     }
     return { ok: true };
+  }
+
+  async function ensurePageGestureAvailable(tab: Tabs.Tab): Promise<boolean> {
+    if (tab.id == null) return false;
+    const tabId = tab.id;
+    if (isPageGestureRestrictedUrl(tab.url)) {
+      markContentScriptUnavailable(tab);
+      return false;
+    }
+    const url = normalizePageUrl(tab.url);
+    if (!url) return false;
+    if (contentScriptReadyUrlsByTabId.get(tab.id) === url) {
+      contentScriptUnavailableUrlsByTabId.delete(tab.id);
+      return true;
+    }
+    const didBecomeReady = await resolveWithTimeout(
+      (async () => {
+        if (await pingContentScript(tab)) return true;
+        const injection = await injectContentScriptIntoTab(tab);
+        if (injection !== "injected") return false;
+        const currentTab = await browser.tabs.get(tabId).catch(() => tab);
+        return await waitForContentScriptReady(currentTab, GESTURE_CONTENT_SCRIPT_READY_RETRY_DELAYS_MS);
+      })(),
+      GESTURE_TARGET_PROBE_TIMEOUT_MS,
+      false,
+    );
+    if (didBecomeReady) return true;
+
+    markContentScriptUnavailable(tab);
+    return false;
   }
 
   async function restoreScroll(tab: Tabs.Tab): Promise<boolean> {
@@ -686,7 +810,7 @@ export function createTabWheelDomain(): TabWheelDomain {
     const activeTab = await resolveActiveTab(tab, resolvedWindowId);
     const tabs = await getWindowTabs(resolvedWindowId);
     await reconcileMruWindow(resolvedWindowId, tabs);
-    const eligibleTabs = getEligibleTabs(tabs, settings);
+    const eligibleTabs = getGestureEligibleTabs(tabs, settings);
     const scopeTabs = getCycleTabs(resolvedWindowId, eligibleTabs, settings);
     const activeIndex = activeTab
       ? scopeTabs.findIndex((candidate) => candidate.id === activeTab.id)
@@ -752,6 +876,49 @@ export function createTabWheelDomain(): TabWheelDomain {
     return resolveStripTargetTab(activeTab, eligibleTabs, "prev", true);
   }
 
+  function resolveCycleTargetTab(
+    activeTab: Tabs.Tab,
+    candidateTabs: Tabs.Tab[],
+    direction: "prev" | "next",
+    settings: TabWheelSettings,
+  ): Tabs.Tab | null {
+    return settings.cycleScope === "mru"
+      ? resolveMruCycleTargetTab(activeTab, candidateTabs, direction, settings.wrapAround)
+      : resolveStripTargetTab(activeTab, candidateTabs, direction, settings.wrapAround);
+  }
+
+  async function resolveAvailableCycleTargetTab(
+    activeTab: Tabs.Tab,
+    candidateTabs: Tabs.Tab[],
+    direction: "prev" | "next",
+    settings: TabWheelSettings,
+  ): Promise<Tabs.Tab | null> {
+    let remainingTabs = candidateTabs;
+    for (let attempts = 0; attempts < candidateTabs.length; attempts += 1) {
+      const targetTab = resolveCycleTargetTab(activeTab, remainingTabs, direction, settings);
+      if (!targetTab?.id || targetTab.id === activeTab.id) return null;
+      if (!settings.skipRestrictedPages || await ensurePageGestureAvailable(targetTab)) return targetTab;
+      remainingTabs = remainingTabs.filter((candidate) => candidate.id !== targetTab.id);
+    }
+    return null;
+  }
+
+  async function resolveMostRecentAvailableTab(
+    activeTab: Tabs.Tab,
+    windowId: number,
+    eligibleTabs: Tabs.Tab[],
+    settings: TabWheelSettings,
+  ): Promise<Tabs.Tab | null> {
+    let remainingTabs = eligibleTabs;
+    for (let attempts = 0; attempts < eligibleTabs.length; attempts += 1) {
+      const targetTab = resolveMostRecentTab(activeTab, windowId, remainingTabs);
+      if (!targetTab?.id) return null;
+      if (!settings.skipRestrictedPages || await ensurePageGestureAvailable(targetTab)) return targetTab;
+      remainingTabs = remainingTabs.filter((candidate) => candidate.id !== targetTab.id);
+    }
+    return null;
+  }
+
   async function activateTab(targetTab: Tabs.Tab, options: ActivateTabOptions = {}): Promise<void> {
     if (targetTab.id == null) return;
     await browser.tabs.update(targetTab.id, { active: true });
@@ -798,16 +965,14 @@ export function createTabWheelDomain(): TabWheelDomain {
     }
     const tabs = await getWindowTabs(activeTab.windowId);
     await reconcileMruWindow(activeTab.windowId, tabs);
-    const eligibleTabs = getEligibleTabs(tabs, settings);
+    const eligibleTabs = getGestureEligibleTabs(tabs, settings);
     if (eligibleTabs.length === 0) return { ok: false, reason: "No eligible tabs" };
 
     const candidateTabs = settings.cycleScope === "mru"
       ? resolveMruCycleSessionTabs(activeTab.windowId, eligibleTabs)
       : eligibleTabs;
-    const targetTab = settings.cycleScope === "mru"
-      ? resolveMruCycleTargetTab(activeTab, candidateTabs, direction, settings.wrapAround)
-      : resolveStripTargetTab(activeTab, candidateTabs, direction, settings.wrapAround);
-    if (!targetTab?.id || targetTab.id === activeTab.id) {
+    const targetTab = await resolveAvailableCycleTargetTab(activeTab, candidateTabs, direction, settings);
+    if (!targetTab?.id) {
       return { ok: false, reason: "Edge of tab list" };
     }
 
@@ -839,8 +1004,8 @@ export function createTabWheelDomain(): TabWheelDomain {
       };
     }
 
-    if (!normalizePageUrl(activeTab.url)) {
-      contentScriptReadyUrlsByTabId.delete(activeTab.id);
+    if (isPageGestureRestrictedUrl(activeTab.url)) {
+      markContentScriptUnavailable(activeTab);
       return {
         ok: false,
         reason: "TabWheel cannot run on this page.",
@@ -861,7 +1026,7 @@ export function createTabWheelDomain(): TabWheelDomain {
           injected: false,
         };
       }
-      contentScriptReadyUrlsByTabId.delete(activeTab.id);
+      markContentScriptUnavailable(activeTab);
       return {
         ok: false,
         reason: "TabWheel cannot run on this page.",
@@ -875,6 +1040,7 @@ export function createTabWheelDomain(): TabWheelDomain {
     const isReady = await waitForContentScriptReady(currentTab);
     const overview = await getOverview(currentTab, activeTab.windowId);
     if (!isReady || overview.contentScriptStatus !== "ready") {
+      markContentScriptUnavailable(currentTab);
       return {
         ok: false,
         reason: "TabWheel refresh failed",
@@ -963,9 +1129,9 @@ export function createTabWheelDomain(): TabWheelDomain {
     if (!activeTab?.id || activeTab.windowId == null) return { ok: false, reason: "No active tab" };
     const tabs = await getWindowTabs(activeTab.windowId);
     await reconcileMruWindow(activeTab.windowId, tabs);
-    const eligibleTabs = getEligibleTabs(tabs, settings).filter((candidate) => candidate.id !== activeTab.id);
+    const eligibleTabs = getGestureEligibleTabs(tabs, settings).filter((candidate) => candidate.id !== activeTab.id);
     if (eligibleTabs.length === 0) return { ok: false, reason: "No recent tab" };
-    const targetTab = resolveMostRecentTab(activeTab, activeTab.windowId, eligibleTabs);
+    const targetTab = await resolveMostRecentAvailableTab(activeTab, activeTab.windowId, eligibleTabs, settings);
     if (!targetTab?.id) return { ok: false, reason: "No recent tab" };
     cancelScrollRestore(activeTab.id);
     void captureTabScroll(activeTab).catch(() => {});
@@ -981,9 +1147,9 @@ export function createTabWheelDomain(): TabWheelDomain {
     if (!activeTab?.id || activeTab.windowId == null) return { ok: false, reason: "No active tab" };
     const tabs = await getWindowTabs(activeTab.windowId);
     await reconcileMruWindow(activeTab.windowId, tabs);
-    const eligibleTabs = getEligibleTabs(tabs, settings).filter((candidate) => candidate.id !== activeTab.id);
+    const eligibleTabs = getGestureEligibleTabs(tabs, settings).filter((candidate) => candidate.id !== activeTab.id);
     const targetTab = eligibleTabs.length > 0
-      ? resolveMostRecentTab(activeTab, activeTab.windowId, eligibleTabs)
+      ? await resolveMostRecentAvailableTab(activeTab, activeTab.windowId, eligibleTabs, settings)
       : null;
     cancelScrollRestore(activeTab.id);
     await dismissTabWheelPanel(activeTab);
@@ -1102,6 +1268,7 @@ export function createTabWheelDomain(): TabWheelDomain {
       await ensureLoaded();
       delete scrollMemoryByTabId[tabKey(tabId)];
       contentScriptReadyUrlsByTabId.delete(tabId);
+      contentScriptUnavailableUrlsByTabId.delete(tabId);
       scrollRestoreTokensByTabId.delete(tabId);
       for (const [windowId, activeTabId] of activeTabIdsByWindowId) {
         if (activeTabId === tabId) activeTabIdsByWindowId.delete(windowId);
@@ -1128,6 +1295,7 @@ export function createTabWheelDomain(): TabWheelDomain {
       }
       if (changeInfo.url) {
         contentScriptReadyUrlsByTabId.delete(tabId);
+        contentScriptUnavailableUrlsByTabId.delete(tabId);
         cancelScrollRestore(tabId);
       }
     });
@@ -1159,6 +1327,7 @@ export function createTabWheelDomain(): TabWheelDomain {
       cycleTasksByWindowId.clear();
       mruCycleSessionsByWindowId.clear();
       contentScriptReadyUrlsByTabId.clear();
+      contentScriptUnavailableUrlsByTabId.clear();
       scrollRestoreTokensByTabId.clear();
       activeTabIdsByWindowId.clear();
       await saveScrollMemory();

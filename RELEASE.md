@@ -14,6 +14,17 @@ Run `npm run ci` before preparing a release, then run:
 npm run release:package
 ```
 
+## 1.0.5
+
+Restricted-page reliability release:
+
+- Added bounded runtime capability probing for normal-looking `https` tabs so TabWheel can skip pages where content scripts cannot actually run without stalling wheel or recent-tab gestures.
+- Added a short-lived per-tab URL unavailable cache that expires quickly and is cleared on URL changes, tab removal, and browser startup.
+- Expanded restricted-page detection for known browser stores such as Chrome Web Store and Mozilla Add-ons.
+- Updated restricted-page copy so fallback controls describe the actual Close Tab action.
+- Rebuilt Chrome, Firefox, and source release artifacts from the current implementation.
+- Kept the package and browser manifests aligned at `1.0.5`.
+
 ## 1.0.4
 
 Store-listing and release packaging update:

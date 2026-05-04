@@ -39,12 +39,12 @@ test("manifests use shared store names and titles", () => {
   assert.equal(v3.action.default_title, "Scroll Wheel Tab Switcher");
 });
 
-test("manifests are versioned for the 1.0.4 store listing release", () => {
+test("manifests are versioned for the 1.0.5 store listing release", () => {
   const v2 = readJson("esBuildConfig/manifest_v2.json");
   const v3 = readJson("esBuildConfig/manifest_v3.json");
   const packageJson = readJson("package.json");
 
-  assert.equal(packageJson.version, "1.0.4");
+  assert.equal(packageJson.version, "1.0.5");
   assert.equal(v2.version, packageJson.version);
   assert.equal(v3.version, packageJson.version);
 });
