@@ -1,8 +1,8 @@
 {
   "name": "tabwheel",
-  "version": "1.0.1",
+  "version": "1.0.2",
   "private": true,
-  "description": "Mouse scroll wheel tab switcher with MRU mode, search, and local-only memory",
+  "description": "Alt + mouse wheel scrolls tabs. Alt + left-click opens new tab, middle jumps recent, right closes current. Mods & more customizable.",
   "license": "MIT",
   "scripts": {
     "build": "node esBuildConfig/build.mjs",

@@ -11,32 +11,39 @@ Mouse Wheel Tab Switcher
 
 ## Summary (short, <=132 chars)
 
-Mouse scroll wheel tab switcher with MRU mode, in-page search, recent-tab, and close-to-recent gestures.
+Alt + mouse wheel scrolls tabs. Alt + left-click opens new tab, middle jumps recent, right closes current. Mods & more customizable.
 
 ## Description
 
-TabWheel is a mouse scroll wheel-based browser navigation extension for quickly switching between tabs without reaching for the tab strip. Use Alt + Wheel by default for modifier-wheel cycling: wheel down or right moves to the next tab, and wheel up or left moves to the previous tab. Direction, modifier, Shift requirement, pinned-tab behavior, restricted-page skipping, wrap-around, sensitivity, cooldown, horizontal wheel support, acceleration, and safe overshoot guarding are configurable.
+Mouse Wheel Tab Switcher lets you switch browser tabs with your mouse wheel. Hold Alt and scroll on a normal web page to move to the next or previous tab, making tab switching a fast hand-on-mouse gesture instead of clicking through the tab bar or reaching for keyboard shortcuts. Use Alt + Left Click to open the selected Browser New Tab Page mode: TabWheel Search or Browser Default. Use Alt + Middle Click to switch to the Most Recent Tab. Use Alt + Right Click to close the current tab and return to the most recent eligible tab. If no eligible recent tab exists, the current tab stays open. Mouse wheel cycling can use Left-To-Right mode or Most Recently Used mode. These behaviors are configurable from the extension popup toolbar and options page.
 
-Use Alt + Left Click to open an in-page search launcher that opens results in a new adjacent tab using the browser's current default search provider. If the browser search API is unavailable or fails, TabWheel uses a fixed Google fallback for that submitted query. If you prefer the browser's own new tab page, choose Browser Default so Alt + Left Click opens the normal new tab experience from Chrome, Firefox, Zen, or your current browser. Use Alt + Middle Click to jump to the most recently used tab. Use Alt + Right Click to close the current tab and activate the most recently used tab when one is available; if no eligible recent tab exists, the current tab stays open. General mode cycles through eligible tabs in visible tab-strip order. MRU mode cycles through eligible tabs in most-recently-used order.
+ACCESS EXTENSION POPUP TOOLBAR:
+1. Look at the top-right of Chrome, next to the address bar.
+2. Click the puzzle-piece icon for Extensions.
+3. Find Mouse Wheel Tab Switcher.
+4. Click the extension icon to open the popup toolbar.
+5. Optional: click the pin icon next to Mouse Wheel Tab Switcher so it always appears beside the address bar.
 
-The extension popup toolbar gives you the main controls in one place: current cycle mode, Previous / Next fallback buttons, search, recent-tab, close-tab controls, a Refresh action for reconnecting TabWheel on the current page, and wheel tuning.
+FUNCTIONALITY:
+Use Alt + Wheel to switch tabs based on the selected cycle mode. Left-To-Right mode cycles eligible tabs in visible tab-strip order. Most Recently Used mode cycles tabs based on recent use. Use Alt + Left Click to open the selected Browser New Tab Page mode, Alt + Middle Click to switch to the Most Recent Tab, and Alt + Right Click to close the current tab when a recent-tab target is available.
 
-Presets include Precise, Balanced, Fast, and Custom. Editable-field control lets you allow wheel-cycling when cursor is inside text boxes, search fields, and editors/docs. Middle-click recent-tab switching runs on the completed click to avoid duplicate activation from browser event timing. TabWheel can also remember recent root scroll positions and normalized page position, then restore them when cycling back to the same URL using URL checks to avoid stale restores.
+NEW TAB MODES:
+TabWheel Search opens the in-page search launcher. Search uses the browser's default search provider first, with a fixed Google fallback if the browser search API is unavailable. Browser Default opens the browser's normal new tab page.
 
-TabWheel tries to activate existing normal web tabs after install or update, and the popup Refresh action can reconnect TabWheel on the current page without reloading the page. Browser-reserved pages such as `chrome://`, extension pages, browser stores, devtools, PDF viewers, and some restricted pages do not allow page shortcuts; TabWheel skips those pages during wheel cycling by default, and the toolbar popup search field and tab controls remain available where the popup can run.
+CUSTOMIZATION:
+Customize the modifier key, optional Shift requirement, wheel direction, sensitivity, cooldown, acceleration, horizontal wheel support, pinned-tab handling, restricted-page skipping, wrap-around behavior, editable-field behavior, and safe overshoot guard for trackpads or free-spinning wheels.
 
-Everything runs locally in your browser using extension storage. TabWheel stores settings, MRU tab order, recent scroll positions, page geometry, and URL checks locally. TabWheel does not use telemetry, tracking, analytics, remote code, or developer-owned data transfer.
+PRIVACY MODEL:
+Mouse Wheel Tab Switcher does not use telemetry, tracking, analytics, remote code, or developer-owned servers. Extension settings, most-recently-used tab order, recent scroll positions, page geometry, and scroll-restore URL checks are stored locally in browser storage. Submitted TabWheel Search queries go to the browser's current default search provider, with Google fallback only if the browser search API is unavailable.
 
-Customize controls:
+CONSTRAINTS / LIMITATIONS:
+Page gestures work on normal web pages. Browser UI pages, extension pages, browser stores, devtools, PDF viewers, and some restricted pages may block content scripts. Some modifier + click combinations may also be reserved by websites, the browser, or the operating system. When that happens, use the popup toolbar or choose a different modifier / Shift setting.
 
-- Open the TabWheel extension popup toolbar
-- Change the base modifier between Alt / Option, Ctrl / Control, and Meta / Command
-- Use Browser Default to make modifier + left click open the browser's normal new tab page
-- Optionally require Shift to reduce accidental activation
-- Pick a wheel preset: Precise, Balanced, Fast, or Custom
-- Adjust sensitivity, cooldown, acceleration, horizontal wheel support, pinned-tab handling, restricted-page skipping, wrap-around, and safe overshoot guard
-- Use Previous / Next, search, recent tab, and close tab when page shortcuts are unavailable
-- Use Refresh TabWheel when a normal page needs the content script reconnected
+EXTENSION POPUP TOOLBAR:
+The popup toolbar provides reliable controls when page shortcuts are blocked. It includes Mouse Scroll Wheel Cycle Mode, Browser New Tab Page Mode, Previous / Next buttons, TabWheel Search, Most Recent Tab, Close Tab, Refresh Mouse Wheel Tab Switcher, and wheel tuning controls.
+
+SCROLL MEMORY:
+Mouse Wheel Tab Switcher can remember recent scroll positions and restore them when cycling back to the same URL. Scroll restore uses URL checks, layout checks, and stale-restore cancellation to avoid restoring the wrong page position.
 
 ## Privacy
 

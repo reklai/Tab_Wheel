@@ -14,6 +14,15 @@ Run `npm run ci` before preparing a release, then run:
 npm run release:package
 ```
 
+## 1.0.2
+
+Store-listing and release packaging update:
+
+- Renamed the store-facing extension title for Firefox/Zen and Chrome to `Mouse Wheel Tab Switcher`.
+- Updated the store short summary and description around mouse-wheel tab switching, left-click new tab mode, recent-tab, close-tab, privacy, constraints, and scroll memory.
+- Rebuilt Chrome, Firefox, and source release artifacts from the current implementation.
+- Kept the package and browser manifests aligned at `1.0.2`.
+
 ## 1.0.1
 
 Reliability release for mouse gestures, search-panel lifecycle, and restricted-page fallback clarity:
