@@ -7,8 +7,12 @@ import {
   formatTabWheelModifierCombo,
   formatTabWheelModifierKey,
   loadTabWheelSettings,
+  MAX_PAGE_SCROLL_SPEED_MULTIPLIER,
+  MAX_PAGE_SCROLL_VIEWPORT_CAP_RATIO,
   MAX_WHEEL_COOLDOWN_MS,
   MAX_WHEEL_SENSITIVITY,
+  MIN_PAGE_SCROLL_SPEED_MULTIPLIER,
+  MIN_PAGE_SCROLL_VIEWPORT_CAP_RATIO,
   MIN_WHEEL_COOLDOWN_MS,
   MIN_WHEEL_SENSITIVITY,
   saveTabWheelSettings,
@@ -79,6 +83,10 @@ document.addEventListener("DOMContentLoaded", async () => {
   const wheelSensitivityValue = document.getElementById("wheelSensitivityValue")!;
   const wheelCooldownInput = document.getElementById("wheelCooldownMs") as HTMLInputElement;
   const wheelCooldownValue = document.getElementById("wheelCooldownValue")!;
+  const pageScrollSpeedInput = document.getElementById("pageScrollSpeedMultiplier") as HTMLInputElement;
+  const pageScrollSpeedValue = document.getElementById("pageScrollSpeedValue")!;
+  const pageScrollViewportCapInput = document.getElementById("pageScrollViewportCapRatio") as HTMLInputElement;
+  const pageScrollViewportCapValue = document.getElementById("pageScrollViewportCapValue")!;
   const helpBtn = document.getElementById("helpBtn") as HTMLButtonElement;
   const settingsBtn = document.getElementById("settingsBtn") as HTMLButtonElement;
 
@@ -177,6 +185,14 @@ document.addEventListener("DOMContentLoaded", async () => {
     wheelCooldownInput.max = String(MAX_WHEEL_COOLDOWN_MS);
     wheelCooldownInput.value = String(settings.wheelCooldownMs);
     wheelCooldownValue.textContent = `Switch delay: ${Math.round(settings.wheelCooldownMs)}ms`;
+    pageScrollSpeedInput.min = String(MIN_PAGE_SCROLL_SPEED_MULTIPLIER);
+    pageScrollSpeedInput.max = String(MAX_PAGE_SCROLL_SPEED_MULTIPLIER);
+    pageScrollSpeedInput.value = String(settings.pageScrollSpeedMultiplier);
+    pageScrollSpeedValue.textContent = `Page speed: ${settings.pageScrollSpeedMultiplier.toFixed(1)}x`;
+    pageScrollViewportCapInput.min = String(MIN_PAGE_SCROLL_VIEWPORT_CAP_RATIO);
+    pageScrollViewportCapInput.max = String(MAX_PAGE_SCROLL_VIEWPORT_CAP_RATIO);
+    pageScrollViewportCapInput.value = String(settings.pageScrollViewportCapRatio);
+    pageScrollViewportCapValue.textContent = `Max step: ${Math.round(settings.pageScrollViewportCapRatio * 100)}%`;
   }
 
   async function refreshAll(): Promise<void> {
@@ -259,6 +275,8 @@ document.addEventListener("DOMContentLoaded", async () => {
       allowGesturesInEditableFields: allowEditableInput.checked,
       wheelSensitivity: Number(wheelSensitivityInput.value),
       wheelCooldownMs: Number(wheelCooldownInput.value),
+      pageScrollSpeedMultiplier: Number(pageScrollSpeedInput.value),
+      pageScrollViewportCapRatio: Number(pageScrollViewportCapInput.value),
     };
     return {
       ...nextSettings,
@@ -279,6 +297,8 @@ document.addEventListener("DOMContentLoaded", async () => {
     allowEditableInput,
     wheelSensitivityInput,
     wheelCooldownInput,
+    pageScrollSpeedInput,
+    pageScrollViewportCapInput,
   ].forEach((control) => {
     control.addEventListener("change", () => void persist(readSettings()));
   });
@@ -292,6 +312,14 @@ document.addEventListener("DOMContentLoaded", async () => {
   });
   wheelCooldownInput.addEventListener("input", () => {
     wheelCooldownValue.textContent = `Switch delay: ${Math.round(Number(wheelCooldownInput.value))}ms`;
+    wheelPresetSelect.value = "custom";
+  });
+  pageScrollSpeedInput.addEventListener("input", () => {
+    pageScrollSpeedValue.textContent = `Page speed: ${Number(pageScrollSpeedInput.value).toFixed(1)}x`;
+    wheelPresetSelect.value = "custom";
+  });
+  pageScrollViewportCapInput.addEventListener("input", () => {
+    pageScrollViewportCapValue.textContent = `Max step: ${Math.round(Number(pageScrollViewportCapInput.value) * 100)}%`;
     wheelPresetSelect.value = "custom";
   });
 

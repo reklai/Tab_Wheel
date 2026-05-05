@@ -25,7 +25,15 @@ import type {
   TabWheelMouseGesturePolicy,
   TabWheelMouseGestureSession,
 } from "../core/tabWheel/mouseGestureCore";
-import { normalizeWheelDelta, resolveWheelDirection } from "../core/tabWheel/tabWheelCore";
+import {
+  normalizeWheelDelta,
+  normalizeWheelDeltaY,
+  resolveAcceleratedWheelTriggerDistance,
+  resolveWheelDirection,
+  resolveWheelTriggerDistance,
+  scalePageScrollDelta,
+  shouldUseNativePageScroll,
+} from "../core/tabWheel/tabWheelCore";
 import {
   activateMostRecentTabWheelTab,
   closeCurrentTabWheelTabAndActivateRecent,
@@ -46,8 +54,6 @@ const SCROLL_SAVE_DEBOUNCE_MS = 700;
 const SCROLL_RESTORE_SUPPRESS_SAVE_MS = 450;
 const WHEEL_TRIGGER_THRESHOLD_PX = 80;
 const WHEEL_ACCELERATION_WINDOW_MS = 700;
-const MIN_ACCELERATED_COOLDOWN_MS = 80;
-const OVERSHOOT_GUARD_MS = 260;
 const STATUS_TIMEOUT_MS = 1500;
 const STATUS_ID = "tw-status-indicator";
 const SCROLL_RESTORE_DELAYS_MS = [0, 80, 220, 500, 900, 1500, 2400, 3600];
@@ -57,6 +63,7 @@ const LAYOUT_DIMENSION_TOLERANCE_PX = 4;
 const LAYOUT_DIMENSION_MATCH_RATIO = 0.08;
 
 type TabWheelEventModifierKey = TabWheelModifierKey | "shift";
+type PageScrollTarget = { type: "window" } | { type: "element"; element: HTMLElement };
 
 const EVENT_MODIFIER_KEYS: readonly TabWheelEventModifierKey[] = ["alt", "ctrl", "shift", "meta"];
 
@@ -66,6 +73,10 @@ function isEditableTarget(target: EventTarget | null): boolean {
     "input, textarea, select, [contenteditable=''], [contenteditable='true'], [role='textbox']",
   );
   return editable !== null;
+}
+
+function hasAnyWheelModifier(event: WheelEvent): boolean {
+  return event.altKey || event.ctrlKey || event.shiftKey || event.metaKey;
 }
 
 function isTabWheelModifier(
@@ -127,6 +138,93 @@ function getMaxScrollY(): number {
 
 function clampScrollX(scrollX: number): number {
   return Math.max(0, Math.min(scrollX, getMaxScrollX()));
+}
+
+function isPageScrollFilterBlockedTarget(target: EventTarget | null): boolean {
+  if (!(target instanceof Element)) return false;
+  return Boolean(target.closest([
+    "input",
+    "textarea",
+    "select",
+    "[contenteditable='']",
+    "[contenteditable='true']",
+    "[role='textbox']",
+    "[role='slider']",
+    "[role='spinbutton']",
+    "[role='scrollbar']",
+    "[role='application']",
+    "iframe",
+    "embed",
+    "object",
+    "video",
+    "audio",
+    "canvas",
+    "[data-tabwheel-native-scroll='true']",
+    "[class*='mapbox' i]",
+    "[class*='leaflet' i]",
+    "[class*='monaco' i]",
+    "[class*='cm-editor' i]",
+  ].join(",")));
+}
+
+function isScrollableOverflowY(value: string): boolean {
+  return value === "auto" || value === "scroll" || value === "overlay";
+}
+
+function canScrollElementVertically(element: HTMLElement, direction: number): boolean {
+  if (direction === 0) return false;
+  if (element === document.documentElement || element === document.body) return false;
+  const style = window.getComputedStyle(element);
+  if (!isScrollableOverflowY(style.overflowY)) return false;
+  const maxScrollTop = Math.max(0, element.scrollHeight - element.clientHeight);
+  if (maxScrollTop <= 1) return false;
+  return direction > 0 ? element.scrollTop < maxScrollTop - 1 : element.scrollTop > 1;
+}
+
+function canScrollWindowVertically(direction: number): boolean {
+  if (direction === 0) return false;
+  const maxScrollY = getMaxScrollY();
+  if (maxScrollY <= 1) return false;
+  return direction > 0 ? window.scrollY < maxScrollY - 1 : window.scrollY > 1;
+}
+
+function getPageScrollPath(target: EventTarget | null, event: WheelEvent): HTMLElement[] {
+  const path = typeof event.composedPath === "function" ? event.composedPath() : [];
+  const elements = path.filter((item): item is HTMLElement => item instanceof HTMLElement);
+  if (elements.length > 0) return elements;
+  const fallbackElements: HTMLElement[] = [];
+  let current = target instanceof HTMLElement ? target : null;
+  while (current) {
+    fallbackElements.push(current);
+    current = current.parentElement;
+  }
+  return fallbackElements;
+}
+
+function resolvePageScrollTarget(event: WheelEvent, direction: number): PageScrollTarget | null {
+  for (const element of getPageScrollPath(event.target, event)) {
+    if (canScrollElementVertically(element, direction)) {
+      return { type: "element", element };
+    }
+  }
+  return canScrollWindowVertically(direction) ? { type: "window" } : null;
+}
+
+function getPageScrollTargetViewportHeight(target: PageScrollTarget): number {
+  return target.type === "window" ? window.innerHeight : target.element.clientHeight;
+}
+
+function scrollPageTarget(target: PageScrollTarget, deltaY: number): void {
+  if (target.type === "window") {
+    window.scrollTo({
+      left: window.scrollX,
+      top: clampScrollY(window.scrollY + deltaY),
+      behavior: "auto",
+    });
+    return;
+  }
+  const maxScrollTop = Math.max(0, target.element.scrollHeight - target.element.clientHeight);
+  target.element.scrollTop = Math.max(0, Math.min(maxScrollTop, target.element.scrollTop + deltaY));
 }
 
 function getRootScrollSnapshot(): ScrollData {
@@ -238,8 +336,6 @@ export function initApp(): void {
   let wheelAccumulator = 0;
   let lastWheelCycleAt = 0;
   let wheelBurstCount = 0;
-  let overshootGuardDirection: "prev" | "next" | null = null;
-  let overshootGuardUntil = 0;
   let areSettingsLoaded = false;
   let mouseGestureSession: TabWheelMouseGestureSession | null = null;
 
@@ -400,8 +496,6 @@ export function initApp(): void {
     wheelAccumulator = 0;
     lastWheelCycleAt = 0;
     wheelBurstCount = 0;
-    overshootGuardDirection = null;
-    overshootGuardUntil = 0;
   }
 
   function resetInputGestureState(): void {
@@ -452,43 +546,74 @@ export function initApp(): void {
     return normalizeWheelDelta(event, window.innerHeight, window.innerWidth, settings.horizontalWheel);
   }
 
-  function getEffectiveCooldown(now: number): number {
-    if (!settings.wheelAcceleration) return settings.wheelCooldownMs;
-    const gap = now - lastWheelCycleAt;
-    const nextBurstCount = gap <= WHEEL_ACCELERATION_WINDOW_MS
+  function getWheelTriggerDistance(now: number): number {
+    const baseDistance = resolveWheelTriggerDistance(WHEEL_TRIGGER_THRESHOLD_PX, settings.wheelSensitivity);
+    const nextBurstCount = now - lastWheelCycleAt <= WHEEL_ACCELERATION_WINDOW_MS
       ? Math.min(wheelBurstCount + 1, 6)
       : 0;
-    const acceleratedCooldown = settings.wheelCooldownMs - nextBurstCount * 18;
-    return Math.max(MIN_ACCELERATED_COOLDOWN_MS, acceleratedCooldown);
+    return resolveAcceleratedWheelTriggerDistance(
+      baseDistance,
+      nextBurstCount,
+      settings.wheelAcceleration,
+    );
   }
 
-  function runWheelCycle(direction: "prev" | "next"): void {
-    const now = Date.now();
-    if (settings.overshootGuard && direction === overshootGuardDirection && now < overshootGuardUntil) {
-      return;
-    }
-    const effectiveCooldown = getEffectiveCooldown(now);
-    if (now - lastWheelCycleAt < effectiveCooldown) return;
+  function runWheelCycle(direction: "prev" | "next", now: number): boolean {
+    if (now - lastWheelCycleAt < settings.wheelCooldownMs) return false;
     wheelBurstCount = now - lastWheelCycleAt <= WHEEL_ACCELERATION_WINDOW_MS
       ? Math.min(wheelBurstCount + 1, 6)
       : 0;
     lastWheelCycleAt = now;
-    overshootGuardDirection = direction;
-    overshootGuardUntil = settings.overshootGuard ? now + OVERSHOOT_GUARD_MS : 0;
     if (isTabWheelPanelOpen()) dismissPanel();
     void cycleTabWheel(direction).catch(() => {});
+    return true;
+  }
+
+  function handlePageScrollFilter(event: WheelEvent): boolean {
+    if (!isTopFrameContext) return false;
+    if (!areSettingsLoaded || !event.isTrusted || event.defaultPrevented) return false;
+    if (hasAnyWheelModifier(event)) return false;
+    if (shouldUseNativePageScroll(settings.pageScrollSpeedMultiplier, settings.pageScrollViewportCapRatio)) return false;
+    if (isPageScrollFilterBlockedTarget(event.target)) return false;
+    if (event.deltaY === 0) return false;
+    const scrollTarget = resolvePageScrollTarget(event, Math.sign(event.deltaY));
+    if (!scrollTarget) return false;
+    const rawDeltaY = normalizeWheelDeltaY(event, getPageScrollTargetViewportHeight(scrollTarget));
+    if (rawDeltaY === 0) return false;
+    const scaledDeltaY = scalePageScrollDelta(
+      rawDeltaY,
+      settings.pageScrollSpeedMultiplier,
+      getPageScrollTargetViewportHeight(scrollTarget),
+      settings.pageScrollViewportCapRatio,
+    );
+    if (scaledDeltaY === 0) return false;
+    suppressPageEvent(event);
+    scrollPageTarget(scrollTarget, scaledDeltaY);
+    return true;
   }
 
   function wheelHandler(event: WheelEvent): void {
-    if (!isKeyboardWheelEvent(event)) return;
+    if (!isKeyboardWheelEvent(event)) {
+      handlePageScrollFilter(event);
+      return;
+    }
     const wheelDelta = getTabCycleWheelDelta(event);
     if (wheelDelta === 0) return;
     suppressPageEvent(event);
-    wheelAccumulator += wheelDelta * settings.wheelSensitivity;
-    if (Math.abs(wheelAccumulator) < WHEEL_TRIGGER_THRESHOLD_PX) return;
+    const now = Date.now();
+    wheelAccumulator += wheelDelta;
+    const triggerDistance = getWheelTriggerDistance(now);
+    if (Math.abs(wheelAccumulator) < triggerDistance) return;
     const direction = resolveWheelDirection(wheelAccumulator, settings.invertScroll);
-    wheelAccumulator = 0;
-    runWheelCycle(direction);
+    if (runWheelCycle(direction, now)) {
+      wheelAccumulator = 0;
+      return;
+    }
+    if (settings.overshootGuard) {
+      wheelAccumulator = 0;
+      return;
+    }
+    wheelAccumulator = Math.sign(wheelAccumulator) * Math.min(Math.abs(wheelAccumulator), triggerDistance);
   }
 
   function mouseGestureHandler(event: MouseEvent): void {

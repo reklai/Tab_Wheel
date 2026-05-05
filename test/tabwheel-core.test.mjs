@@ -64,3 +64,38 @@ test("tabWheelCore uses dominant horizontal delta when enabled", async () => {
   assert.equal(core.normalizeWheelDelta({ deltaMode: 1, deltaX: 3, deltaY: 1 }, 900, 1200, true), 48);
   assert.equal(core.normalizeWheelDelta({ deltaMode: 2, deltaX: -1, deltaY: 0.5 }, 900, 1200, true), -1200);
 });
+
+test("tabWheelCore resolves meaningful tab switch sensitivity distances", async () => {
+  const core = await loadTabWheelCoreModule();
+
+  assert.equal(core.resolveWheelTriggerDistance(80, 0.5), 160);
+  assert.equal(core.resolveWheelTriggerDistance(80, 1), 80);
+  assert.equal(core.resolveWheelTriggerDistance(80, 2), 40);
+  assert.equal(core.resolveWheelTriggerDistance(80, Number.NaN), 80);
+});
+
+test("tabWheelCore applies acceleration to trigger distance without changing cooldown", async () => {
+  const core = await loadTabWheelCoreModule();
+
+  assert.equal(core.resolveAcceleratedWheelTriggerDistance(80, 0, false), 80);
+  assert.equal(core.resolveAcceleratedWheelTriggerDistance(80, 3, true), 62);
+  assert.equal(core.resolveAcceleratedWheelTriggerDistance(80, 20, true), 44);
+  assert.equal(core.resolveAcceleratedWheelTriggerDistance(44, 20, true), 40);
+});
+
+test("tabWheelCore scales page scroll delta and clamps to viewport cap", async () => {
+  const core = await loadTabWheelCoreModule();
+
+  assert.equal(core.scalePageScrollDelta(100, 1, 800, 1), 100);
+  assert.equal(core.scalePageScrollDelta(100, 2, 800, 1), 200);
+  assert.equal(core.scalePageScrollDelta(1000, 2, 800, 0.5), 400);
+  assert.equal(core.scalePageScrollDelta(-1000, 2, 800, 0.5), -400);
+});
+
+test("tabWheelCore leaves native page scroll untouched at default page settings", async () => {
+  const core = await loadTabWheelCoreModule();
+
+  assert.equal(core.shouldUseNativePageScroll(1, 1), true);
+  assert.equal(core.shouldUseNativePageScroll(1.2, 1), false);
+  assert.equal(core.shouldUseNativePageScroll(1, 0.5), false);
+});

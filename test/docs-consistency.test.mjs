@@ -26,7 +26,9 @@ test("store and privacy docs match current TabWheel limits", () => {
   assert.ok(store.includes("Chrome: Scroll Wheel Tab Switcher"));
   assert.ok(store.includes("TagWheel") === false);
   assert.ok(store.includes("Alt + Wheel"));
-  assert.ok(store.includes("Alt + mouse wheel scrolls tabs"));
+  assert.ok(store.includes("Alt + mouse wheel switches tabs"));
+  assert.ok(store.includes("page-scroll speed"));
+  assert.ok(store.includes("viewport step cap"));
   assert.ok(store.includes("Most Recently Used mode"));
   assert.ok(store.includes("Alt + Left Click"));
   assert.ok(store.includes("Browser Default"));
@@ -35,6 +37,8 @@ test("store and privacy docs match current TabWheel limits", () => {
   assert.ok(store.includes("Previous / Next"));
   assert.doesNotMatch(store, /Right Hold|Wheel List|tagged|tag\/untag/);
   assert.ok(privacy.includes("editable-field preference"));
+  assert.ok(privacy.includes("page-scroll speed"));
+  assert.ok(privacy.includes("viewport step cap"));
   assert.ok(privacy.includes("page URLs used only to validate scroll restore"));
   assert.ok(privacy.includes("tabWheelMruState"));
   assert.ok(privacy.includes("browser's current default search provider"));

@@ -81,6 +81,8 @@ function buildHelpSections(settings: TabWheelSettings): HelpSection[] {
         { label: "Preset", value: `${settings.wheelPreset} timing profile` },
         { label: "Sensitivity", value: `${settings.wheelSensitivity.toFixed(1)}x wheel distance before switching` },
         { label: "Cooldown", value: `${Math.round(settings.wheelCooldownMs)}ms minimum delay between switches` },
+        { label: "Page scroll speed", value: `${settings.pageScrollSpeedMultiplier.toFixed(1)}x normal wheel page speed` },
+        { label: "Viewport step cap", value: `${Math.round(settings.pageScrollViewportCapRatio * 100)}% maximum page-scroll step` },
         { label: "Acceleration", value: settings.wheelAcceleration ? "repeated wheel bursts switch faster" : "repeated wheel bursts keep the same delay" },
         { label: "Horizontal wheel", value: settings.horizontalWheel ? "sideways wheel or trackpad motion also switches tabs" : "only vertical wheel movement switches tabs" },
         { label: "Safe overshoot guard", value: settings.overshootGuard ? "prevents extra tab jumps from trackpad or wheel momentum" : "every qualified wheel tick can switch tabs" },

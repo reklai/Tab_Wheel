@@ -18,6 +18,9 @@ npm run release:package
 
 Restricted-page reliability release:
 
+- Added meaningful wheel tuning across four sliders: tab sensitivity, tab cooldown, page-scroll speed, and viewport step cap.
+- Page-scroll tuning preserves native scrolling at default settings and only filters normal vertical wheel scrolling when page-scroll values are non-default.
+- Made tab-switch cooldown the direct timing gate while overshoot guard now dampens wheel momentum instead of imposing a fixed hidden delay.
 - Added bounded runtime capability probing for normal-looking `https` tabs so TabWheel can skip pages where content scripts cannot actually run without stalling wheel or recent-tab gestures.
 - Added a short-lived per-tab URL unavailable cache that expires quickly and is cleared on URL changes, tab removal, and browser startup.
 - Expanded restricted-page detection for known browser stores such as Chrome Web Store and Mozilla Add-ons.

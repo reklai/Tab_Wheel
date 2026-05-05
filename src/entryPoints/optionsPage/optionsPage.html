@@ -41,10 +41,10 @@
         </select>
       </label>
 
-      <label class="setting-row" for="wheelPreset" title="Apply a preset for sensitivity, cooldown, acceleration, and overshoot guard.">
+      <label class="setting-row" for="wheelPreset" title="Apply a preset for tab switching and page scrolling wheel behavior.">
         <span>
           <strong>Preset</strong>
-          <small>Apply a sensitivity and timing profile: Precise, Balanced, Fast, or Custom.</small>
+          <small>Apply wheel behavior across tab sensitivity, tab cooldown, page speed, and viewport cap.</small>
         </span>
         <select class="setting-control" id="wheelPreset"></select>
       </label>
@@ -145,6 +145,22 @@
         <input class="setting-range" id="wheelCooldownMs" type="range" step="10" />
       </label>
 
+      <label class="setting-row" for="pageScrollSpeedMultiplier" title="Normal page scroll speed when page scroll filtering is active.">
+        <span>
+          <strong>Page Scroll Speed</strong>
+          <small>Normal wheel page speed. Current: <span id="pageScrollSpeedValue">1.0x</span></small>
+        </span>
+        <input class="setting-range" id="pageScrollSpeedMultiplier" type="range" step="0.1" />
+      </label>
+
+      <label class="setting-row" for="pageScrollViewportCapRatio" title="Maximum normal page scroll step as a percentage of the active viewport.">
+        <span>
+          <strong>Viewport Step Cap</strong>
+          <small>Maximum wheel step. Current: <span id="pageScrollViewportCapValue">100%</span></small>
+        </span>
+        <input class="setting-range" id="pageScrollViewportCapRatio" type="range" step="0.05" />
+      </label>
+
       <div class="reference-grid" aria-label="Shortcut reference">
         <div><strong id="wheelShortcut">Alt + Wheel</strong><span>Cycle tabs using the current cycle mode.</span></div>
         <div><strong id="searchShortcut">Alt + Left Click</strong><span id="leftClickShortcutDescription">Open the in-page search launcher.</span></div>
@@ -160,6 +176,10 @@
         <div>
           <strong>Extension constraints</strong>
           <span>Page gestures run on normal web pages. Browser UI and internal pages such as chrome://extensions, about:addons, Chrome Web Store, Mozilla Add-ons, PDF viewers, and some restricted pages may block content scripts; use the toolbar popup controls there.</span>
+        </div>
+        <div>
+          <strong>Page scroll filter</strong>
+          <span>Normal page scrolling stays native at 1.0x speed and 100% viewport cap. Non-default page-scroll values filter normal vertical wheel scrolling on supported pages.</span>
         </div>
       </div>
     </section>

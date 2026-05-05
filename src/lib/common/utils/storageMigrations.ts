@@ -100,6 +100,14 @@ function migrateTabWheelSettings(storage: StorageSnapshot): boolean {
     nextSettings.wheelSensitivity = 1;
     changed = true;
   }
+  if (typeof nextSettings.pageScrollSpeedMultiplier !== "number") {
+    nextSettings.pageScrollSpeedMultiplier = 1;
+    changed = true;
+  }
+  if (typeof nextSettings.pageScrollViewportCapRatio !== "number") {
+    nextSettings.pageScrollViewportCapRatio = 1;
+    changed = true;
+  }
 
   if (changed) storage[TABWHEEL_SETTINGS_KEY] = nextSettings;
   return changed;

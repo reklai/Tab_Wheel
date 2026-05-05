@@ -18,30 +18,42 @@ export const MIN_WHEEL_SENSITIVITY = 0.5;
 export const MAX_WHEEL_SENSITIVITY = 2;
 export const MIN_WHEEL_COOLDOWN_MS = 60;
 export const MAX_WHEEL_COOLDOWN_MS = 400;
+export const MIN_PAGE_SCROLL_SPEED_MULTIPLIER = 0.5;
+export const MAX_PAGE_SCROLL_SPEED_MULTIPLIER = 3;
+export const MIN_PAGE_SCROLL_VIEWPORT_CAP_RATIO = 0.1;
+export const MAX_PAGE_SCROLL_VIEWPORT_CAP_RATIO = 1;
 export const GOOGLE_SEARCH_URL_TEMPLATE = "https://www.google.com/search?q=%s";
 export const MAX_SEARCH_QUERY_LENGTH = 512;
 
 export const TABWHEEL_PRESET_VALUES: Record<Exclude<TabWheelPreset, "custom">, {
   wheelSensitivity: number;
   wheelCooldownMs: number;
+  pageScrollSpeedMultiplier: number;
+  pageScrollViewportCapRatio: number;
   wheelAcceleration: boolean;
   overshootGuard: boolean;
 }> = {
   precise: {
     wheelSensitivity: 0.8,
     wheelCooldownMs: 220,
+    pageScrollSpeedMultiplier: 0.8,
+    pageScrollViewportCapRatio: 0.35,
     wheelAcceleration: false,
     overshootGuard: true,
   },
   balanced: {
     wheelSensitivity: 1,
     wheelCooldownMs: 160,
+    pageScrollSpeedMultiplier: 1,
+    pageScrollViewportCapRatio: 1,
     wheelAcceleration: false,
     overshootGuard: true,
   },
   fast: {
     wheelSensitivity: 1.35,
     wheelCooldownMs: 90,
+    pageScrollSpeedMultiplier: 1.4,
+    pageScrollViewportCapRatio: 1,
     wheelAcceleration: true,
     overshootGuard: true,
   },
@@ -60,6 +72,8 @@ export const DEFAULT_TABWHEEL_SETTINGS: TabWheelSettings = {
   wheelPreset: "balanced",
   wheelSensitivity: 1,
   wheelCooldownMs: 160,
+  pageScrollSpeedMultiplier: 1,
+  pageScrollViewportCapRatio: 1,
   wheelAcceleration: false,
   horizontalWheel: true,
   overshootGuard: true,
@@ -116,13 +130,20 @@ function normalizeWheelPreset(value: unknown): TabWheelPreset {
 
 export function detectTabWheelPreset(settings: Pick<
   TabWheelSettings,
-  "wheelSensitivity" | "wheelCooldownMs" | "wheelAcceleration" | "overshootGuard"
+  | "wheelSensitivity"
+  | "wheelCooldownMs"
+  | "pageScrollSpeedMultiplier"
+  | "pageScrollViewportCapRatio"
+  | "wheelAcceleration"
+  | "overshootGuard"
 >): TabWheelPreset {
   for (const preset of ["precise", "balanced", "fast"] as const) {
     const presetValues = TABWHEEL_PRESET_VALUES[preset];
     if (
       settings.wheelSensitivity === presetValues.wheelSensitivity
       && settings.wheelCooldownMs === presetValues.wheelCooldownMs
+      && settings.pageScrollSpeedMultiplier === presetValues.pageScrollSpeedMultiplier
+      && settings.pageScrollViewportCapRatio === presetValues.pageScrollViewportCapRatio
       && settings.wheelAcceleration === presetValues.wheelAcceleration
       && settings.overshootGuard === presetValues.overshootGuard
     ) {
@@ -191,6 +212,18 @@ export function normalizeTabWheelSettings(
       DEFAULT_TABWHEEL_SETTINGS.wheelCooldownMs,
       MIN_WHEEL_COOLDOWN_MS,
       MAX_WHEEL_COOLDOWN_MS,
+    ),
+    pageScrollSpeedMultiplier: normalizeNumberInRange(
+      settings.pageScrollSpeedMultiplier,
+      DEFAULT_TABWHEEL_SETTINGS.pageScrollSpeedMultiplier,
+      MIN_PAGE_SCROLL_SPEED_MULTIPLIER,
+      MAX_PAGE_SCROLL_SPEED_MULTIPLIER,
+    ),
+    pageScrollViewportCapRatio: normalizeNumberInRange(
+      settings.pageScrollViewportCapRatio,
+      DEFAULT_TABWHEEL_SETTINGS.pageScrollViewportCapRatio,
+      MIN_PAGE_SCROLL_VIEWPORT_CAP_RATIO,
+      MAX_PAGE_SCROLL_VIEWPORT_CAP_RATIO,
     ),
     wheelAcceleration: normalizeEnabledFlag(
       settings.wheelAcceleration,

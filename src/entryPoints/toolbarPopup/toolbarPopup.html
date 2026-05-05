@@ -65,8 +65,8 @@
       </div>
 
       <section class="control-grid" aria-label="TabWheel controls">
-        <label class="control-row" title="Apply a preset for sensitivity, cooldown, acceleration, and overshoot guard.">
-          <span><strong>Preset</strong><small>Choose deliberate, balanced, or fast switching</small></span>
+        <label class="control-row" title="Apply a preset for tab switching and page scrolling wheel behavior.">
+          <span><strong>Preset</strong><small>Choose deliberate, balanced, or fast wheel behavior</small></span>
           <select id="wheelPreset"></select>
         </label>
         <label class="control-row" title="Base key for cycling and gestures.">
@@ -116,6 +116,14 @@
         <label class="control-row range-row" title="Minimum time between tab switches; lower feels faster but can overshoot.">
           <span><strong>Cooldown</strong><small id="wheelCooldownValue">Switch delay: 160ms</small></span>
           <input id="wheelCooldownMs" type="range" step="10" />
+        </label>
+        <label class="control-row range-row" title="Normal page scroll speed when page scroll filtering is active.">
+          <span><strong>Page Scroll Speed</strong><small id="pageScrollSpeedValue">Page speed: 1.0x</small></span>
+          <input id="pageScrollSpeedMultiplier" type="range" step="0.1" />
+        </label>
+        <label class="control-row range-row" title="Maximum normal page scroll step as a percentage of the active viewport.">
+          <span><strong>Viewport Step Cap</strong><small id="pageScrollViewportCapValue">Max step: 100%</small></span>
+          <input id="pageScrollViewportCapRatio" type="range" step="0.05" />
         </label>
       </section>
     </main>

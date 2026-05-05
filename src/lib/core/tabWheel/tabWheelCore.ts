@@ -51,3 +51,42 @@ export function normalizeWheelDelta(
       : event.deltaX;
   return Math.abs(normalizedX) > Math.abs(normalizedY) ? normalizedX : normalizedY;
 }
+
+export function resolveWheelTriggerDistance(
+  baseThresholdPx: number,
+  sensitivity: number,
+): number {
+  const safeSensitivity = Number.isFinite(sensitivity) && sensitivity > 0 ? sensitivity : 1;
+  return Math.max(1, baseThresholdPx / safeSensitivity);
+}
+
+export function resolveAcceleratedWheelTriggerDistance(
+  triggerDistancePx: number,
+  burstCount: number,
+  isAccelerationEnabled: boolean,
+): number {
+  if (!isAccelerationEnabled) return triggerDistancePx;
+  const burstReduction = Math.max(0, Math.min(6, burstCount)) * 6;
+  return Math.max(40, triggerDistancePx - burstReduction);
+}
+
+export function shouldUseNativePageScroll(
+  speedMultiplier: number,
+  viewportCapRatio: number,
+): boolean {
+  return Math.abs(speedMultiplier - 1) < 0.001 && Math.abs(viewportCapRatio - 1) < 0.001;
+}
+
+export function scalePageScrollDelta(
+  wheelDelta: number,
+  speedMultiplier: number,
+  viewportSize: number,
+  viewportCapRatio: number,
+): number {
+  const multiplier = Number.isFinite(speedMultiplier) ? Math.max(0, speedMultiplier) : 1;
+  const capRatio = Number.isFinite(viewportCapRatio) ? Math.max(0, viewportCapRatio) : 1;
+  const scaledDelta = wheelDelta * multiplier;
+  const maxStep = Math.max(1, viewportSize) * capRatio;
+  if (maxStep <= 0) return 0;
+  return Math.sign(scaledDelta) * Math.min(Math.abs(scaledDelta), maxStep);
+}

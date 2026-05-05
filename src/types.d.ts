@@ -52,6 +52,8 @@ interface TabWheelSettings {
   wheelPreset: TabWheelPreset;
   wheelSensitivity: number;
   wheelCooldownMs: number;
+  pageScrollSpeedMultiplier: number;
+  pageScrollViewportCapRatio: number;
   wheelAcceleration: boolean;
   horizontalWheel: boolean;
   overshootGuard: boolean;

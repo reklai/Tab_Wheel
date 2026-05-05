@@ -18,11 +18,16 @@ It is built for a small, reliable workflow:
 - General mode for normal tab-order cycling.
 - MRU mode for most-recently-used cycling.
 - Precise, Balanced, Fast, and Custom wheel presets.
-- Sensitivity, cooldown, acceleration, horizontal wheel, wrap-around, pinned-tab, restricted-page skip, and overshoot guard settings.
+- Four wheel sliders for tab sensitivity, tab cooldown, page-scroll speed, and viewport step cap, plus acceleration, horizontal wheel, wrap-around, pinned-tab, restricted-page skip, and overshoot guard settings.
+- Normal page scrolling stays browser-native at 1.0x speed and 100% viewport cap; non-default page-scroll values filter normal vertical wheel scrolling on supported pages.
 - Scroll memory for restoring recent root scroll position and normalized page position when returning to the same URL.
 - Editable-field setting for wheel-cycling inside text boxes, search fields, and editors/docs.
 - Popup Refresh action that reconnects TabWheel on the current page without reloading it.
 - Reliability guards for mouse gestures: middle-click recent-tab switching runs on the completed click, search panels close when leaving the tab, and close-to-recent does not close the current tab unless a recent-tab target is available.
+
+## Engineering Promise
+
+TabWheel's fast, feature-rich, and browser-native promise is reliability first: hot-path gestures do little work, default page scrolling stays native, and non-default page-scroll tuning filters only supported vertical wheel events without turning the page into a custom application shell. Scroll restore waits for layout stability, validates page geometry, and cancels on real browser lifecycle events such as fullscreen changes, tab visibility changes, and page unload.
 
 ## Browser Support
 

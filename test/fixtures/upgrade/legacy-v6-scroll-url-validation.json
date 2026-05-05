@@ -47,7 +47,9 @@
       "overshootGuard": true,
       "wheelAcceleration": false,
       "wheelCooldownMs": 160,
-      "wheelSensitivity": 1
+      "wheelSensitivity": 1,
+      "pageScrollSpeedMultiplier": 1,
+      "pageScrollViewportCapRatio": 1
     }
   },
   "expectedChanged": true

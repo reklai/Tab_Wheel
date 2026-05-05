@@ -86,7 +86,9 @@ test("content script implements modifier-wheel and left/middle/right click actio
   assert.match(source, /function mouseGestureHandler\(event: MouseEvent\): void[\s\S]*shouldSuppressPanelMouseShortcut\(event\)[\s\S]*suppressPageEvent\(event\)[\s\S]*return[\s\S]*const activeSession = getActiveMouseGestureSession\(event\)/);
   assert.match(source, /isWheelGestureBlockedTarget\(event\.target\)[\s\S]*return null[\s\S]*resolveMouseGesturePolicyByButton\(event\.button,\s*MOUSE_GESTURE_POLICIES\)/);
   assert.match(source, /normalizeWheelDelta\(event,\s*window\.innerHeight,\s*window\.innerWidth,\s*settings\.horizontalWheel\)/);
-  assert.match(source, /wheelAccumulator \+= wheelDelta \* settings\.wheelSensitivity/);
+  assert.match(source, /wheelAccumulator \+= wheelDelta/);
+  assert.match(source, /resolveWheelTriggerDistance\(WHEEL_TRIGGER_THRESHOLD_PX,\s*settings\.wheelSensitivity\)/);
+  assert.match(source, /resolveAcceleratedWheelTriggerDistance/);
   assert.match(source, /getRootScrollSnapshot/);
   assert.match(source, /scrollRatioX/);
   assert.match(source, /scrollRatioY/);
@@ -99,9 +101,15 @@ test("content script implements modifier-wheel and left/middle/right click actio
   assert.match(source, /settings\.wheelCooldownMs/);
   assert.match(source, /settings\.wheelAcceleration/);
   assert.match(source, /settings\.overshootGuard/);
-  assert.match(source, /OVERSHOOT_GUARD_MS/);
+  assert.match(source, /handlePageScrollFilter/);
+  assert.match(source, /shouldUseNativePageScroll\(settings\.pageScrollSpeedMultiplier,\s*settings\.pageScrollViewportCapRatio\)/);
+  assert.match(source, /scalePageScrollDelta/);
+  assert.match(source, /resolvePageScrollTarget/);
+  assert.match(source, /isPageScrollFilterBlockedTarget/);
+  assert.match(source, /hasAnyWheelModifier\(event\)/);
+  assert.doesNotMatch(source, /OVERSHOOT_GUARD_MS|overshootGuardUntil|overshootGuardDirection|MIN_ACCELERATED_COOLDOWN_MS/);
   assert.match(source, /if \(isTabWheelPanelOpen\(\)\) dismissPanel\(\)[\s\S]*cycleTabWheel\(direction\)/);
-  assert.match(source, /function resetWheelGestureState\(\): void[\s\S]*wheelAccumulator = 0[\s\S]*lastWheelCycleAt = 0[\s\S]*overshootGuardUntil = 0/);
+  assert.match(source, /function resetWheelGestureState\(\): void[\s\S]*wheelAccumulator = 0[\s\S]*lastWheelCycleAt = 0[\s\S]*wheelBurstCount = 0/);
   assert.match(source, /function resetInputGestureState\(\): void[\s\S]*resetWheelGestureState\(\)[\s\S]*finishMouseGestureSession\(\)/);
   assert.match(source, /function visibilityHandler\(\): void[\s\S]*document\.visibilityState !== "hidden"[\s\S]*cancelScrollRestore\(\)[\s\S]*resetInputGestureState\(\)[\s\S]*if \(!isTopFrameContext\) return[\s\S]*flushScrollSnapshot\(\)[\s\S]*dismissPanel\(\)/);
   assert.match(source, /function pageHideHandler\(\): void[\s\S]*cancelScrollRestore\(\)[\s\S]*flushScrollSnapshot\(\)/);
@@ -138,6 +146,12 @@ test("settings contract exposes MRU scope, restricted-page skipping, and wheel t
   assert.match(contract, /wheelPreset:\s*"balanced"/);
   assert.match(contract, /wheelSensitivity:\s*1/);
   assert.match(contract, /wheelCooldownMs:\s*160/);
+  assert.match(contract, /pageScrollSpeedMultiplier:\s*1/);
+  assert.match(contract, /pageScrollViewportCapRatio:\s*1/);
+  assert.match(contract, /MIN_PAGE_SCROLL_SPEED_MULTIPLIER = 0\.5/);
+  assert.match(contract, /MAX_PAGE_SCROLL_SPEED_MULTIPLIER = 3/);
+  assert.match(contract, /MIN_PAGE_SCROLL_VIEWPORT_CAP_RATIO = 0\.1/);
+  assert.match(contract, /MAX_PAGE_SCROLL_VIEWPORT_CAP_RATIO = 1/);
   assert.match(contract, /wheelAcceleration:\s*false/);
   assert.match(contract, /horizontalWheel:\s*true/);
   assert.match(contract, /overshootGuard:\s*true/);
@@ -152,6 +166,8 @@ test("settings contract exposes MRU scope, restricted-page skipping, and wheel t
   assert.match(types, /skipRestrictedPages: boolean/);
   assert.doesNotMatch(types, /searchUrlTemplate: string/);
   assert.match(types, /openNativeNewTabOnLeftClick: boolean/);
+  assert.match(types, /pageScrollSpeedMultiplier: number/);
+  assert.match(types, /pageScrollViewportCapRatio: number/);
   assert.match(types, /type TabWheelContentScriptStatus = "ready" \| "unavailable"/);
   assert.doesNotMatch(`${contract}\n${types}`, /TabWheelTaggedTabEntry|TABWHEEL_CYCLE_ORDERS|tabWheelWheelList|MAX_WHEEL_LIST_TABS|showCycleToast/);
 });
@@ -347,6 +363,10 @@ test("popup exposes MRU mode and fallback controls", () => {
   assert.match(popupHtml, /id="closeRecentBtn"/);
   assert.match(popupHtml, /Close Tab/);
   assert.match(popupHtml, /id="skipRestrictedPages"/);
+  assert.match(popupHtml, /id="pageScrollSpeedMultiplier"/);
+  assert.match(popupHtml, /id="pageScrollViewportCapRatio"/);
+  assert.match(popupHtml, /Page Scroll Speed/);
+  assert.match(popupHtml, /Viewport Step Cap/);
   assert.match(popupHtml, /id="titlebarText"/);
   assert.match(popupHtml, /<span class="titlebar-text" id="titlebarText">__EXTENSION_NAME__<\/span>/);
   assert.match(popupHtml, /id="refreshTabWheelBtn"/);
@@ -388,6 +408,8 @@ test("options and help document the MRU click gesture model", () => {
   const editableIndex = optionsHtml.indexOf('for="allowGesturesInEditableFields"');
   const sensitivityIndex = optionsHtml.indexOf('for="wheelSensitivity"');
   const cooldownIndex = optionsHtml.indexOf('for="wheelCooldownMs"');
+  const pageSpeedIndex = optionsHtml.indexOf('for="pageScrollSpeedMultiplier"');
+  const viewportCapIndex = optionsHtml.indexOf('for="pageScrollViewportCapRatio"');
 
   assert.ok(headerIndex >= 0);
   assert.ok(modeIndex > headerIndex);
@@ -405,6 +427,8 @@ test("options and help document the MRU click gesture model", () => {
   assert.ok(editableIndex > overshootIndex);
   assert.ok(sensitivityIndex > editableIndex);
   assert.ok(cooldownIndex > sensitivityIndex);
+  assert.ok(pageSpeedIndex > cooldownIndex);
+  assert.ok(viewportCapIndex > pageSpeedIndex);
   assert.match(optionsSource, /gestureModifierSelect/);
   assert.match(optionsSource, /cycleScopeSelect/);
   assert.match(optionsSource, /TABWHEEL_CYCLE_SCOPES/);
@@ -416,6 +440,8 @@ test("options and help document the MRU click gesture model", () => {
   assert.match(optionsHtml, /id="gestureModifier"/);
   assert.match(optionsHtml, /id="gestureWithShift"/);
   assert.match(optionsHtml, /id="wheelPreset"/);
+  assert.match(optionsHtml, /id="pageScrollSpeedMultiplier"/);
+  assert.match(optionsHtml, /id="pageScrollViewportCapRatio"/);
   assert.match(optionsHtml, /id="cycleScope"/);
   assert.doesNotMatch(optionsHtml, /id="searchUrlTemplate"|Search fallback|Fallback search results URL/);
   assert.match(optionsHtml, /id="openNativeNewTabOnLeftClick"/);
@@ -427,6 +453,9 @@ test("options and help document the MRU click gesture model", () => {
   assert.match(optionsHtml, /Tabwheel/);
   assert.match(optionsHtml, /Browser Default/);
   assert.match(optionsHtml, /<strong>Preset<\/strong>/);
+  assert.match(optionsHtml, /<strong>Page Scroll Speed<\/strong>/);
+  assert.match(optionsHtml, /<strong>Viewport Step Cap<\/strong>/);
+  assert.match(optionsHtml, /Normal page scrolling stays native at 1\.0x speed and 100% viewport cap/);
   assert.match(optionsHtml, /<strong>Invert wheel<\/strong>/);
   assert.match(optionsHtml, /<strong>Skip pinned<\/strong>/);
   assert.match(optionsHtml, /<strong>Skip restricted<\/strong>/);
@@ -458,6 +487,8 @@ test("options and help document the MRU click gesture model", () => {
   assert.match(helpSource, /Restricted pages/);
   assert.match(helpSource, /Horizontal wheel/);
   assert.match(helpSource, /Safe overshoot guard/);
+  assert.match(helpSource, /Page scroll speed/);
+  assert.match(helpSource, /Viewport step cap/);
   assert.match(helpSource, /title: "Caveats",\s*layout: "centered"/);
   assert.match(helpSource, /token:\s*"Modifier-click caveat"/);
   assert.match(helpSource, /modifier \+ left\/middle\/right click can be reserved by sites, browsers, or the OS/);
