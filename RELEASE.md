@@ -14,9 +14,9 @@ Run `npm run ci` before preparing a release, then run:
 npm run release:package
 ```
 
-## 1.0.5
+## 2.0.0
 
-Restricted-page reliability release:
+Major wheel tuning and restricted-page reliability release:
 
 - Added meaningful wheel tuning across four sliders: tab sensitivity, tab cooldown, page-scroll speed, and viewport step cap.
 - Page-scroll tuning preserves native scrolling at default settings and only filters normal vertical wheel scrolling when page-scroll values are non-default.
@@ -26,7 +26,7 @@ Restricted-page reliability release:
 - Expanded restricted-page detection for known browser stores such as Chrome Web Store and Mozilla Add-ons.
 - Updated restricted-page copy so fallback controls describe the actual Close Tab action.
 - Rebuilt Chrome, Firefox, and source release artifacts from the current implementation.
-- Kept the package and browser manifests aligned at `1.0.5`.
+- Kept the package and browser manifests aligned at `2.0.0`.
 
 ## 1.0.4
 
