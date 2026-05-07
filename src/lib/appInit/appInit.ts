@@ -140,44 +140,49 @@ function clampScrollX(scrollX: number): number {
   return Math.max(0, Math.min(scrollX, getMaxScrollX()));
 }
 
+const PAGE_SCROLL_FILTER_BLOCKED_SELECTOR = [
+  "input",
+  "textarea",
+  "select",
+  "[contenteditable='']",
+  "[contenteditable='true']",
+  "[role='textbox']",
+  "[role='slider']",
+  "[role='spinbutton']",
+  "[role='scrollbar']",
+  "[role='application']",
+  "iframe",
+  "embed",
+  "object",
+  "video",
+  "audio",
+  "canvas",
+  "[data-tabwheel-native-scroll='true']",
+  "[class*='mapbox' i]",
+  "[class*='leaflet' i]",
+  "[class*='monaco' i]",
+  "[class*='cm-editor' i]",
+].join(",");
+
 function isPageScrollFilterBlockedTarget(target: EventTarget | null): boolean {
   if (!(target instanceof Element)) return false;
-  return Boolean(target.closest([
-    "input",
-    "textarea",
-    "select",
-    "[contenteditable='']",
-    "[contenteditable='true']",
-    "[role='textbox']",
-    "[role='slider']",
-    "[role='spinbutton']",
-    "[role='scrollbar']",
-    "[role='application']",
-    "iframe",
-    "embed",
-    "object",
-    "video",
-    "audio",
-    "canvas",
-    "[data-tabwheel-native-scroll='true']",
-    "[class*='mapbox' i]",
-    "[class*='leaflet' i]",
-    "[class*='monaco' i]",
-    "[class*='cm-editor' i]",
-  ].join(",")));
+  return target.closest(PAGE_SCROLL_FILTER_BLOCKED_SELECTOR) !== null;
 }
 
 function isScrollableOverflowY(value: string): boolean {
   return value === "auto" || value === "scroll" || value === "overlay";
 }
 
+function getElementMaxScrollTop(element: HTMLElement): number {
+  return Math.max(0, element.scrollHeight - element.clientHeight);
+}
+
 function canScrollElementVertically(element: HTMLElement, direction: number): boolean {
   if (direction === 0) return false;
   if (element === document.documentElement || element === document.body) return false;
-  const style = window.getComputedStyle(element);
-  if (!isScrollableOverflowY(style.overflowY)) return false;
-  const maxScrollTop = Math.max(0, element.scrollHeight - element.clientHeight);
+  const maxScrollTop = getElementMaxScrollTop(element);
   if (maxScrollTop <= 1) return false;
+  if (!isScrollableOverflowY(window.getComputedStyle(element).overflowY)) return false;
   return direction > 0 ? element.scrollTop < maxScrollTop - 1 : element.scrollTop > 1;
 }
 
@@ -223,7 +228,7 @@ function scrollPageTarget(target: PageScrollTarget, deltaY: number): void {
     });
     return;
   }
-  const maxScrollTop = Math.max(0, target.element.scrollHeight - target.element.clientHeight);
+  const maxScrollTop = getElementMaxScrollTop(target.element);
   target.element.scrollTop = Math.max(0, Math.min(maxScrollTop, target.element.scrollTop + deltaY));
 }
 
@@ -546,23 +551,24 @@ export function initApp(): void {
     return normalizeWheelDelta(event, window.innerHeight, window.innerWidth, settings.horizontalWheel);
   }
 
-  function getWheelTriggerDistance(now: number): number {
-    const baseDistance = resolveWheelTriggerDistance(WHEEL_TRIGGER_THRESHOLD_PX, settings.wheelSensitivity);
-    const nextBurstCount = now - lastWheelCycleAt <= WHEEL_ACCELERATION_WINDOW_MS
+  function computeNextBurstCount(now: number): number {
+    return now - lastWheelCycleAt <= WHEEL_ACCELERATION_WINDOW_MS
       ? Math.min(wheelBurstCount + 1, 6)
       : 0;
+  }
+
+  function getWheelTriggerDistance(now: number): number {
+    const baseDistance = resolveWheelTriggerDistance(WHEEL_TRIGGER_THRESHOLD_PX, settings.wheelSensitivity);
     return resolveAcceleratedWheelTriggerDistance(
       baseDistance,
-      nextBurstCount,
+      computeNextBurstCount(now),
       settings.wheelAcceleration,
     );
   }
 
   function runWheelCycle(direction: "prev" | "next", now: number): boolean {
     if (now - lastWheelCycleAt < settings.wheelCooldownMs) return false;
-    wheelBurstCount = now - lastWheelCycleAt <= WHEEL_ACCELERATION_WINDOW_MS
-      ? Math.min(wheelBurstCount + 1, 6)
-      : 0;
+    wheelBurstCount = computeNextBurstCount(now);
     lastWheelCycleAt = now;
     if (isTabWheelPanelOpen()) dismissPanel();
     void cycleTabWheel(direction).catch(() => {});
@@ -574,16 +580,17 @@ export function initApp(): void {
     if (!areSettingsLoaded || !event.isTrusted || event.defaultPrevented) return false;
     if (hasAnyWheelModifier(event)) return false;
     if (shouldUseNativePageScroll(settings.pageScrollSpeedMultiplier, settings.pageScrollViewportCapRatio)) return false;
-    if (isPageScrollFilterBlockedTarget(event.target)) return false;
     if (event.deltaY === 0) return false;
+    if (isPageScrollFilterBlockedTarget(event.target)) return false;
     const scrollTarget = resolvePageScrollTarget(event, Math.sign(event.deltaY));
     if (!scrollTarget) return false;
-    const rawDeltaY = normalizeWheelDeltaY(event, getPageScrollTargetViewportHeight(scrollTarget));
+    const viewportHeight = getPageScrollTargetViewportHeight(scrollTarget);
+    const rawDeltaY = normalizeWheelDeltaY(event, viewportHeight);
     if (rawDeltaY === 0) return false;
     const scaledDeltaY = scalePageScrollDelta(
       rawDeltaY,
       settings.pageScrollSpeedMultiplier,
-      getPageScrollTargetViewportHeight(scrollTarget),
+      viewportHeight,
       settings.pageScrollViewportCapRatio,
     );
     if (scaledDeltaY === 0) return false;
@@ -605,11 +612,8 @@ export function initApp(): void {
     const triggerDistance = getWheelTriggerDistance(now);
     if (Math.abs(wheelAccumulator) < triggerDistance) return;
     const direction = resolveWheelDirection(wheelAccumulator, settings.invertScroll);
-    if (runWheelCycle(direction, now)) {
-      wheelAccumulator = 0;
-      return;
-    }
-    if (settings.overshootGuard) {
+    const cycleRan = runWheelCycle(direction, now);
+    if (cycleRan || settings.overshootGuard) {
       wheelAccumulator = 0;
       return;
     }

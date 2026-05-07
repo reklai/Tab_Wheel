@@ -60,14 +60,19 @@ export function resolveWheelTriggerDistance(
   return Math.max(1, baseThresholdPx / safeSensitivity);
 }
 
+const MAX_BURST_COUNT = 6;
+const BURST_REDUCTION_PX_PER_BURST = 6;
+const MIN_ACCELERATED_TRIGGER_DISTANCE_PX = 40;
+
 export function resolveAcceleratedWheelTriggerDistance(
   triggerDistancePx: number,
   burstCount: number,
   isAccelerationEnabled: boolean,
 ): number {
   if (!isAccelerationEnabled) return triggerDistancePx;
-  const burstReduction = Math.max(0, Math.min(6, burstCount)) * 6;
-  return Math.max(40, triggerDistancePx - burstReduction);
+  const cappedBurstCount = Math.max(0, Math.min(MAX_BURST_COUNT, burstCount));
+  const burstReduction = cappedBurstCount * BURST_REDUCTION_PX_PER_BURST;
+  return Math.max(MIN_ACCELERATED_TRIGGER_DISTANCE_PX, triggerDistancePx - burstReduction);
 }
 
 export function shouldUseNativePageScroll(
