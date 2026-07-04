@@ -5,7 +5,7 @@ TabWheel is a browser extension for switching tabs with the mouse scroll wheel. 
 It is built for a small, reliable workflow:
 
 - `Alt + Wheel`: switch tabs.
-- `Alt + Left Click`: open the in-page search launcher by default, or the browser's normal new tab page when enabled.
+- `Alt + Left Click`: open the in-page search launcher by default, or remap it to Browser Default new tab, recent tab, close, duplicate, settings, or native click.
 - `Alt + Middle Click`: jump to the most recently used tab.
 - `Alt + Right Click`: close the current tab; when available, activate the most recently used tab first.
 - Toolbar popup: change mode, tune wheel behavior, and use fallback controls.
@@ -13,12 +13,13 @@ It is built for a small, reliable workflow:
 ## Features
 
 - Mouse wheel tab switching with configurable modifier: `Alt / Option`, `Ctrl / Control`, or `Meta / Command`.
-- In-page search launcher that uses the browser's default search provider first, with a fixed Google fallback if the browser search API is unavailable and an optional Browser Default left-click new tab mode.
+- In-page search launcher that uses the browser's default search provider first, with a fixed Google fallback if the browser search API is unavailable.
+- Remappable left, middle, and right click actions: TabWheel Search, Browser Default new tab, Most Recent Tab, Close Tab, Duplicate Tab, Open Settings, or native click pass-through.
 - Optional `Shift` requirement to reduce accidental activation.
 - General mode for normal tab-order cycling.
 - MRU mode for most-recently-used cycling.
 - Precise, Balanced, Fast, and Custom wheel presets.
-- Four wheel sliders for tab sensitivity, tab cooldown, page-scroll speed, and viewport step cap, plus acceleration, horizontal wheel, wrap-around, pinned-tab, restricted-page skip, and overshoot guard settings.
+- Four wheel sliders for tab sensitivity, tab cooldown, page-scroll speed, and viewport step cap, plus acceleration, horizontal wheel, wrap-around, pinned-tab, hidden-tab, restricted-page skip, and overshoot guard settings.
 - Normal page scrolling stays browser-native at 1.0x speed and 100% viewport cap; non-default page-scroll values filter normal vertical wheel scrolling on supported pages.
 - Scroll memory for restoring recent root scroll position and normalized page position when returning to the same URL.
 - Editable-field setting for wheel-cycling inside text boxes, search fields, and editors/docs.
@@ -100,9 +101,9 @@ npm run release:package
 
 Generated output:
 
-- `release/tabwheel-chrome-v2.0.0.zip`
-- `release/tabwheel-firefox-v2.0.0.xpi`
-- `release/tabwheel-source-v2.0.0.zip`
+- `release/tabwheel-chrome-v2.0.1.zip`
+- `release/tabwheel-firefox-v2.0.1.xpi`
+- `release/tabwheel-source-v2.0.1.zip`
 
 ## Project Structure
 

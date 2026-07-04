@@ -14,6 +14,27 @@ Run `npm run ci` before preparing a release, then run:
 npm run release:package
 ```
 
+## 2.0.1
+
+Hardening release for the unpublished 2.0.0 work:
+
+- Fixed Chrome gestures never working in tabs that were already open at install time: programmatic injection now recovers when a restricted subframe makes Chrome reject all-frames injection, re-injects existing tabs on extension updates, and primes each window's focused tab on every background start (covering disable/enable).
+- Wheel cycling never activates a tab whose gesture availability was not verified when skip-restricted-pages is enabled; unverified tabs are skipped for that tick and retried after probing.
+- Cycling through sleeping (discarded) tabs no longer freezes for the wake grace period; the grace window now only protects the waking tab's remembered scroll position from being overwritten.
+- Panel-open click suppression follows the remapped click actions and no longer swallows primary-button clicks aimed at the panel's own controls.
+- The help overlay locks page scrolling correctly even when custom page-scroll speed settings are active.
+- Most Recent Tab click actions report a status message when no recent tab is available.
+- Cached collapsed tab-group lookups off the wheel hot path and hardened the runtime message router against malformed messages.
+- Added per-button click action remapping for modifier + left, middle, and right click, including TabWheel Search, Browser Default new tab, Most Recent Tab, Close Tab, Duplicate Tab, Open Settings, and native click pass-through.
+- Reorganized the options page into titled sections and added a reset-to-defaults button.
+- Added a skip-hidden-tabs setting to keep collapsed tab groups and hidden panes out of wheel cycling.
+- Migrated the old Browser Default left-click preference into the new v13 `leftClickAction` setting and removed the legacy storage key.
+- Fixed service-worker race paths with in-flight loading, serialized MRU writes, serialized per-window gesture actions, guarded tab API failures, and runtime handler error isolation.
+- Reduced content-script hot-path listener work by removing duplicate document-level capture listeners.
+- Debounced popup overview refreshes after settings changes and bounded restricted-page probing for click and wheel gesture targets.
+- Skipped the full storage snapshot on service-worker wake when the stored schema version is already current.
+- Kept the package and browser manifests aligned at `2.0.1`.
+
 ## 2.0.0
 
 Major wheel tuning and restricted-page reliability release:
