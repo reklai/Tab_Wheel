@@ -1,7 +1,6 @@
-// Shared TabWheel contract: storage keys, setting defaults, and normalizers.
-// Every surface (background, content script, popup, options) passes settings
-// through the normalizers here, so stored values stay valid even when they
-// were written by an older version or changed outside the extension.
+// Every surface loads settings through this contract. Keep defaults,
+// normalizers, and storage keys together so older stored values are corrected
+// before they reach UI or runtime code.
 
 import browser from "webextension-polyfill";
 import {
@@ -139,9 +138,8 @@ export function buildSearchUrl(query: string): string {
   return GOOGLE_SEARCH_URL_TEMPLATE.replaceAll("%s", encodeURIComponent(normalizeSearchQuery(query)));
 }
 
-// Recent TabWheel Search queries, most-recent-first. Kept local to power the
-// search palette's autocomplete; deduped case-insensitively (keeping the newest
-// spelling) and capped so stored history stays bounded.
+// Search recents are local-only autocomplete data. Normalize them here so the
+// stored list is deduped, bounded, and newest-first no matter which surface wrote it.
 export function normalizeSearchHistory(value: unknown): string[] {
   if (!Array.isArray(value)) return [];
   const seenKeys = new Set<string>();

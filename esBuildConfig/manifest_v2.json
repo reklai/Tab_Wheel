@@ -2,7 +2,7 @@
   "manifest_version": 2,
   "name": "Scroll Wheel Tab Switcher",
   "version": "2.0.1",
-  "description": "Alt + mouse wheel switches tabs. Left/middle/right clicks remap to search, new tab, recent, close, duplicate, settings.",
+  "description": "Hold Alt and scroll your mouse wheel to switch tabs. Alt+middle-click opens settings. Optional: choose what each mouse click does.",
   "browser_specific_settings": {
     "gecko": {
       "id": "@tabwheel.reklai",
@@ -15,6 +15,8 @@
     "tabs",
     "storage",
     "search",
+    "history",
+    "bookmarks",
     "<all_urls>"
   ],
   "background": {
@@ -36,6 +38,8 @@
   },
   "browser_action": {
     "default_icon": {
+      "16": "icons/icon-16.png",
+      "32": "icons/icon-32.png",
       "48": "icons/icon-48.png",
       "96": "icons/icon-96.png"
     },
@@ -43,6 +47,8 @@
     "default_title": "Scroll Wheel Tab Switcher"
   },
   "icons": {
+    "16": "icons/icon-16.png",
+    "32": "icons/icon-32.png",
     "48": "icons/icon-48.png",
     "96": "icons/icon-96.png",
     "128": "icons/icon-128.png"

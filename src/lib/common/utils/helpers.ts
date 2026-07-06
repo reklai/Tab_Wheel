@@ -1,6 +1,3 @@
-// Shared utility functions used across content script modules.
-
-/** HTML-escape a string to prevent XSS in innerHTML assignments */
 const HTML_ESCAPE: Record<string, string> = {
   "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;",
 };
@@ -10,12 +7,10 @@ export function escapeHtml(text: string): string {
   return text.replace(/[&<>"']/g, (character) => HTML_ESCAPE[character]);
 }
 
-/** Escape special regex characters so user input can be used in RegExp safely */
 export function escapeRegex(text: string): string {
   return text.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 }
 
-/** Build a case-insensitive fuzzy regex from a space-separated query string */
 export function buildFuzzyPattern(query: string): RegExp | null {
   const terms = query.trim().split(/\s+/).filter(Boolean);
   if (terms.length === 0) return null;
@@ -34,7 +29,6 @@ export function buildFuzzyPattern(query: string): RegExp | null {
   }
 }
 
-/** Extract hostname from a URL, with fallback to truncated string */
 const DOMAIN_CACHE_MAX = 500;
 const domainCache = new Map<string, string>();
 
@@ -65,7 +59,8 @@ const TRACKING_QUERY_KEYS = new Set([
   "mc_eid",
 ]);
 
-/** Normalize URL for duplicate detection/reuse matching across tabs. */
+// Match reusable pages by stable URL parts, not by tracking noise or fragments
+// added by sites after navigation.
 export function normalizeUrlForMatch(rawUrl: string): string {
   const trimmed = rawUrl.trim();
   if (!trimmed) return "";
@@ -102,7 +97,7 @@ export function normalizeUrlForMatch(rawUrl: string): string {
 
     return `${protocol}//${hostname}${port}${pathname}${search}`;
   } catch (_) {
-    // For non-standard URLs, fallback to trimmed lowercase and strip trailing slash.
+    // Internal and non-standard URLs still need a deterministic key.
     return trimmed.toLowerCase().replace(/\/+$/, "");
   }
 }

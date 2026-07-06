@@ -1,8 +1,6 @@
-// Content-script application: wheel cycling, click gestures, the in-page
-// scroll filter, scroll-memory snapshots, and background message handling.
-// initApp() runs once per frame and is safe to re-run — it first calls the
-// previous instance's window.__tabWheelCleanup, which is how re-injecting from
-// code (installs, updates, popup refresh) avoids stacking listeners.
+// initApp can be injected more than once into the same frame after installs,
+// updates, or popup refreshes. It starts by running the previous cleanup hook so
+// wheel and mouse listeners do not stack.
 
 import browser from "webextension-polyfill";
 import {
@@ -50,7 +48,6 @@ import {
   openTabWheelOptions,
   saveTabWheelScrollPosition,
 } from "../adapters/runtime/tabWheelApi";
-import { openTabWheelHelpOverlay } from "../ui/panels/help/help";
 import { openTabWheelSearchLauncher } from "../ui/panels/searchLauncher/searchLauncher";
 
 declare global {
@@ -493,8 +490,8 @@ export function initApp(): void {
     if (!areSettingsLoaded) return false;
     if (!isTabWheelPanelOpen()) return false;
     if (!event.isTrusted) return false;
-    // Primary-button clicks are how the user operates the panel itself. Only the
-    // non-primary gesture buttons (and the context menu) need swallowing.
+    // The panel needs normal left-clicks for its own controls; only gesture
+    // buttons that could leak to the page are swallowed while the panel is open.
     if (event.button === 0 && event.type !== "contextmenu") return false;
     if (!isTabWheelModifier(event, settings.gestureModifier, settings.gestureWithShift)) return false;
     return resolvePanelSuppressedMouseGesturePolicy(event) !== null;
@@ -568,8 +565,8 @@ export function initApp(): void {
         runGestureActionWithStatus(() => closeCurrentTabWheelTabAndActivateRecent(), "Close tab failed");
         return;
       default: {
-        // Compile-time exhaustiveness: a new action must be wired here explicitly
-        // rather than falling through to a destructive default.
+        // New gesture actions must be handled explicitly; do not let an unknown
+        // action fall through to a tab-changing default.
         const unhandled: never = action;
         void unhandled;
       }
@@ -608,8 +605,8 @@ export function initApp(): void {
     if (!isTopFrameContext) return false;
     if (!areSettingsLoaded || !event.isTrusted || event.defaultPrevented) return false;
     if (hasAnyWheelModifier(event)) return false;
-    // If an overlay is open, it owns plain wheel input — its own listener locks
-    // the page. Filtering here would scroll the page underneath.
+    // Overlays contain their own wheel handling. Letting the page-scroll filter
+    // run underneath would move the document while the overlay is active.
     if (isTabWheelPanelOpen()) return false;
     if (shouldUseNativePageScroll(settings.pageScrollSpeedMultiplier, settings.pageScrollViewportCapRatio)) return false;
     if (event.deltaY === 0) return false;
@@ -713,9 +710,6 @@ export function initApp(): void {
         return Promise.resolve({ ok: true });
       case "TABWHEEL_DISMISS_PANEL":
         dismissPanel();
-        return Promise.resolve({ ok: true });
-      case "OPEN_TABWHEEL_HELP":
-        void openTabWheelHelpOverlay();
         return Promise.resolve({ ok: true });
     }
   }

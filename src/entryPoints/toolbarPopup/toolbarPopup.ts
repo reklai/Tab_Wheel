@@ -1,5 +1,3 @@
-// Browser-action popup for TabWheel controls.
-
 import browser from "webextension-polyfill";
 import {
   applyTabWheelPreset,
@@ -16,8 +14,10 @@ import {
   MIN_PAGE_SCROLL_VIEWPORT_CAP_RATIO,
   MIN_WHEEL_COOLDOWN_MS,
   MIN_WHEEL_SENSITIVITY,
+  normalizeTabWheelSettings,
   saveTabWheelSettings,
   summarizeTabWheelClickAction,
+  TABWHEEL_STORAGE_KEYS,
 } from "../../lib/common/contracts/tabWheel";
 import {
   activateMostRecentTabWheelTab,
@@ -25,9 +25,9 @@ import {
   cycleTabWheel,
   getTabWheelOverview,
   getTabWheelOverviewWithRetry,
-  openTabWheelHelp,
   openTabWheelSearchTab,
   refreshCurrentTabWheel,
+  resetTabWheelState,
   setTabWheelCycleScope,
 } from "../../lib/adapters/runtime/tabWheelApi";
 import { createDebouncedCallback } from "../../lib/common/utils/asyncFlow";
@@ -61,7 +61,6 @@ document.addEventListener("DOMContentLoaded", async () => {
   const toastEl = document.getElementById("popupToast")!;
   const titlebarTextEl = document.getElementById("titlebarText")!;
   const refreshTabWheelBtn = document.getElementById("refreshTabWheelBtn") as HTMLButtonElement;
-  const scopeLabel = document.getElementById("scopeLabel")!;
   const generalModeBtn = document.getElementById("generalModeBtn") as HTMLButtonElement;
   const mruModeBtn = document.getElementById("mruModeBtn") as HTMLButtonElement;
   const leftClickActionLabel = document.getElementById("leftClickActionLabel")!;
@@ -94,7 +93,7 @@ document.addEventListener("DOMContentLoaded", async () => {
   const pageScrollSpeedValue = document.getElementById("pageScrollSpeedValue")!;
   const pageScrollViewportCapInput = document.getElementById("pageScrollViewportCapRatio") as HTMLInputElement;
   const pageScrollViewportCapValue = document.getElementById("pageScrollViewportCapValue")!;
-  const helpBtn = document.getElementById("helpBtn") as HTMLButtonElement;
+  const resetBtn = document.getElementById("resetBtn") as HTMLButtonElement;
   const settingsBtn = document.getElementById("settingsBtn") as HTMLButtonElement;
 
   let settings = await loadTabWheelSettings();
@@ -146,7 +145,6 @@ document.addEventListener("DOMContentLoaded", async () => {
     const cycleScope = overview?.cycleScope || settings.cycleScope;
     shortcutEl.textContent = `Hold ${gesture} and Use Mouse Wheel or Clicks`;
     titlebarTextEl.textContent = EXTENSION_TITLE;
-    scopeLabel.textContent = formatTabWheelCycleScopeLabel(cycleScope);
     renderModeButtons(cycleScope);
     renderClickActionControls();
     const arePageShortcutsReady = overview?.contentScriptStatus === "ready";
@@ -210,6 +208,17 @@ document.addEventListener("DOMContentLoaded", async () => {
     showStatus("Saved");
     scheduleOverviewRefresh();
   }
+
+  // The options page can save while this popup is open; refresh local state so a
+  // later popup edit does not overwrite newer storage.
+  browser.storage.onChanged.addListener((changes: Record<string, browser.Storage.StorageChange>, areaName: string) => {
+    if (areaName !== "local") return;
+    const settingsChange = changes[TABWHEEL_STORAGE_KEYS.settings];
+    if (!settingsChange) return;
+    settings = normalizeTabWheelSettings(settingsChange.newValue);
+    renderSettings();
+    renderState();
+  });
 
   async function runPopupAction(
     action: () => Promise<TabWheelActionResult>,
@@ -388,13 +397,9 @@ document.addEventListener("DOMContentLoaded", async () => {
     void refreshCurrentTabWheelState();
   });
 
-  helpBtn.addEventListener("click", async () => {
-    const result = await openTabWheelHelp();
-    if (!result.ok) {
-      showStatus(result.reason || "Help unavailable on this page");
-      return;
-    }
-    window.close();
+  resetBtn.addEventListener("click", async () => {
+    await resetTabWheelState().catch(() => {});
+    showStatus("Defaults restored");
   });
 
   settingsBtn.addEventListener("click", () => {

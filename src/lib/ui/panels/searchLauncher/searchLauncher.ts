@@ -1,8 +1,5 @@
-// TabWheel search launcher - a live command palette. Typing filters your recent
-// searches (default), "/tab" fuzzy-searches open tabs, and Enter runs a web
-// search when nothing is selected. History ("/hist") and bookmarks ("/book")
-// are recognized but arrive in a later update. All matching happens in the
-// background; this file renders the animated, keyboard-navigable results.
+// The palette renders only UI state; suggestion gathering stays in the
+// background so history/bookmark permissions and tab activation remain there.
 
 import { normalizeSearchQuery } from "../../../common/contracts/tabWheel";
 import { createDebouncedCallback } from "../../../common/utils/asyncFlow";
@@ -18,6 +15,7 @@ import {
   activateTabWheelTab,
   getTabWheelSearchSuggestions,
   openTabWheelSearchTab,
+  openTabWheelUrlTab,
 } from "../../../adapters/runtime/tabWheelApi";
 import styles from "./searchLauncher.css";
 
@@ -25,38 +23,33 @@ type LauncherCommand = "tab" | "hist" | "book";
 
 type LauncherInputState =
   | { kind: "fetch"; mode: TabWheelSearchMode; query: string }
-  | { kind: "commandMenu"; filter: string }
-  | { kind: "deferred"; command: "hist" | "book" };
+  | { kind: "commandMenu"; filter: string };
 
 type LauncherRow =
   | { kind: "recent"; item: TabWheelSuggestionItem }
   | { kind: "tab"; item: TabWheelSuggestionItem }
+  | { kind: "link"; item: TabWheelSuggestionItem }
   | { kind: "web"; query: string }
-  | { kind: "command"; command: LauncherCommand }
-  | { kind: "deferred"; command: "hist" | "book" };
+  | { kind: "command"; command: LauncherCommand };
 
 const SEARCH_MODE_LABELS: Record<TabWheelSearchMode, string> = {
   recent: "RECENT",
   tab: "TAB",
+  hist: "HISTORY",
+  book: "BOOKMARK",
 };
 
 const COMMAND_DEFINITIONS: ReadonlyArray<{ command: LauncherCommand; hint: string }> = [
+  { command: "book", hint: "search bookmarks" },
+  { command: "hist", hint: "search history" },
   { command: "tab", hint: "search open tabs" },
-  { command: "hist", hint: "search history (soon)" },
-  { command: "book", hint: "search bookmarks (soon)" },
 ];
-
-const DEFERRED_LABELS: Record<"hist" | "book", string> = {
-  hist: "History search arrives in a later update.",
-  book: "Bookmark search arrives in a later update.",
-};
 
 function parseLauncherInput(rawValue: string): LauncherInputState {
   const committed = rawValue.match(/^\/(tab|hist|book)\s([\s\S]*)$/);
   if (committed) {
     const command = committed[1] as LauncherCommand;
-    if (command === "tab") return { kind: "fetch", mode: "tab", query: committed[2] };
-    return { kind: "deferred", command };
+    return { kind: "fetch", mode: command, query: committed[2] };
   }
   if (rawValue.startsWith("/")) {
     return { kind: "commandMenu", filter: rawValue.slice(1).toLowerCase() };
@@ -90,12 +83,12 @@ export async function openTabWheelSearchLauncher(): Promise<void> {
 
   panel.innerHTML = `
     <div class="ht-search-hint">
-      <span class="ht-search-hint-label">Try</span>
+      <span class="ht-search-hint-label">Filters:</span>
     </div>
     <form class="ht-search-form" id="ht-search-form">
       <div class="ht-search-field">
         <span class="ht-search-mode" hidden></span>
-        <input class="ht-search-input" name="query" type="search" autocomplete="off" spellcheck="false" placeholder="Search, or type / for commands" autofocus />
+        <input class="ht-search-input" name="query" type="search" autocomplete="off" spellcheck="false" placeholder="Search or type / to apply filter..." autofocus />
       </div>
       <button class="ht-search-cancel" type="button">Cancel</button>
       <button class="ht-search-submit" type="submit">Search</button>
@@ -129,6 +122,11 @@ export async function openTabWheelSearchLauncher(): Promise<void> {
     return document.getElementById("ht-panel-host") !== null;
   }
 
+  function invalidateSuggestionRequests(): number {
+    requestSerial += 1;
+    return requestSerial;
+  }
+
   function setStatus(message: string): void {
     status.textContent = message;
     status.hidden = message.length === 0;
@@ -147,24 +145,20 @@ export async function openTabWheelSearchLauncher(): Promise<void> {
   }
 
   function close(): void {
+    invalidateSuggestionRequests();
     requestSuggestions.cancel();
     modalSession?.dispose();
     modalSession = null;
     removePanelHost();
   }
 
-  function setModeChip(mode: TabWheelSearchMode | LauncherCommand | null): void {
+  function setModeChip(mode: TabWheelSearchMode | null): void {
     if (!mode) {
       modeChip.hidden = true;
       modeChip.textContent = "";
       return;
     }
-    const label = mode === "hist"
-      ? "HISTORY"
-      : mode === "book"
-        ? "BOOKMARK"
-        : SEARCH_MODE_LABELS[mode as TabWheelSearchMode] ?? mode.toUpperCase();
-    modeChip.textContent = label;
+    modeChip.textContent = SEARCH_MODE_LABELS[mode];
     modeChip.hidden = false;
   }
 
@@ -215,11 +209,10 @@ export async function openTabWheelSearchLauncher(): Promise<void> {
     glyph.className = "ht-search-glyph";
     glyph.setAttribute("aria-hidden", "true");
     if (row.kind === "recent") glyph.textContent = "↺";
-    else if (row.kind === "tab") glyph.textContent = domainFromUrl(row.item.secondary).slice(0, 1).toUpperCase() || "▸";
+    else if (row.kind === "tab" || row.kind === "link") glyph.textContent = domainFromUrl(row.item.secondary).slice(0, 1).toUpperCase() || "▸";
     else if (row.kind === "web") glyph.textContent = "⌕";
-    else if (row.kind === "command") glyph.textContent = "›";
-    else glyph.textContent = "·";
-    if (row.kind === "tab") glyph.classList.add("ht-search-glyph-mono");
+    else glyph.textContent = "›";
+    if (row.kind === "tab" || row.kind === "link") glyph.classList.add("ht-search-glyph-mono");
     return glyph;
   }
 
@@ -233,13 +226,10 @@ export async function openTabWheelSearchLauncher(): Promise<void> {
     return rowElement;
   }
 
-  // Rebuild only a row's inner content, leaving the <li> itself in place. Because
-  // the entrance animation lives on the <li> (and runs once), reusing elements
-  // across keystrokes means existing rows never re-animate — only brand-new rows
-  // fade in, which is what stops the list from flickering as you type.
+  // Row entrance animation is attached to the <li>, so keep existing nodes and
+  // replace their contents. Otherwise every keystroke restarts the animation.
   function fillRowContent(rowElement: HTMLLIElement, row: LauncherRow): void {
     rowElement.replaceChildren();
-    rowElement.classList.toggle("ht-search-option-muted", row.kind === "deferred");
 
     rowElement.appendChild(createRowIcon(row));
 
@@ -247,18 +237,16 @@ export async function openTabWheelSearchLauncher(): Promise<void> {
     text.className = "ht-search-text";
     const primary = document.createElement("span");
     primary.className = "ht-search-primary";
-    if (row.kind === "recent" || row.kind === "tab") {
+    if (row.kind === "recent" || row.kind === "tab" || row.kind === "link") {
       appendHighlightedText(primary, row.item.primary, row.item.positions);
     } else if (row.kind === "web") {
       primary.textContent = `Search the web for "${row.query}"`;
-    } else if (row.kind === "command") {
-      primary.textContent = `/${row.command}`;
     } else {
-      primary.textContent = DEFERRED_LABELS[row.command];
+      primary.textContent = `/${row.command}`;
     }
     text.appendChild(primary);
 
-    if (row.kind === "tab" && row.item.secondary) {
+    if ((row.kind === "tab" || row.kind === "link") && row.item.secondary) {
       const secondary = document.createElement("span");
       secondary.className = "ht-search-secondary";
       secondary.textContent = domainFromUrl(row.item.secondary);
@@ -281,7 +269,9 @@ export async function openTabWheelSearchLauncher(): Promise<void> {
         ? "web search"
         : row.kind === "recent"
           ? "recent"
-          : "";
+          : row.kind === "link"
+            ? (row.item.source === "hist" ? "history" : "bookmark")
+            : "";
     if (!kickerText) return;
     const kicker = document.createElement("span");
     kicker.className = "ht-search-kicker";
@@ -344,8 +334,8 @@ export async function openTabWheelSearchLauncher(): Promise<void> {
       showSuggest(false);
       return;
     }
-    // Reconcile positionally: reuse the <li> already at each index (just refresh
-    // its content), create only the rows the list grew by, and drop the surplus.
+    // Reconcile by index to keep keyboard focus, aria-activedescendant, and row
+    // animation state stable while suggestion text changes.
     const nextElements: HTMLLIElement[] = [];
     for (let index = 0; index < nextRows.length; index += 1) {
       let rowElement = rowElements[index];
@@ -371,16 +361,13 @@ export async function openTabWheelSearchLauncher(): Promise<void> {
     renderRows(visible.map((entry) => ({ kind: "command", command: entry.command })));
   }
 
-  function renderDeferred(command: "hist" | "book"): void {
-    setModeChip(command);
-    renderRows([{ kind: "deferred", command }]);
-  }
-
-  function buildFetchRows(mode: TabWheelSearchMode, query: string, items: TabWheelSuggestionItem[]): LauncherRow[] {
+  function buildFetchRows(query: string, items: TabWheelSuggestionItem[]): LauncherRow[] {
     const nextRows: LauncherRow[] = items.map((item) => (
-      mode === "tab"
+      item.source === "tab"
         ? { kind: "tab", item }
-        : { kind: "recent", item }
+        : item.source === "recent"
+          ? { kind: "recent", item }
+          : { kind: "link", item }
     ));
     const normalizedQuery = normalizeSearchQuery(query);
     if (normalizedQuery) nextRows.push({ kind: "web", query: normalizedQuery });
@@ -388,12 +375,11 @@ export async function openTabWheelSearchLauncher(): Promise<void> {
   }
 
   async function runFetch(state: { mode: TabWheelSearchMode; query: string }): Promise<void> {
-    const serial = requestSerial + 1;
-    requestSerial = serial;
+    const serial = invalidateSuggestionRequests();
     const result = await getTabWheelSearchSuggestions(state.query, state.mode).catch(() => null);
     if (serial !== requestSerial || !isPanelAlive()) return;
     const items = result?.ok ? result.items : [];
-    renderRows(buildFetchRows(state.mode, state.query, items));
+    renderRows(buildFetchRows(state.query, items));
   }
 
   const requestSuggestions = createDebouncedCallback(
@@ -402,6 +388,7 @@ export async function openTabWheelSearchLauncher(): Promise<void> {
   );
 
   function handleInput(): void {
+    invalidateSuggestionRequests();
     setStatus("");
     const state = parseLauncherInput(input.value);
     if (state.kind === "commandMenu") {
@@ -409,12 +396,7 @@ export async function openTabWheelSearchLauncher(): Promise<void> {
       renderCommandMenu(state.filter);
       return;
     }
-    if (state.kind === "deferred") {
-      requestSuggestions.cancel();
-      renderDeferred(state.command);
-      return;
-    }
-    setModeChip(state.mode === "tab" ? "tab" : null);
+    setModeChip(state.mode === "recent" ? null : state.mode);
     requestSuggestions(state);
   }
 
@@ -469,6 +451,26 @@ export async function openTabWheelSearchLauncher(): Promise<void> {
       });
   }
 
+  function openLinkSuggestion(item: TabWheelSuggestionItem): void {
+    if (!item.url) return;
+    setSubmitting(true);
+    setStatus("Opening link...");
+    void openTabWheelUrlTab(item.url)
+      .then((result) => {
+        if (result.ok) {
+          close();
+          return;
+        }
+        setStatus(result.reason || "Link unavailable");
+      })
+      .catch(() => setStatus("Link unavailable"))
+      .finally(() => {
+        if (!isPanelAlive()) return;
+        setSubmitting(false);
+        focusSearchInput();
+      });
+  }
+
   function activateSelection(): void {
     if (isSubmitting) return;
     const selected = rows[selectedIndex];
@@ -477,10 +479,10 @@ export async function openTabWheelSearchLauncher(): Promise<void> {
       return;
     }
     if (selected.kind === "tab") openTabSuggestion(selected.item);
+    else if (selected.kind === "link") openLinkSuggestion(selected.item);
     else if (selected.kind === "recent") submitWebSearch(selected.item.primary);
     else if (selected.kind === "web") submitWebSearch(selected.query);
-    else if (selected.kind === "command") insertCommand(selected.command);
-    else setStatus(DEFERRED_LABELS[selected.command]);
+    else insertCommand(selected.command);
   }
 
   form.addEventListener("submit", (event) => {
@@ -496,6 +498,11 @@ export async function openTabWheelSearchLauncher(): Promise<void> {
     } else if (event.key === "ArrowUp") {
       event.preventDefault();
       setSelectedIndex(selectedIndex - 1);
+    } else if (event.key === "Tab") {
+      // Tab is list navigation inside this command palette, not browser focus
+      // traversal to Cancel/Search.
+      event.preventDefault();
+      setSelectedIndex(selectedIndex + (event.shiftKey ? -1 : 1));
     }
   });
   cancelButton.addEventListener("click", close);
@@ -513,7 +520,6 @@ export async function openTabWheelSearchLauncher(): Promise<void> {
     const chip = document.createElement("button");
     chip.type = "button";
     chip.className = "ht-search-hint-cmd";
-    if (definition.command !== "tab") chip.classList.add("ht-search-hint-soon");
     chip.textContent = `/${definition.command}`;
     chip.title = definition.hint;
     chip.addEventListener("mousedown", (event) => event.preventDefault());

@@ -17,9 +17,37 @@
     <section class="settings-body">
       <div class="settings-header">
         <h1>__EXTENSION_NAME__</h1>
-        <p class="subtitle">Reliable mouse scroll wheel cycling with New Tab mode, click gestures, and toolbar fallbacks.</p>
-        <button class="reset-button" id="resetDefaults" title="Restore all settings to their factory defaults">Reset to defaults</button>
+        <button class="reset-button" id="refreshTabWheelBtn" type="button" title="Re-activate TabWheel on your open tabs">Refresh extension</button>
+        <button class="reset-button" id="resetDefaults" type="button" title="Restore factory defaults and clear saved tab order, scroll memory, and recent searches">Reset to defaults</button>
       </div>
+
+      <fieldset class="settings-section">
+        <legend>Gesture Keys</legend>
+
+        <label class="setting-row" for="gestureModifier" title="Base key for wheel and click shortcuts.">
+          <span>
+            <strong>Modifier</strong>
+            <small>Choose the base key used for wheel cycling, search, recent tab, and close tab gestures.</small>
+          </span>
+          <select class="setting-control" id="gestureModifier"></select>
+        </label>
+
+        <label class="setting-row" for="gestureWithShift" title="Add Shift to the selected modifier before wheel cycling is active.">
+          <span>
+            <strong>Require Shift</strong>
+            <small>Add Shift to the selected modifier to reduce accidental wheel switches.</small>
+          </span>
+          <input id="gestureWithShift" type="checkbox" />
+        </label>
+
+        <label class="setting-row" for="wheelPreset" title="Apply a preset for tab switching and page scrolling wheel behavior.">
+          <span>
+            <strong>Preset</strong>
+            <small>Apply wheel behavior across tab sensitivity, tab cooldown, page speed, and viewport cap.</small>
+          </span>
+          <select class="setting-control" id="wheelPreset"></select>
+        </label>
+      </fieldset>
 
       <fieldset class="settings-section">
         <legend>Cycle &amp; Click Actions</legend>
@@ -54,34 +82,6 @@
             <small>Choose what modifier + right click does, or turn it off to keep the native context menu.</small>
           </span>
           <select class="setting-control" id="rightClickAction"></select>
-        </label>
-      </fieldset>
-
-      <fieldset class="settings-section">
-        <legend>Gesture Keys</legend>
-
-        <label class="setting-row" for="wheelPreset" title="Apply a preset for tab switching and page scrolling wheel behavior.">
-          <span>
-            <strong>Preset</strong>
-            <small>Apply wheel behavior across tab sensitivity, tab cooldown, page speed, and viewport cap.</small>
-          </span>
-          <select class="setting-control" id="wheelPreset"></select>
-        </label>
-
-        <label class="setting-row" for="gestureModifier" title="Base key for wheel and click shortcuts.">
-          <span>
-            <strong>Modifier</strong>
-            <small>Choose the base key used for wheel cycling, search, recent tab, and close tab gestures.</small>
-          </span>
-          <select class="setting-control" id="gestureModifier"></select>
-        </label>
-
-        <label class="setting-row" for="gestureWithShift" title="Add Shift to the selected modifier before wheel cycling is active.">
-          <span>
-            <strong>Require Shift</strong>
-            <small>Add Shift to the selected modifier to reduce accidental wheel switches.</small>
-          </span>
-          <input id="gestureWithShift" type="checkbox" />
         </label>
       </fieldset>
 

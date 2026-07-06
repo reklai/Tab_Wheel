@@ -26,7 +26,7 @@ test("store and privacy docs match current TabWheel limits", () => {
   assert.ok(store.includes("Chrome: Scroll Wheel Tab Switcher"));
   assert.ok(store.includes("TagWheel") === false);
   assert.ok(store.includes("Alt + Wheel"));
-  assert.ok(store.includes("Alt + mouse wheel switches tabs"));
+  assert.ok(store.includes("Hold Alt and scroll your mouse wheel to switch tabs"));
   assert.ok(store.includes("page-scroll speed"));
   assert.ok(store.includes("viewport step cap"));
   assert.ok(store.includes("Most Recently Used mode"));

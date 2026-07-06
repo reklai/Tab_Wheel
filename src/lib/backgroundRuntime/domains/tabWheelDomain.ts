@@ -1,9 +1,6 @@
-// Background-side TabWheel domain: tab cycling (strip and MRU order), click
-// actions, scroll memory, and the content-script lifecycle (install-time
-// injection, ping/ready tracking, restricted-page probing). The Maps below
-// are in-memory caches that live for one service worker lifetime — only scroll
-// memory, MRU state, and settings are saved to storage — so callers must
-// tolerate these caches being empty after a worker restart.
+// The background worker owns browser state and may restart at any time. Treat
+// maps below as per-worker caches; only settings, MRU state, search history, and
+// scroll memory survive through storage.
 
 import browser, { Tabs } from "webextension-polyfill";
 import {
@@ -19,6 +16,11 @@ import {
 } from "../../common/contracts/tabWheel";
 import { resolveCycleTargetIndex } from "../../core/tabWheel/tabWheelCore";
 import { fuzzyScore } from "../../core/search/fuzzyMatch";
+import {
+  isOpenableSuggestionUrl,
+  mergeSuggestionCandidates,
+  suggestionDedupeKey,
+} from "../../core/search/suggestionMerge";
 import {
   createInFlightMemo,
   createKeyedTaskQueue,
@@ -37,15 +39,36 @@ interface BrowserDefaultSearchApi {
   }): Promise<void>;
 }
 
+interface BrowserHistoryApi {
+  search(query: {
+    text: string;
+    maxResults?: number;
+    startTime?: number;
+  }): Promise<Array<{ url?: string; title?: string }>>;
+}
+
+interface BrowserBookmarksApi {
+  search(query: string): Promise<Array<{ url?: string; title?: string }>>;
+}
+
+interface BrowserTabGroup {
+  id: number;
+  collapsed: boolean;
+  windowId: number;
+}
+
+interface BrowserTabGroupEvent {
+  addListener(listener: (group: BrowserTabGroup) => void): void;
+}
+
 interface BrowserTabGroupsApi {
   query(queryInfo: {
     windowId?: number;
     collapsed?: boolean;
-  }): Promise<Array<{
-    id: number;
-    collapsed: boolean;
-    windowId: number;
-  }>>;
+  }): Promise<BrowserTabGroup[]>;
+  onCreated?: BrowserTabGroupEvent;
+  onRemoved?: BrowserTabGroupEvent;
+  onUpdated?: BrowserTabGroupEvent;
 }
 
 interface ExistingTabActivationResult {
@@ -88,6 +111,8 @@ export interface TabWheelDomain {
   openSearchTab(query: string, tab?: Tabs.Tab, windowId?: number): Promise<TabWheelActionResult>;
   getSearchSuggestions(query: string, mode: TabWheelSearchMode, tab?: Tabs.Tab): Promise<TabWheelSuggestionsResult>;
   activateExistingTab(tabId: number): Promise<TabWheelActionResult>;
+  openUrlTab(url: string, tab?: Tabs.Tab, windowId?: number): Promise<TabWheelActionResult>;
+  resetState(): Promise<TabWheelActionResult>;
   openNativeNewTab(tab?: Tabs.Tab, windowId?: number): Promise<TabWheelActionResult>;
   activateMostRecentTab(tab?: Tabs.Tab, windowId?: number): Promise<TabWheelActionResult>;
   closeCurrentTabAndActivateRecent(tab?: Tabs.Tab, windowId?: number): Promise<TabWheelActionResult>;
@@ -112,6 +137,7 @@ const DISCARDED_SCROLL_RESTORE_RETRY_DELAYS_MS = [...SCROLL_RESTORE_RETRY_DELAYS
 const DISCARDED_WAKE_CYCLE_HOLD_MS = 700;
 const SUGGESTION_LIMIT = 8;
 const SUGGESTION_GATHER_TIMEOUT_MS = 150;
+const SUGGESTION_SOURCE_GATHER_LIMIT = 40;
 const SECONDARY_MATCH_WEIGHT = 0.6;
 
 function windowKey(windowId: number): string {
@@ -321,6 +347,24 @@ function getBrowserDefaultSearchApi(): BrowserDefaultSearchApi | null {
     : null;
 }
 
+function getBrowserHistoryApi(): BrowserHistoryApi | null {
+  const historyApi = (browser as unknown as { history?: Partial<BrowserHistoryApi> }).history;
+  return typeof historyApi?.search === "function"
+    ? historyApi as BrowserHistoryApi
+    : null;
+}
+
+function getBrowserBookmarksApi(): BrowserBookmarksApi | null {
+  const bookmarksApi = (browser as unknown as { bookmarks?: Partial<BrowserBookmarksApi> }).bookmarks;
+  return typeof bookmarksApi?.search === "function"
+    ? bookmarksApi as BrowserBookmarksApi
+    : null;
+}
+
+function getBrowserTabGroupsApi(): Partial<BrowserTabGroupsApi> | null {
+  return (browser as unknown as { tabGroups?: Partial<BrowserTabGroupsApi> }).tabGroups ?? null;
+}
+
 function isCollapsedGroupTab(tab: Tabs.Tab, collapsedTabGroupIds: ReadonlySet<number>): boolean {
   return tab.groupId != null && collapsedTabGroupIds.has(tab.groupId);
 }
@@ -350,15 +394,21 @@ function isSuggestibleUrl(url: string | undefined): boolean {
   return typeof url === "string" && (url.startsWith("http://") || url.startsWith("https://"));
 }
 
-// Fuzzy-rank suggestion candidates against the query and cap the result set.
-// A candidate matches on its primary text (recent query / tab title) or its
-// secondary text (tab URL, weighted lower); the highlight positions come from
-// whichever side wins so the UI only underlines characters that are visible.
-function rankSuggestionItems(
+// Match visible labels first, with URL text as a lower-weight fallback. Highlight
+// positions must refer to visible text or the palette underlines the wrong side.
+interface ScoredSuggestionItem {
+  item: TabWheelSuggestionItem;
+  score: number;
+  order: number;
+  url?: string;
+}
+
+function scoreSuggestionItems(
   candidates: TabWheelSuggestionItem[],
   query: string,
-): TabWheelSuggestionItem[] {
-  const scored: Array<{ item: TabWheelSuggestionItem; score: number; order: number }> = [];
+  orderOffset = 0,
+): ScoredSuggestionItem[] {
+  const scored: ScoredSuggestionItem[] = [];
   candidates.forEach((candidate, order) => {
     const primaryMatch = fuzzyScore(query, candidate.primary);
     const secondaryMatch = candidate.secondary ? fuzzyScore(query, candidate.secondary) : null;
@@ -369,11 +419,38 @@ function rankSuggestionItems(
     scored.push({
       item: { ...candidate, positions: usePrimary && primaryMatch.matched ? primaryMatch.positions : [] },
       score: Math.max(primaryScore, secondaryScore),
-      order,
+      order: orderOffset + order,
+      ...(candidate.url ? { url: candidate.url } : {}),
     });
   });
-  scored.sort((left, right) => right.score - left.score || left.order - right.order);
-  return scored.slice(0, SUGGESTION_LIMIT).map((entry) => entry.item);
+  return scored;
+}
+
+function rankScoredSuggestionItems(scored: ScoredSuggestionItem[]): TabWheelSuggestionItem[] {
+  return scored
+    .sort((left, right) => right.score - left.score || left.order - right.order)
+    .slice(0, SUGGESTION_LIMIT)
+    .map((entry) => entry.item);
+}
+
+function rankSuggestionItems(
+  candidates: TabWheelSuggestionItem[],
+  query: string,
+): TabWheelSuggestionItem[] {
+  return rankScoredSuggestionItems(scoreSuggestionItems(candidates, query));
+}
+
+function rankMergedSuggestionGroups(
+  groups: ReadonlyArray<ReadonlyArray<TabWheelSuggestionItem>>,
+  query: string,
+): TabWheelSuggestionItem[] {
+  let orderOffset = 0;
+  const scoredGroups = groups.map((group) => {
+    const scoredGroup = scoreSuggestionItems([...group], query, orderOffset);
+    orderOffset += group.length;
+    return scoredGroup;
+  });
+  return rankScoredSuggestionItems(mergeSuggestionCandidates(scoredGroups));
 }
 
 export function createTabWheelDomain(): TabWheelDomain {
@@ -567,9 +644,7 @@ export function createTabWheelDomain(): TabWheelDomain {
     if (!tabs.some((tab) => tab.groupId != null && tab.groupId !== -1)) return new Set();
     const cached = collapsedTabGroupIdsCacheByWindowId.get(windowId);
     if (cached && cached.expiresAt > Date.now()) return cached.collapsedTabGroupIds;
-    const tabGroupsApi = (browser as typeof browser & {
-      tabGroups?: Partial<BrowserTabGroupsApi>;
-    }).tabGroups;
+    const tabGroupsApi = getBrowserTabGroupsApi();
     if (typeof tabGroupsApi?.query !== "function") return new Set();
     const collapsedGroups = await tabGroupsApi
       .query({ windowId, collapsed: true })
@@ -649,7 +724,7 @@ export function createTabWheelDomain(): TabWheelDomain {
     await saveMruState();
   }
 
-  // MRU bookkeeping must never fail the gesture that triggered it.
+  // MRU state is advisory. A storage failure should not block the tab gesture.
   async function recordMruTab(tabId: number, windowId: number): Promise<void> {
     try {
       await ensureLoaded();
@@ -671,9 +746,8 @@ export function createTabWheelDomain(): TabWheelDomain {
     }));
   }
 
-  // Remember a submitted search query locally so the palette can autocomplete
-  // it later. Move-to-front, deduped, bounded — and, like MRU bookkeeping, it
-  // must never fail the search that triggered it.
+  // Search recents improve palette recall, but they are not part of opening the
+  // tab. Keep failures isolated from the user action.
   async function recordSearchQuery(query: string): Promise<void> {
     try {
       const normalizedQuery = normalizeSearchQuery(query);
@@ -717,9 +791,63 @@ export function createTabWheelDomain(): TabWheelDomain {
         secondary: tab.url,
         positions: [],
         tabId: tab.id,
+        url: tab.url,
         ...(tab.windowId != null ? { windowId: tab.windowId } : {}),
         ...(tab.favIconUrl ? { favIconUrl: tab.favIconUrl } : {}),
       });
+    }
+    return candidates;
+  }
+
+  async function collectHistorySuggestionCandidates(
+    query: string,
+  ): Promise<TabWheelSuggestionItem[]> {
+    const historyApi = getBrowserHistoryApi();
+    if (!query || !historyApi) return [];
+    // Browser history defaults to recent entries only; search the full local
+    // history so older matching pages can still appear.
+    const entries = await resolveWithTimeout(
+      historyApi.search({ text: query, maxResults: SUGGESTION_SOURCE_GATHER_LIMIT, startTime: 0 }),
+      SUGGESTION_GATHER_TIMEOUT_MS,
+      [] as Array<{ url?: string; title?: string }>,
+    );
+    const candidates: TabWheelSuggestionItem[] = [];
+    for (const entry of entries) {
+      if (!isOpenableSuggestionUrl(entry.url)) continue;
+      candidates.push({
+        source: "hist",
+        primary: entry.title?.trim() || entry.url,
+        secondary: entry.url,
+        positions: [],
+        url: entry.url,
+      });
+    }
+    return candidates;
+  }
+
+  async function collectBookmarkSuggestionCandidates(
+    query: string,
+  ): Promise<TabWheelSuggestionItem[]> {
+    const bookmarksApi = getBrowserBookmarksApi();
+    // Empty bookmark queries are inconsistent across browsers, so the blended
+    // empty state stays limited to local search recents.
+    if (!query || !bookmarksApi) return [];
+    const nodes = await resolveWithTimeout(
+      bookmarksApi.search(query),
+      SUGGESTION_GATHER_TIMEOUT_MS,
+      [] as Array<{ url?: string; title?: string }>,
+    );
+    const candidates: TabWheelSuggestionItem[] = [];
+    for (const node of nodes) {
+      if (!isOpenableSuggestionUrl(node.url)) continue;
+      candidates.push({
+        source: "book",
+        primary: node.title?.trim() || node.url,
+        secondary: node.url,
+        positions: [],
+        url: node.url,
+      });
+      if (candidates.length >= SUGGESTION_SOURCE_GATHER_LIMIT) break;
     }
     return candidates;
   }
@@ -729,12 +857,38 @@ export function createTabWheelDomain(): TabWheelDomain {
     mode: TabWheelSearchMode,
     tab?: Tabs.Tab,
   ): Promise<TabWheelSuggestionsResult> {
-    const normalizedMode: TabWheelSearchMode = mode === "tab" ? "tab" : "recent";
+    const normalizedMode: TabWheelSearchMode =
+      mode === "tab" || mode === "hist" || mode === "book" ? mode : "recent";
     const normalizedQuery = normalizeSearchQuery(query);
     await ensureLoaded();
-    const candidates = normalizedMode === "tab"
-      ? await collectTabSuggestionCandidates(tab)
-      : buildRecentSuggestionCandidates();
+    let candidates: TabWheelSuggestionItem[];
+    if (normalizedMode === "tab") {
+      candidates = await collectTabSuggestionCandidates(tab);
+    } else if (normalizedMode === "hist") {
+      candidates = await collectHistorySuggestionCandidates(normalizedQuery);
+    } else if (normalizedMode === "book") {
+      candidates = await collectBookmarkSuggestionCandidates(normalizedQuery);
+    } else if (!normalizedQuery) {
+      candidates = buildRecentSuggestionCandidates();
+    } else {
+      // Match before dedupe. Otherwise a non-matching open tab could suppress a
+      // matching bookmark/history row with the same URL.
+      const [tabCandidates, bookCandidates, histCandidates] = await Promise.all([
+        collectTabSuggestionCandidates(tab),
+        collectBookmarkSuggestionCandidates(normalizedQuery),
+        collectHistorySuggestionCandidates(normalizedQuery),
+      ]);
+      return {
+        ok: true,
+        mode: normalizedMode,
+        items: rankMergedSuggestionGroups([
+          tabCandidates,
+          buildRecentSuggestionCandidates(),
+          bookCandidates,
+          histCandidates,
+        ], normalizedQuery),
+      };
+    }
     return {
       ok: true,
       mode: normalizedMode,
@@ -752,6 +906,48 @@ export function createTabWheelDomain(): TabWheelDomain {
     const didActivate = await activateTab(targetTab, { restoreScrollAsync: true });
     if (!didActivate) return { ok: false, reason: "Tab unavailable" };
     return { ok: true, tabId };
+  }
+
+  // History/bookmark rows should reuse an open page when only the fragment
+  // differs; that keeps the palette from creating duplicate tabs for the same page.
+  async function openUrlTab(url: string, tab?: Tabs.Tab, windowId?: number): Promise<TabWheelActionResult> {
+    if (!isOpenableSuggestionUrl(url)) return { ok: false, reason: "Link unavailable" };
+    await ensureLoaded();
+    const targetKey = suggestionDedupeKey(url);
+    const senderIsIncognito = tab?.incognito === true;
+    const openTabs = await resolveWithTimeout(
+      browser.tabs.query({}),
+      SUGGESTION_GATHER_TIMEOUT_MS,
+      [] as Tabs.Tab[],
+    );
+    const existingTab = openTabs.find((candidate) => candidate.id != null
+      && candidate.id !== tab?.id
+      && (candidate.incognito === true) === senderIsIncognito
+      && typeof candidate.url === "string"
+      && suggestionDedupeKey(candidate.url) === targetKey);
+    if (existingTab?.id != null) {
+      return await activateExistingTab(existingTab.id);
+    }
+    return await runSerializedWindowTask(
+      tab,
+      windowId,
+      async () => {
+        const activeTab = await resolveActiveTab(tab, windowId);
+        const createProperties: Tabs.CreateCreatePropertiesType = {
+          active: true,
+          url,
+          ...(activeTab?.windowId != null ? { windowId: activeTab.windowId } : {}),
+          ...(activeTab?.index != null ? { index: activeTab.index + 1 } : {}),
+        };
+        const createdTab = await browser.tabs.create(createProperties).catch(() => null);
+        if (!createdTab) return { ok: false, reason: "Link unavailable" };
+        invalidateWindowTabsCache(createdTab.windowId);
+        if (createdTab.id != null && createdTab.windowId != null) {
+          await recordMruTab(createdTab.id, createdTab.windowId);
+        }
+        return { ok: true, tabId: createdTab.id };
+      },
+    );
   }
 
   function getMruOrderedTabs(windowId: number, eligibleTabs: Tabs.Tab[]): Tabs.Tab[] {
@@ -843,7 +1039,7 @@ export function createTabWheelDomain(): TabWheelDomain {
     try {
       await browser.tabs.sendMessage(tabId, { type: "TABWHEEL_STATUS", message });
     } catch (_) {
-      // Status is best-effort; restricted pages cannot receive content messages.
+      // Restricted pages often reject content messages; status text is optional.
     }
   }
 
@@ -883,12 +1079,30 @@ export function createTabWheelDomain(): TabWheelDomain {
   async function injectContentScriptIntoTab(tab: Tabs.Tab): Promise<"injected" | "skipped" | "failed"> {
     if (tab.id == null || tab.discarded === true || isPageGestureRestrictedUrl(tab.url)) return "skipped";
 
-    // All frames first: one call covers every frame, including the top, exactly once.
+    // Try all frames first so already-open pages match manifest injection as
+    // closely as possible.
     if (await executeContentScriptInTab(tab.id, true)) return "injected";
 
-    // A single restricted subframe can make all-frame injection fail entirely in
-    // Chrome; the top-frame listener is enough for the page-level gesture path.
+    // Chrome can fail the all-frame call because of one restricted subframe. The
+    // top frame is enough for page-level gestures, so fall back to that.
     return await executeContentScriptInTab(tab.id, false) ? "injected" : "failed";
+  }
+
+  // Reset must clear both storage and per-worker caches; otherwise the next
+  // action could reuse old MRU/search/scroll state before the worker restarts.
+  async function resetState(): Promise<TabWheelActionResult> {
+    await ensureLoaded();
+    searchHistory = [];
+    mruTabIdsByWindowId = {};
+    scrollMemoryByTabId = {};
+    updateSettingsCache(undefined);
+    await browser.storage.local.remove([
+      TABWHEEL_STORAGE_KEYS.settings,
+      TABWHEEL_STORAGE_KEYS.mruState,
+      TABWHEEL_STORAGE_KEYS.scrollMemory,
+      TABWHEEL_STORAGE_KEYS.searchHistory,
+    ]).catch(() => {});
+    return { ok: true };
   }
 
   async function activateExistingContentScripts(): Promise<ExistingTabActivationResult> {
@@ -981,7 +1195,8 @@ export function createTabWheelDomain(): TabWheelDomain {
     try {
       await browser.tabs.sendMessage(tabId, { type: "TABWHEEL_DISMISS_PANEL" });
     } catch (_) {
-      // Dismissal is best-effort; restricted or stale tabs may not have a content script.
+      // The target tab may be restricted or already navigated away; dismissal is
+      // cleanup, not a reason to fail the outer action.
     }
   }
 
@@ -1072,9 +1287,8 @@ export function createTabWheelDomain(): TabWheelDomain {
         });
         return true;
       } catch (_) {
-        // The tab may still be loading or its content script may be gone;
-        // keep retrying on the delay schedule until the restore lands or the
-        // token check above tells us a newer restore superseded this one.
+        // Loading tabs can reject until the content script is ready. Keep the
+        // scheduled retries, unless a newer restore token supersedes this one.
       }
     }
     return false;
@@ -1091,8 +1305,8 @@ export function createTabWheelDomain(): TabWheelDomain {
     await saveScrollMemory();
   }
 
-  // A tab still waking from discard reports a top-of-page scroll; don't let that
-  // clobber its remembered position — the restore re-runs on the next visit.
+  // A discarded tab can report top-of-page while waking. Preserve the old scroll
+  // entry until the wake/restore cycle has settled.
   function captureTabScrollUnlessWaking(tab: Tabs.Tab): void {
     if (tab.id == null || tab.windowId == null) return;
     if (getActiveDiscardedWakeHold(tab.windowId, tab.id)) return;
@@ -1205,8 +1419,8 @@ export function createTabWheelDomain(): TabWheelDomain {
       if (!settings.skipRestrictedPages || await ensurePageGestureAvailable(targetTab)) return targetTab;
       remainingTabs = remainingTabs.filter((candidate) => candidate.id !== targetTab.id);
     }
-    // Never activate an unprobed tab: failed probes are cached as unavailable, so the
-    // next gesture tick filters them out and probes the following candidates instead.
+    // Do not activate an unprobed restricted-page candidate. Failed probes are
+    // cached, so the next gesture tick will skip them cheaply.
     return null;
   }
 
@@ -1363,13 +1577,16 @@ export function createTabWheelDomain(): TabWheelDomain {
   async function openSearchTab(query: string, tab?: Tabs.Tab, windowId?: number): Promise<TabWheelActionResult> {
     const normalizedQuery = normalizeSearchQuery(query);
     if (!normalizedQuery) return { ok: false, reason: "Enter a search query" };
-    void recordSearchQuery(normalizedQuery);
     return await runSerializedWindowTask(
       tab,
       windowId,
       async () => {
         await ensureLoaded();
         const activeTab = await resolveActiveTab(tab, windowId);
+        const isPrivateSearchContext = activeTab?.incognito === true || tab?.incognito === true;
+        if (!isPrivateSearchContext) {
+          void recordSearchQuery(normalizedQuery);
+        }
         const searchApi = getBrowserDefaultSearchApi();
         const createProperties: Tabs.CreateCreatePropertiesType = {
           active: true,
@@ -1569,10 +1786,8 @@ export function createTabWheelDomain(): TabWheelDomain {
 
   function registerLifecycleListeners(): void {
     browser.runtime.onInstalled.addListener((details: { reason: string }) => {
-      // Chrome never injects manifest content scripts into already-open tabs, and an
-      // extension update destroys every running content script, so installs and updates
-      // both need re-injection from code. Browser updates restart tabs and re-inject via
-      // the manifest.
+      // Installs and extension updates leave existing tabs without live content
+      // scripts. Browser updates reload tabs, so manifest injection covers those.
       if (details.reason !== "install" && details.reason !== "update") return;
       void activateExistingContentScripts()
         .then(ensureActiveTabContentScripts)
@@ -1641,8 +1856,8 @@ export function createTabWheelDomain(): TabWheelDomain {
       await saveScrollMemory();
     });
 
-    browser.tabs.onUpdated.addListener((tabId: number, changeInfo: { url?: string; pinned?: boolean; groupId?: number; status?: string }, updatedTab?: Tabs.Tab) => {
-      if (changeInfo.url || changeInfo.pinned != null || changeInfo.groupId != null) {
+    browser.tabs.onUpdated.addListener((tabId: number, changeInfo: { url?: string; pinned?: boolean; hidden?: boolean; groupId?: number; status?: string }, updatedTab?: Tabs.Tab) => {
+      if (changeInfo.url || changeInfo.pinned != null || changeInfo.hidden != null || changeInfo.groupId != null) {
         invalidateWindowTabsCache(updatedTab?.windowId);
       }
       if (changeInfo.status === "complete") {
@@ -1654,6 +1869,17 @@ export function createTabWheelDomain(): TabWheelDomain {
         cancelScrollRestore(tabId);
       }
     });
+
+    const tabGroupsApi = getBrowserTabGroupsApi();
+    const invalidateTabGroupWindow = (group: BrowserTabGroup): void => {
+      invalidateWindowTabsCache(group.windowId);
+    };
+    const addTabGroupInvalidationListener = (event: BrowserTabGroupEvent | undefined): void => {
+      if (typeof event?.addListener === "function") event.addListener(invalidateTabGroupWindow);
+    };
+    addTabGroupInvalidationListener(tabGroupsApi?.onCreated);
+    addTabGroupInvalidationListener(tabGroupsApi?.onRemoved);
+    addTabGroupInvalidationListener(tabGroupsApi?.onUpdated);
 
     browser.windows.onRemoved.addListener((windowId: number) => {
       void (async () => {
@@ -1690,8 +1916,8 @@ export function createTabWheelDomain(): TabWheelDomain {
       await browser.storage.local.remove(TABWHEEL_STORAGE_KEYS.mruState);
     });
 
-    // Disabling and re-enabling the extension kills content scripts without firing
-    // onInstalled; prime each window's focused tab whenever the background starts.
+    // Re-enabling the extension does not fire onInstalled, but it does kill page
+    // scripts. Prime focused tabs each time the worker starts.
     void ensureActiveTabContentScripts().catch(() => {});
   }
 
@@ -1704,6 +1930,8 @@ export function createTabWheelDomain(): TabWheelDomain {
     openSearchTab,
     getSearchSuggestions,
     activateExistingTab,
+    openUrlTab,
+    resetState,
     openNativeNewTab,
     activateMostRecentTab,
     closeCurrentTabAndActivateRecent,

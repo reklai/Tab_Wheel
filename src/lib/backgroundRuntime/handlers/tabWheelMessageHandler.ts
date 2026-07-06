@@ -1,23 +1,9 @@
-// Translates TabWheel runtime messages into domain calls. Returns the router's
-// UNHANDLED marker for message types it does not own so additional handlers
-// can be composed behind it.
+// This handler owns TabWheel messages only; unrelated runtime messages must
+// keep flowing to later handlers through UNHANDLED.
 
 import browser from "webextension-polyfill";
 import { TabWheelDomain } from "../domains/tabWheelDomain";
 import { RuntimeMessageHandler, UNHANDLED } from "./runtimeRouter";
-
-async function openHelpInActiveTab(): Promise<TabWheelActionResult> {
-  const [tab] = await browser.tabs.query({ active: true, currentWindow: true });
-  if (tab?.id == null) {
-    return { ok: false, reason: "No active tab" };
-  }
-  try {
-    await browser.tabs.sendMessage(tab.id, { type: "OPEN_TABWHEEL_HELP" });
-    return { ok: true };
-  } catch (_) {
-    return { ok: false, reason: "Help is unavailable on this page" };
-  }
-}
 
 async function openOptionsPage(): Promise<TabWheelActionResult> {
   try {
@@ -62,6 +48,9 @@ export function createTabWheelMessageHandler(
       case "TABWHEEL_ACTIVATE_TAB":
         return await domain.activateExistingTab(message.tabId);
 
+      case "TABWHEEL_OPEN_URL_TAB":
+        return await domain.openUrlTab(message.url, sender.tab, message.windowId);
+
       case "TABWHEEL_OPEN_NATIVE_NEW_TAB":
         return await domain.openNativeNewTab(sender.tab, message.windowId);
 
@@ -86,11 +75,14 @@ export function createTabWheelMessageHandler(
         );
       }
 
-      case "TABWHEEL_OPEN_HELP":
-        return await openHelpInActiveTab();
-
       case "TABWHEEL_OPEN_OPTIONS":
         return await openOptionsPage();
+
+      case "TABWHEEL_RESET_STATE":
+        return await domain.resetState();
+
+      case "TABWHEEL_ACTIVATE_CONTENT_SCRIPTS":
+        return await domain.activateExistingContentScripts();
 
       default:
         return UNHANDLED;

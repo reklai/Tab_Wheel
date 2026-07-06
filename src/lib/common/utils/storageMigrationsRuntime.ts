@@ -1,6 +1,5 @@
-// Applies the storage schema migration at background startup. Reads only the
-// version key first — an already-migrated profile skips the full storage
-// snapshot. The pure migration steps live in storageMigrations.ts.
+// Background startup should avoid reading the whole storage area for profiles
+// already on the current schema; the pure steps live in storageMigrations.ts.
 
 import browser from "webextension-polyfill";
 import {

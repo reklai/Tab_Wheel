@@ -1,12 +1,12 @@
-// Runtime message contracts between background, content scripts, and extension pages.
+// Keep this as the single message contract shared by the background worker,
+// content script, popup, and options page.
 
 export type ContentRuntimeMessage =
   | { type: "TABWHEEL_PING" }
   | { type: "GET_SCROLL" }
   | ({ type: "SET_SCROLL" } & ScrollData)
   | { type: "TABWHEEL_STATUS"; message: string }
-  | { type: "TABWHEEL_DISMISS_PANEL" }
-  | { type: "OPEN_TABWHEEL_HELP" };
+  | { type: "TABWHEEL_DISMISS_PANEL" };
 
 export type BackgroundRuntimeMessage =
   | { type: "TABWHEEL_CONTENT_READY" }
@@ -18,10 +18,12 @@ export type BackgroundRuntimeMessage =
   | { type: "TABWHEEL_OPEN_SEARCH_TAB"; query: string; windowId?: number }
   | { type: "TABWHEEL_GET_SEARCH_SUGGESTIONS"; query: string; mode: TabWheelSearchMode }
   | { type: "TABWHEEL_ACTIVATE_TAB"; tabId: number }
+  | { type: "TABWHEEL_OPEN_URL_TAB"; url: string; windowId?: number }
   | { type: "TABWHEEL_OPEN_NATIVE_NEW_TAB"; windowId?: number }
   | { type: "TABWHEEL_ACTIVATE_MOST_RECENT_TAB"; windowId?: number }
   | { type: "TABWHEEL_CLOSE_CURRENT_TAB_AND_ACTIVATE_RECENT"; windowId?: number }
   | { type: "TABWHEEL_DUPLICATE_TAB"; windowId?: number }
   | ({ type: "TABWHEEL_SAVE_SCROLL_POSITION" } & ScrollData)
-  | { type: "TABWHEEL_OPEN_HELP" }
-  | { type: "TABWHEEL_OPEN_OPTIONS" };
+  | { type: "TABWHEEL_OPEN_OPTIONS" }
+  | { type: "TABWHEEL_RESET_STATE" }
+  | { type: "TABWHEEL_ACTIVATE_CONTENT_SCRIPTS" };

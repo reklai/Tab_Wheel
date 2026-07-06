@@ -22,7 +22,6 @@ Hardening release for the unpublished 2.0.0 work:
 - Wheel cycling never activates a tab whose gesture availability was not verified when skip-restricted-pages is enabled; unverified tabs are skipped for that tick and retried after probing.
 - Cycling through sleeping (discarded) tabs no longer freezes for the wake grace period; the grace window now only protects the waking tab's remembered scroll position from being overwritten.
 - Panel-open click suppression follows the remapped click actions and no longer swallows primary-button clicks aimed at the panel's own controls.
-- The help overlay locks page scrolling correctly even when custom page-scroll speed settings are active.
 - Most Recent Tab click actions report a status message when no recent tab is available.
 - Cached collapsed tab-group lookups off the wheel hot path and hardened the runtime message router against malformed messages.
 - Added per-button click action remapping for modifier + left, middle, and right click, including TabWheel Search, Browser Default new tab, Most Recent Tab, Close Tab, Duplicate Tab, Open Settings, and native click pass-through.

@@ -1,7 +1,3 @@
-// Async coordination primitives used by both the background worker and content
-// scripts: single-flight memoization, serialized write chains, keyed task
-// queues for per-window gesture serialization, and promise timeouts.
-
 export function sleep(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }

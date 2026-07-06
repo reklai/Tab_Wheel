@@ -21,7 +21,7 @@ test("background runtime composes TabWheel domain and handler", () => {
   assert.doesNotMatch(source, /tabManager|anchorTags|sessionMessageHandler|commandRouter|startupRestore|miscMessageHandler/);
 });
 
-test("message handler routes cycling, MRU actions, scroll, help, and settings", () => {
+test("message handler routes cycling, MRU actions, scroll, and settings", () => {
   const source = readText("src/lib/backgroundRuntime/handlers/tabWheelMessageHandler.ts");
 
   assert.match(source, /case "TABWHEEL_CONTENT_READY":[\s\S]*domain\.markContentScriptReady\(sender\.tab\)/);
@@ -34,9 +34,10 @@ test("message handler routes cycling, MRU actions, scroll, help, and settings", 
   assert.match(source, /case "TABWHEEL_OPEN_NATIVE_NEW_TAB":[\s\S]*domain\.openNativeNewTab\(sender\.tab,\s*message\.windowId\)/);
   assert.match(source, /case "TABWHEEL_ACTIVATE_MOST_RECENT_TAB":[\s\S]*domain\.activateMostRecentTab\(sender\.tab,\s*message\.windowId\)/);
   assert.match(source, /case "TABWHEEL_CLOSE_CURRENT_TAB_AND_ACTIVATE_RECENT":[\s\S]*domain\.closeCurrentTabAndActivateRecent\(sender\.tab,\s*message\.windowId\)/);
+  assert.match(source, /case "TABWHEEL_RESET_STATE":[\s\S]*domain\.resetState\(\)/);
+  assert.match(source, /case "TABWHEEL_ACTIVATE_CONTENT_SCRIPTS":[\s\S]*domain\.activateExistingContentScripts\(\)/);
   assert.match(source, /case "TABWHEEL_DUPLICATE_TAB":[\s\S]*domain\.duplicateTab\(sender\.tab,\s*message\.windowId\)/);
   assert.match(source, /case "TABWHEEL_SAVE_SCROLL_POSITION":[\s\S]*domain\.saveScrollPosition\(/);
-  assert.match(source, /case "TABWHEEL_OPEN_HELP":[\s\S]*openHelpInActiveTab\(\)/);
   assert.match(source, /case "TABWHEEL_OPEN_OPTIONS":[\s\S]*openOptionsPage\(\)/);
   assert.doesNotMatch(source, /TAGWHEEL|TABWHEEL_FETCH_FAVICON|TABWHEEL_TOGGLE_CURRENT_TAG|TABWHEEL_REMOVE_TAGGED_TAB|TABWHEEL_CLEAR_TAGGED_TABS|TABWHEEL_ACTIVATE_TAGGED_TAB|MAX_FAVICON_BYTES|fetchFaviconData/);
 });
@@ -61,7 +62,7 @@ test("content script implements modifier-wheel and left/middle/right click actio
   assert.match(source, /window\.addEventListener\("auxclick",\s*mouseGestureHandler,\s*true\)/);
   assert.match(source, /window\.addEventListener\("contextmenu",\s*mouseGestureHandler,\s*true\)/);
   assert.match(gestureCore, /MOUSE_GESTURE_POLICIES/);
-  assert.match(gestureCore, /DEFAULT_TABWHEEL_CLICK_ACTION_SETTINGS[\s\S]*leftClickAction:\s*"search"[\s\S]*middleClickAction:\s*"recentTab"[\s\S]*rightClickAction:\s*"closeToRecent"/);
+  assert.match(gestureCore, /DEFAULT_TABWHEEL_CLICK_ACTION_SETTINGS[\s\S]*leftClickAction:\s*"none"[\s\S]*middleClickAction:\s*"openSettings"[\s\S]*rightClickAction:\s*"none"/);
   assert.match(gestureCore, /MOUSE_GESTURE_BUTTON_MECHANICS[\s\S]*button:\s*0[\s\S]*runPhase:\s*"sessionStart"/);
   assert.match(gestureCore, /MOUSE_GESTURE_BUTTON_MECHANICS[\s\S]*button:\s*1[\s\S]*runPhase:\s*"auxclick"[\s\S]*finishEvents:\s*\["auxclick"\]/);
   assert.match(gestureCore, /MOUSE_GESTURE_BUTTON_MECHANICS[\s\S]*button:\s*2[\s\S]*runPhase:\s*"contextmenu"/);
@@ -332,10 +333,12 @@ test("domain supports MRU cycling, restricted-page skipping, and URL-validated s
   assert.match(source, /settings\.skipPinnedTabs/);
   assert.match(source, /settings\.skipHiddenTabs/);
   assert.match(source, /interface BrowserTabGroupsApi[\s\S]*query\(queryInfo: \{[\s\S]*collapsed\?: boolean/);
+  assert.match(source, /interface BrowserTabGroupsApi[\s\S]*onCreated\?: BrowserTabGroupEvent[\s\S]*onRemoved\?: BrowserTabGroupEvent[\s\S]*onUpdated\?: BrowserTabGroupEvent/);
   assert.match(source, /function isCollapsedGroupTab\(tab: Tabs\.Tab,\s*collapsedTabGroupIds: ReadonlySet<number>\): boolean[\s\S]*tab\.groupId != null && collapsedTabGroupIds\.has\(tab\.groupId\)/);
-  assert.match(source, /getCollapsedTabGroupIds[\s\S]*tabGroups\?: Partial<BrowserTabGroupsApi>[\s\S]*\.query\(\{\s*windowId,\s*collapsed:\s*true\s*\}\)/);
+  assert.match(source, /getCollapsedTabGroupIds[\s\S]*const tabGroupsApi = getBrowserTabGroupsApi\(\)[\s\S]*\.query\(\{\s*windowId,\s*collapsed:\s*true\s*\}\)/);
   assert.match(source, /getGestureEligibleTabs\(tabs,\s*settings,\s*activeTab\.windowId\)/);
-  assert.match(source, /changeInfo\.pinned != null \|\| changeInfo\.groupId != null/);
+  assert.match(source, /changeInfo\.pinned != null \|\| changeInfo\.hidden != null \|\| changeInfo\.groupId != null/);
+  assert.match(source, /const addTabGroupInvalidationListener[\s\S]*addTabGroupInvalidationListener\(tabGroupsApi\?\.onCreated\)[\s\S]*addTabGroupInvalidationListener\(tabGroupsApi\?\.onRemoved\)[\s\S]*addTabGroupInvalidationListener\(tabGroupsApi\?\.onUpdated\)/);
   assert.doesNotMatch(source, /skipDiscardedTabs/);
   assert.match(source, /settings\.wrapAround/);
   assert.match(source, /captureTabScrollUnlessWaking\(activeTab\)/);
@@ -450,11 +453,9 @@ test("popup exposes MRU mode and fallback controls", () => {
   assert.doesNotMatch(`${popupSource}\n${popupHtml}\n${popupCss}`, /Wheel List|newTabBtn|tagCurrentBtn|clearTagsBtn|taggedTabsList|tagged-list|tagged-row|toggleCurrentTabWheelTag|clearTagged|removeTagged/);
 });
 
-test("options and help document the MRU click gesture model", () => {
+test("options page documents the MRU click gesture model", () => {
   const optionsSource = readText("src/entryPoints/optionsPage/optionsPage.ts");
   const optionsHtml = readText("src/entryPoints/optionsPage/optionsPage.html");
-  const helpSource = readText("src/lib/ui/panels/help/help.ts");
-  const helpStyles = readText("src/lib/ui/panels/help/help.css");
   const buildSource = readText("esBuildConfig/build.mjs");
   const headerIndex = optionsHtml.indexOf("settings-header");
   const modeIndex = optionsHtml.indexOf('for="cycleScope"');
@@ -479,14 +480,14 @@ test("options and help document the MRU click gesture model", () => {
   const viewportCapIndex = optionsHtml.indexOf('for="pageScrollViewportCapRatio"');
 
   assert.ok(headerIndex >= 0);
-  assert.ok(modeIndex > headerIndex);
+  assert.ok(modifierIndex > headerIndex);
+  assert.ok(shiftIndex > modifierIndex);
+  assert.ok(presetIndex > shiftIndex);
+  assert.ok(modeIndex > presetIndex);
   assert.ok(leftClickActionIndex > modeIndex);
   assert.ok(middleClickActionIndex > leftClickActionIndex);
   assert.ok(rightClickActionIndex > middleClickActionIndex);
-  assert.ok(presetIndex > rightClickActionIndex);
-  assert.ok(modifierIndex > presetIndex);
-  assert.ok(shiftIndex > modifierIndex);
-  assert.ok(sensitivityIndex > shiftIndex);
+  assert.ok(sensitivityIndex > rightClickActionIndex);
   assert.ok(cooldownIndex > sensitivityIndex);
   assert.ok(accelerationIndex > cooldownIndex);
   assert.ok(horizontalIndex > accelerationIndex);
@@ -569,42 +570,11 @@ test("options and help document the MRU click gesture model", () => {
   assert.match(optionsHtml, /Extension constraints/);
   assert.match(optionsHtml, /chrome:\/\/extensions/);
   assert.match(optionsHtml, /about:addons/);
-  assert.match(helpSource, /Scroll Wheel Tab Switcher Help/);
-  assert.match(helpSource, /MRU/);
-  assert.match(helpSource, /token:\s*`\$\{gestureModifier\} \+ Left Click`/);
-  assert.match(helpSource, /ht-help-step-token/);
-  assert.match(helpSource, /ht-help-step-with-token/);
-  assert.match(helpSource, /ht-help-step-action/);
-  assert.doesNotMatch(helpSource, /\$\{escapeHtml\(item\.token\)\} =/);
-  assert.match(helpStyles, /rgba\(191,90,242,0\.12\)/);
-  assert.match(helpStyles, /rgba\(254,188,46,0\.12\)/);
-  assert.match(helpSource, /describeTabWheelClickAction\(settings\.leftClickAction\)/);
-  assert.match(helpSource, /describeTabWheelClickAction\(settings\.middleClickAction\)/);
-  assert.match(helpSource, /describeTabWheelClickAction\(settings\.rightClickAction\)/);
   assert.match(contractSource, /opens the in-page search launcher/);
   assert.match(contractSource, /opens the browser's normal new tab page/);
-  assert.match(helpSource, /token:\s*`\$\{gestureModifier\} \+ Middle Click`/);
   assert.match(contractSource, /jumps to the most recently used tab/);
-  assert.match(helpSource, /token:\s*`\$\{gestureModifier\} \+ Right Click`/);
   assert.match(contractSource, /closes this tab/);
-  assert.match(helpSource, /Restricted pages/);
-  assert.match(helpSource, /Hidden tabs/);
-  assert.match(helpSource, /skipHiddenTabs/);
-  assert.match(helpSource, /Horizontal wheel/);
-  assert.match(helpSource, /Safe overshoot guard/);
-  assert.match(helpSource, /Page scroll speed/);
-  assert.match(helpSource, /Viewport step cap/);
-  assert.match(helpSource, /title: "Caveats",\s*layout: "centered"/);
-  assert.match(helpSource, /token:\s*"Modifier-click caveat"/);
-  assert.match(helpSource, /modifier \+ left\/middle\/right click can be reserved by sites, browsers, or the OS/);
-  assert.match(helpSource, /token:\s*"Extension constraints"/);
-  assert.match(helpSource, /page gestures work on normal web pages; browser UI, browser stores, PDFs, and internal pages can block content scripts/);
-  assert.match(helpSource, /browser\.storage\.onChanged\.addListener\(storageChangedHandler\)/);
-  assert.match(helpSource, /browser\.storage\.onChanged\.removeListener\(storageChangedHandler\)/);
-  assert.match(helpSource, /createDebouncedCallback/);
-  assert.match(helpSource, /panel\.addEventListener\("wheel"/);
-  assert.match(helpStyles, /\.ht-help-body[\s\S]*overscroll-behavior:\s*contain/);
-  assert.doesNotMatch(`${optionsSource}\n${optionsHtml}\n${helpSource}`, /Wheel List|tag\/untag|tagged|showCycleToast|Right Hold|Alt \+ T|Switch feedback/);
+  assert.doesNotMatch(`${optionsSource}\n${optionsHtml}`, /Wheel List|tag\/untag|tagged|showCycleToast|Right Hold|Alt \+ T|Switch feedback/);
 });
 
 test("search launcher uses panel host and opens search tabs", () => {
@@ -618,6 +588,7 @@ test("search launcher uses panel host and opens search tabs", () => {
   assert.match(source, /registerPanelCleanup\(close\)/);
   assert.match(source, /openTabWheelSearchTab\(query\)/);
   assert.match(source, /normalizeSearchQuery/);
+  assert.match(panelHostSource, /attachShadow\(\{\s*mode:\s*"closed"\s*\}\)/);
   assert.match(source, /closeOnEscape:\s*true/);
   assert.match(source, /closeOnFullscreenChange:\s*true/);
   assert.match(source, /closeOnPageHide:\s*true/);
@@ -688,11 +659,12 @@ test("search palette wires suggestion fetch and tab activation", () => {
   assert.match(contract, /searchHistory:\s*"tabWheelSearchHistory"/);
   assert.match(contract, /MAX_SEARCH_HISTORY_ENTRIES = 50/);
   assert.match(contract, /normalizeSearchHistory/);
-  assert.match(types, /type TabWheelSearchMode = "recent" \| "tab"/);
+  assert.match(types, /type TabWheelSearchMode = "recent" \| "tab" \| "hist" \| "book"/);
 
   assert.match(domain, /async function getSearchSuggestions\(/);
   assert.match(domain, /async function activateExistingTab\(/);
   assert.match(domain, /recordSearchQuery/);
+  assert.match(domain, /async function openSearchTab\([\s\S]*const activeTab = await resolveActiveTab\(tab,\s*windowId\)[\s\S]*const isPrivateSearchContext = activeTab\?\.incognito === true \|\| tab\?\.incognito === true[\s\S]*if \(!isPrivateSearchContext\) \{[\s\S]*void recordSearchQuery\(normalizedQuery\)/);
   assert.match(domain, /fuzzyScore/);
   assert.match(domain, /TABWHEEL_STORAGE_KEYS\.searchHistory/);
   assert.match(fuzzy, /export function fuzzyScore/);
@@ -701,6 +673,48 @@ test("search palette wires suggestion fetch and tab activation", () => {
   assert.match(launcher, /getTabWheelSearchSuggestions/);
   assert.match(launcher, /activateTabWheelTab/);
   assert.match(launcher, /createDebouncedCallback/);
+  assert.match(launcher, /function invalidateSuggestionRequests\(\): number[\s\S]*requestSerial \+= 1[\s\S]*return requestSerial/);
+  assert.match(launcher, /async function runFetch[\s\S]*const serial = invalidateSuggestionRequests\(\)[\s\S]*if \(serial !== requestSerial \|\| !isPanelAlive\(\)\) return/);
+  assert.match(launcher, /function handleInput\(\): void \{[\s\S]*invalidateSuggestionRequests\(\)[\s\S]*const state = parseLauncherInput\(input\.value\)/);
   assert.match(launcher, /role="listbox"/);
   assert.doesNotMatch(launcher, /suggestqueries|duckduckgo|autocomplete\?q=|fetch\(/);
+});
+
+test("search palette wires history, bookmarks, and link opening", () => {
+  const messages = readText("src/lib/common/contracts/runtimeMessages.ts");
+  const handler = readText("src/lib/backgroundRuntime/handlers/tabWheelMessageHandler.ts");
+  const api = readText("src/lib/adapters/runtime/tabWheelApi.ts");
+  const domain = readText("src/lib/backgroundRuntime/domains/tabWheelDomain.ts");
+  const launcher = readText("src/lib/ui/panels/searchLauncher/searchLauncher.ts");
+  const merge = readText("src/lib/core/search/suggestionMerge.ts");
+  const manifestV2 = readText("esBuildConfig/manifest_v2.json");
+  const manifestV3 = readText("esBuildConfig/manifest_v3.json");
+
+  assert.match(messages, /TABWHEEL_OPEN_URL_TAB/);
+  assert.match(handler, /case "TABWHEEL_OPEN_URL_TAB":[\s\S]*domain\.openUrlTab\(message\.url,\s*sender\.tab,\s*message\.windowId\)/);
+  assert.match(api, /openTabWheelUrlTab/);
+
+  assert.match(domain, /getBrowserHistoryApi/);
+  assert.match(domain, /getBrowserBookmarksApi/);
+  assert.match(domain, /startTime:\s*0/);
+  assert.match(domain, /mergeSuggestionCandidates/);
+  assert.match(domain, /function rankMergedSuggestionGroups/);
+  assert.match(domain, /scoreSuggestionItems\(\[...group\],\s*query,\s*orderOffset\)/);
+  assert.match(domain, /rankScoredSuggestionItems\(mergeSuggestionCandidates\(scoredGroups\)\)/);
+  assert.match(domain, /Match before dedupe[\s\S]*non-matching open tab could suppress a[\s\S]*matching bookmark\/history row/);
+  assert.match(domain, /isOpenableSuggestionUrl/);
+  assert.match(domain, /async function openUrlTab\(/);
+
+  assert.match(merge, /export function isOpenableSuggestionUrl/);
+  assert.match(merge, /export function suggestionDedupeKey/);
+  assert.match(merge, /export function mergeSuggestionCandidates/);
+
+  assert.match(launcher, /openTabWheelUrlTab/);
+  assert.match(launcher, /kind: "link"/);
+  assert.doesNotMatch(launcher, /later update|\(soon\)|deferred/);
+
+  for (const manifest of [JSON.parse(manifestV2), JSON.parse(manifestV3)]) {
+    assert.ok(manifest.permissions.includes("history"));
+    assert.ok(manifest.permissions.includes("bookmarks"));
+  }
 });

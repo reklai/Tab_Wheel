@@ -10,7 +10,6 @@ function readText(relativePath) {
 }
 
 const OVERLAY_CSS_FILES = [
-  "src/lib/ui/panels/help/help.css",
   "src/lib/ui/panels/searchLauncher/searchLauncher.css",
 ];
 

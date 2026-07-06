@@ -22,6 +22,11 @@ function readSchemaVersion(storage: StorageSnapshot): number {
   return rounded > 0 ? rounded : 0;
 }
 
+function isFreshInstallSnapshot(storage: StorageSnapshot): boolean {
+  const keys = Object.keys(storage);
+  return keys.length === 0 || keys.every((key) => key === STORAGE_SCHEMA_VERSION_KEY);
+}
+
 export function isStorageSchemaVersionCurrent(rawVersion: unknown): boolean {
   return Number(rawVersion) === STORAGE_SCHEMA_VERSION;
 }
@@ -126,8 +131,8 @@ function migrateTabWheelSettings(storage: StorageSnapshot): boolean {
   return changed;
 }
 
-// Duplicates TABWHEEL_CLICK_ACTIONS so this file stays import-free — historical
-// migrations are frozen at the values they shipped with.
+// Keep historical migration values local to this file. Importing live contracts
+// would let future edits change how old profiles are upgraded.
 const TABWHEEL_CLICK_ACTION_VALUES = [
   "search",
   "nativeNewTab",
@@ -233,6 +238,17 @@ export function migrateStorageSnapshot(input: StorageSnapshot): StorageMigration
       toVersion: fromVersion,
       changed: false,
       migratedStorage,
+    };
+  }
+
+  if (fromVersion < STORAGE_SCHEMA_VERSION && isFreshInstallSnapshot(input)) {
+    return {
+      fromVersion,
+      toVersion: STORAGE_SCHEMA_VERSION,
+      changed: true,
+      migratedStorage: {
+        [STORAGE_SCHEMA_VERSION_KEY]: STORAGE_SCHEMA_VERSION,
+      },
     };
   }
 

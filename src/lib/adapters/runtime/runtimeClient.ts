@@ -1,6 +1,5 @@
-// Client-side runtime messaging for extension surfaces (popup, options,
-// content script). The retry variant exists because sendMessage can fail
-// briefly while the MV3 service worker is still waking up.
+// MV3 service workers can be asleep when a UI surface opens, so callers that
+// need fresh state use the retry wrapper instead of handling wake-up races inline.
 
 import browser from "webextension-polyfill";
 import { BackgroundRuntimeMessage } from "../../common/contracts/runtimeMessages";

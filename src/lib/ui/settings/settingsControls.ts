@@ -1,6 +1,5 @@
-// Shared select-population helpers so the options page and toolbar popup
-// render the same option labels and ordering from the same contract data —
-// edit labels here, not in each page.
+// Popup and options use the same controls; edit labels and ordering here so the
+// two surfaces cannot drift.
 
 import {
   formatTabWheelClickActionLabel,

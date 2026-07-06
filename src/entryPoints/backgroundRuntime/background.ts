@@ -1,7 +1,5 @@
-// Background entrypoint. Wires up the TabWheel domain, its message handler,
-// and the runtime router. Register every listener at the top level — MV3
-// service workers only fire events at listeners registered during the first
-// run, so nothing below can wait behind an await.
+// Register listeners before any await. MV3 service workers only dispatch events
+// to listeners that exist during startup.
 
 import { createTabWheelDomain } from "../../lib/backgroundRuntime/domains/tabWheelDomain";
 import { createTabWheelMessageHandler } from "../../lib/backgroundRuntime/handlers/tabWheelMessageHandler";

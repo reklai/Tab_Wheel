@@ -1,7 +1,6 @@
-// Single runtime.onMessage listener that routes messages to handlers in order.
-// Handlers signal "not mine" with the UNHANDLED marker; anything a handler
-// throws is converted to an error result so one bad message cannot leave a
-// sender hanging on a rejected promise.
+// Keep one onMessage listener and compose handlers behind it. Most handler
+// failures become action results; overview failures are allowed to reject so
+// popup retry logic can distinguish "worker still waking" from "empty state."
 
 import browser from "webextension-polyfill";
 import { BackgroundRuntimeMessage } from "../../common/contracts/runtimeMessages";
@@ -28,9 +27,8 @@ export function registerRuntimeMessageRouter(
         }
       } catch (error) {
         console.error("[TabWheel] Runtime message handler failed:", error);
-        // Overview is a query, not an action — its callers retry on rejection
-        // (getTabWheelOverviewWithRetry), so rethrow instead of returning a
-        // result shape the popup would misread as a healthy-but-empty overview.
+        // The popup retries overview requests on rejection. Returning an action
+        // error shape here would look like a healthy but empty overview.
         if (message.type === "TABWHEEL_GET_OVERVIEW") {
           throw error;
         }

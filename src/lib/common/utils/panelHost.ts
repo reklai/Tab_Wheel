@@ -1,6 +1,3 @@
-// Shadow DOM panel host — creates an isolated overlay container with focus
-// trapping so keyboard input stays inside the panel instead of the address bar.
-
 import browser from "webextension-polyfill";
 import { escapeHtml } from "./helpers";
 
@@ -42,8 +39,6 @@ interface FooterHintSpec {
   active?: boolean;
 }
 
-// Active panel cleanup — called before opening a new panel so the previous
-// panel's keydown listener (registered on document) is properly removed.
 let activePanelCleanup: (() => void) | null = null;
 let activePanelFailSafeCleanup: (() => void) | null = null;
 
@@ -109,16 +104,13 @@ function isPanelRuntimeFaultFromExtension(event: ErrorEvent): boolean {
   return reasonLooksExtensionScoped(event.message);
 }
 
-/** Register a cleanup function for the currently open panel.
- *  Called by each overlay after setup so createPanelHost can tear it down. */
 export function registerPanelCleanup(fn: () => void): void {
   activePanelCleanup = fn;
 }
 
-/** Create a full-viewport Shadow DOM host for overlay panels.
- *  Cleans up and removes any existing panel first — only one panel at a time. */
 export function createPanelHost(): PanelHost {
-  // Clean up previous panel's event listeners before removing DOM
+  // Only one overlay can own global listeners at a time; clean the previous
+  // session before replacing its host node.
   if (activePanelCleanup) {
     const cleanup = activePanelCleanup;
     activePanelCleanup = null;
@@ -133,7 +125,9 @@ export function createPanelHost(): PanelHost {
   host.tabIndex = -1;
   host.style.cssText =
     "position:fixed;inset:0;z-index:2147483647;pointer-events:auto;overscroll-behavior:contain;isolation:isolate;";
-  const shadow = host.attachShadow({ mode: "open" });
+  // Closed shadow keeps sensitive overlay contents, such as history/bookmark
+  // suggestions, out of page-visible DOM while this module still keeps the reference.
+  const shadow = host.attachShadow({ mode: "closed" });
   document.body.appendChild(host);
 
   let lastFocusedInPanel: HTMLElement | null = null;
@@ -162,9 +156,8 @@ export function createPanelHost(): PanelHost {
     host.focus({ preventScroll: true });
   };
 
-  // Reclaim focus when it escapes the panel (e.g. to the browser UI).
-  // Must check both host.contains() and shadowRoot.contains() because
-  // Shadow DOM children aren't found by host.contains().
+  // Focus can escape to the page or browser UI after pointer/key events. Check
+  // both trees because host.contains() does not include closed-shadow children.
   let reclaimId = 0;
   host.addEventListener("focusout", () => {
     cancelAnimationFrame(reclaimId);
@@ -201,9 +194,8 @@ export function createPanelHost(): PanelHost {
     handlePanelRuntimeFault("Panel unhandled rejection", event.reason);
   };
 
-  // Watchdog: the host covers the whole viewport at maximum z-index, so a
-  // stuck overlay makes the page unusable. If no animation frame has run for
-  // 3s while the panel is visible, assume the panel is stuck and remove it.
+  // A stuck overlay blocks the page. If animation frames stop while the panel is
+  // visible, remove it rather than leaving the tab unusable.
   let lastAnimationFrameAt = performance.now();
   let frameProbeId = 0;
   const frameProbe = (ts: number): void => {
@@ -315,7 +307,6 @@ export function createPanelModalSession(options: PanelModalSessionOptions): Pane
   return { dispose };
 }
 
-/** Fully dismiss the active panel — cleanup listeners + remove DOM. */
 export function dismissPanel(): void {
   const cleanup = activePanelCleanup;
   activePanelCleanup = null;
@@ -343,7 +334,6 @@ export function footerRowHtml(hints: FooterHintSpec[]): string {
   return `<div class="ht-footer-row">${pieces.join("")}</div>`;
 }
 
-/** Shared overlay shell styles used by all panels */
 export function getBaseStyles(): string {
   return `
     * { margin: 0; padding: 0; box-sizing: border-box; }
@@ -417,16 +407,6 @@ export function getBaseStyles(): string {
       background: rgba(0, 0, 0, 0.55);
     }
 
-    /* Keep every overlay shell truly centered, even if panel-specific
-       rules regress or are partially overridden. */
-    .ht-help-container {
-      position: fixed !important;
-      top: 50% !important;
-      left: 50% !important;
-      transform: translate(-50%, -50%) !important;
-      margin: 0 !important;
-    }
-
     .ht-titlebar {
       display: flex; align-items: center;
       padding: 10px 14px;
@@ -450,7 +430,7 @@ export function getBaseStyles(): string {
       color: var(--ht-color-text-title); font-weight: 500;
     }
 
-    /* Reusable UI primitives (input rows + pane headers) for panel consistency */
+    /* Shared row/header primitives used by overlay panels. */
     .ht-ui-input-wrap {
       display: flex;
       align-items: center;

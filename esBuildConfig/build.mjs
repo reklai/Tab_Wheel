@@ -1,4 +1,3 @@
-// Build script: compiles TypeScript sources via esbuild, copies static assets to dist/
 import { build, context } from "esbuild";
 import { cpSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "fs";
 import { resolve, dirname } from "path";
@@ -9,7 +8,6 @@ const root = resolve(__dirname, "..");
 const dist = resolve(root, "dist");
 const watching = process.argv.includes("--watch");
 
-// Determine target browser: firefox (MV2) or chrome (MV3)
 const targetIdx = process.argv.indexOf("--target");
 const target = targetIdx !== -1 ? process.argv[targetIdx + 1] : "firefox";
 if (!["firefox", "chrome"].includes(target)) {
@@ -21,7 +19,8 @@ const manifestFile = target === "chrome" ? "manifest_v3.json" : "manifest_v2.jso
 const targetBrand = "Scroll Wheel Tab Switcher";
 console.log(`[build] Target: ${target} (${manifestFile}, ${targetBrand})`);
 
-// Shared esbuild options — IIFE bundles for extension contexts
+// Extension entry points run as standalone scripts, so keep bundles as IIFEs
+// instead of relying on module loading in content/background contexts.
 const shared = {
   bundle: true,
   format: "iife",
@@ -30,7 +29,6 @@ const shared = {
   sourcemap: false,
 };
 
-// Each entry point produces one JS file in dist/ (paths relative to project root)
 const entryPoints = [
   { in: resolve(root, "src/entryPoints/backgroundRuntime/background.ts"), out: "background" },
   { in: resolve(root, "src/entryPoints/contentScript/contentScript.ts"), out: "contentScript" },
@@ -38,13 +36,16 @@ const entryPoints = [
   { in: resolve(root, "src/entryPoints/optionsPage/optionsPage.ts"), out: "optionsPage/optionsPage" },
 ];
 
-// Static assets to copy into dist/ (manifests live in build/, sources in src/)
+// Manifests are target-specific, but HTML/CSS templates are shared and get the
+// browser-facing name substituted during the copy.
 const staticFiles = [
   { from: resolve(__dirname, manifestFile), to: "manifest.json" },
   { from: resolve(root, "src/entryPoints/toolbarPopup/toolbarPopup.html"), to: "toolbarPopup/toolbarPopup.html", branded: true },
   { from: resolve(root, "src/entryPoints/toolbarPopup/toolbarPopup.css"), to: "toolbarPopup/toolbarPopup.css", branded: true },
   { from: resolve(root, "src/entryPoints/optionsPage/optionsPage.html"), to: "optionsPage/optionsPage.html", branded: true },
   { from: resolve(root, "src/entryPoints/optionsPage/optionsPage.css"), to: "optionsPage/optionsPage.css", branded: true },
+  { from: resolve(root, "src/icons/icon-16.png"), to: "icons/icon-16.png" },
+  { from: resolve(root, "src/icons/icon-32.png"), to: "icons/icon-32.png" },
   { from: resolve(root, "src/icons/icon-48.png"), to: "icons/icon-48.png" },
   { from: resolve(root, "src/icons/icon-96.png"), to: "icons/icon-96.png" },
   { from: resolve(root, "src/icons/icon-128.png"), to: "icons/icon-128.png" },

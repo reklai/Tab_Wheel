@@ -1,12 +1,6 @@
-// Pure fuzzy matcher for the search palette. Zero imports so the single-file
-// unit-test harness (see test/fuzzy-match.test.mjs) can transform and load it
-// in isolation, exactly like the other core modules under core/tabWheel.
-//
-// fuzzyScore matches every character of `query` against `text` in order
-// (subsequence match, case-insensitive) and rewards matches that a human reads
-// as "close": contiguous runs, the start of the text, and characters that begin
-// a word (after a separator) or a camelCase hump. It returns the indices it
-// matched so the UI can highlight those characters.
+// Import-free so tests can load the matcher as a pure core module. The scorer
+// favors matches that read naturally in a command palette: contiguous runs,
+// leading text, word boundaries, and camelCase humps.
 
 export interface FuzzyMatch {
   matched: boolean;

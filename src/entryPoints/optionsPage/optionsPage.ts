@@ -1,5 +1,3 @@
-// Options page for TabWheel settings.
-
 import browser from "webextension-polyfill";
 import {
   applyTabWheelPreset,
@@ -16,8 +14,14 @@ import {
   MIN_PAGE_SCROLL_VIEWPORT_CAP_RATIO,
   MIN_WHEEL_COOLDOWN_MS,
   MIN_WHEEL_SENSITIVITY,
+  normalizeTabWheelSettings,
   saveTabWheelSettings,
+  TABWHEEL_STORAGE_KEYS,
 } from "../../lib/common/contracts/tabWheel";
+import {
+  activateTabWheelContentScripts,
+  resetTabWheelState,
+} from "../../lib/adapters/runtime/tabWheelApi";
 import {
   populateClickActionSelect,
   populateCycleScopeSelect,
@@ -60,6 +64,7 @@ document.addEventListener("DOMContentLoaded", async () => {
   const rightClickShortcutDescription = document.getElementById("rightClickShortcutDescription")!;
   const statusBar = document.getElementById("statusBar")!;
   const resetDefaultsBtn = document.getElementById("resetDefaults") as HTMLButtonElement;
+  const refreshTabWheelBtn = document.getElementById("refreshTabWheelBtn") as HTMLButtonElement;
   const closeOptionsBtn = document.getElementById("closeOptionsBtn") as HTMLButtonElement;
 
   let settings = await loadTabWheelSettings();
@@ -168,6 +173,15 @@ document.addEventListener("DOMContentLoaded", async () => {
   populateClickActionSelect(rightClickActionSelect, settings.rightClickAction);
   renderSettings(settings);
 
+  // Settings can change from the popup or another options tab while this page
+  // is open; always render the newest storage value before the next save.
+  browser.storage.onChanged.addListener((changes: Record<string, browser.Storage.StorageChange>, areaName: string) => {
+    if (areaName !== "local") return;
+    const settingsChange = changes[TABWHEEL_STORAGE_KEYS.settings];
+    if (!settingsChange) return;
+    renderSettings(normalizeTabWheelSettings(settingsChange.newValue));
+  });
+
   wheelPresetSelect.addEventListener("change", () => {
     void persist(applyTabWheelPreset(readSettings(), wheelPresetSelect.value as TabWheelPreset));
   });
@@ -208,10 +222,18 @@ document.addEventListener("DOMContentLoaded", async () => {
   });
 
   resetDefaultsBtn.addEventListener("click", async () => {
-    const confirmed = window.confirm("Restore all settings to their factory defaults?");
-    if (!confirmed) return;
-    await persist({ ...DEFAULT_TABWHEEL_SETTINGS });
+    await resetTabWheelState().catch(() => {});
+    renderSettings({ ...DEFAULT_TABWHEEL_SETTINGS });
     showStatus("Defaults restored");
+  });
+
+  refreshTabWheelBtn.addEventListener("click", async () => {
+    const result = await activateTabWheelContentScripts().catch(() => null);
+    if (!result) {
+      showStatus("Refresh failed");
+      return;
+    }
+    showStatus(`Refreshed on ${result.injected} of ${result.attempted} tabs`);
   });
 
   closeOptionsBtn.addEventListener("click", async () => {

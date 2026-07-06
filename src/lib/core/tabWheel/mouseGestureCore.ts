@@ -1,7 +1,5 @@
-// Pure click-gesture model with no browser APIs: the remappable click-action
-// catalog, per-button event rules (which DOM event starts and finishes each
-// gesture), and session timing. appInit.ts uses this to convert raw mouse
-// events into actions; keeping it pure lets tests cover the mapping directly.
+// Click gestures have enough browser-event edge cases that the policy table
+// stays pure and testable; appInit.ts only adapts DOM events to this model.
 
 export type TabWheelMouseGestureAction = Exclude<TabWheelClickAction, "none">;
 export type TabWheelMouseGestureRunPhase = "sessionStart" | "auxclick" | "contextmenu";
@@ -46,9 +44,9 @@ export const TABWHEEL_CLICK_ACTIONS: readonly TabWheelClickAction[] = [
 ];
 
 export const DEFAULT_TABWHEEL_CLICK_ACTION_SETTINGS: TabWheelClickActionSettings = {
-  leftClickAction: "search",
-  middleClickAction: "recentTab",
-  rightClickAction: "closeToRecent",
+  leftClickAction: "none",
+  middleClickAction: "openSettings",
+  rightClickAction: "none",
 };
 
 export const MOUSE_GESTURE_BUTTON_MECHANICS: readonly TabWheelMouseGestureButtonMechanics[] = [

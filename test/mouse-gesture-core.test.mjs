@@ -25,9 +25,9 @@ async function loadMouseGestureCoreModule() {
 test("mouse gesture core resolves button policies", async () => {
   const core = await loadMouseGestureCoreModule();
 
-  assert.equal(core.resolveMouseGesturePolicy(0)?.action, "search");
-  assert.equal(core.resolveMouseGesturePolicy(1)?.action, "recentTab");
-  assert.equal(core.resolveMouseGesturePolicy(2)?.action, "closeToRecent");
+  assert.equal(core.resolveMouseGesturePolicy(0), null);
+  assert.equal(core.resolveMouseGesturePolicy(1)?.action, "openSettings");
+  assert.equal(core.resolveMouseGesturePolicy(2), null);
   assert.equal(core.resolveMouseGesturePolicy(3), null);
 });
 
@@ -41,13 +41,11 @@ test("mouse gesture core preserves physical button mechanics separately from act
   ]);
 });
 
-test("mouse gesture core default policies match the legacy button table", async () => {
+test("mouse gesture core default policies map only middle click to settings", async () => {
   const core = await loadMouseGestureCoreModule();
 
   assert.deepEqual(core.MOUSE_GESTURE_POLICIES, [
-    { action: "search", button: 0, runPhase: "sessionStart", finishEvents: ["click"] },
-    { action: "recentTab", button: 1, runPhase: "auxclick", finishEvents: ["auxclick"] },
-    { action: "closeToRecent", button: 2, runPhase: "contextmenu", finishEvents: ["click", "auxclick", "contextmenu"] },
+    { action: "openSettings", button: 1, runPhase: "auxclick", finishEvents: ["auxclick"] },
   ]);
 });
 
@@ -116,7 +114,12 @@ test("mouse gesture core claims middle click until auxclick", async () => {
 
 test("mouse gesture core waits for contextmenu before right click close", async () => {
   const core = await loadMouseGestureCoreModule();
-  const policy = core.resolveMouseGesturePolicy(2);
+  const policies = core.buildMouseGesturePolicies({
+    leftClickAction: "none",
+    middleClickAction: "openSettings",
+    rightClickAction: "closeToRecent",
+  });
+  const policy = core.resolveMouseGesturePolicy(2, policies);
   const session = core.createMouseGestureSession(policy, 1000);
 
   assert.equal(core.shouldRunMouseGestureSession(session, "mousedown"), false);
@@ -127,7 +130,7 @@ test("mouse gesture core waits for contextmenu before right click close", async 
 
 test("mouse gesture core expires stale sessions", async () => {
   const core = await loadMouseGestureCoreModule();
-  const policy = core.resolveMouseGesturePolicy(0);
+  const policy = core.resolveMouseGesturePolicy(1);
   const session = core.createMouseGestureSession(policy, 1000);
 
   assert.equal(core.isMouseGestureSessionExpired(session, 1899), false);

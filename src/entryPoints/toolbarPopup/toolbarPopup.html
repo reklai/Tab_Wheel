@@ -11,7 +11,7 @@
         <button class="dot dot-close" id="closePopupBtn" type="button" title="Close" aria-label="Close popup"></button>
       </div>
       <span class="titlebar-text" id="titlebarText">__EXTENSION_NAME__</span>
-      <button class="titlebar-button" id="refreshTabWheelBtn" type="button" title="Refresh TabWheel on this tab">Refresh</button>
+      <button class="titlebar-button" id="settingsBtn" type="button" title="Settings" aria-label="Open settings">&#9881;</button>
     </div>
 
     <div class="shortcut-panel">
@@ -28,7 +28,6 @@
       <section class="cycle-mode-panel" aria-label="Cycle mode">
         <div class="mode-heading">
           <span>Mouse Scroll Wheel Cycle Mode</span>
-          <strong id="scopeLabel">Left-To-Right</strong>
         </div>
         <div class="mode-pill" role="group" aria-label="Change cycle mode">
           <button id="generalModeBtn" data-cycle-scope="general" type="button">Left-To-Right</button>
@@ -41,10 +40,25 @@
         <button id="nextTabBtn" type="button">Next tab</button>
       </div>
 
+      <section class="control-grid" aria-label="Gesture keys">
+        <label class="control-row" title="Base key for cycling and gestures.">
+          <span><strong>Modifier</strong><small>Hold this key while scrolling or clicking</small></span>
+          <select id="gestureModifier"></select>
+        </label>
+        <label class="control-row" title="Add Shift to the selected modifier before gestures are active.">
+          <span><strong>Require Shift</strong><small>Add a second key for safer gestures</small></span>
+          <input id="gestureWithShift" type="checkbox" />
+        </label>
+        <label class="control-row" title="Apply a preset for tab switching and page scrolling wheel behavior.">
+          <span><strong>Preset</strong><small>Choose deliberate, balanced, or fast wheel behavior</small></span>
+          <select id="wheelPreset"></select>
+        </label>
+      </section>
+
       <section class="cycle-mode-panel" aria-label="Click actions">
         <div class="mode-heading">
           <span>Click Actions</span>
-          <strong id="leftClickActionLabel">TabWheel Search</strong>
+          <strong id="leftClickActionLabel">Off (native click)</strong>
         </div>
         <div class="click-action-grid" role="group" aria-label="Change click actions">
           <label class="control-row" title="Choose what modifier + left click does, including Tabwheel search or the Browser Default new tab page.">
@@ -73,17 +87,37 @@
       </div>
 
       <section class="control-grid" aria-label="TabWheel controls">
-        <label class="control-row" title="Apply a preset for tab switching and page scrolling wheel behavior.">
-          <span><strong>Preset</strong><small>Choose deliberate, balanced, or fast wheel behavior</small></span>
-          <select id="wheelPreset"></select>
+        <label class="control-row range-row" title="Higher values need less wheel movement before switching tabs.">
+          <span><strong>Sensitivity</strong><small id="wheelSensitivityValue">Wheel distance: 1.0x</small></span>
+          <input id="wheelSensitivity" type="range" step="0.1" />
         </label>
-        <label class="control-row" title="Base key for cycling and gestures.">
-          <span><strong>Modifier</strong><small>Hold this key while scrolling or clicking</small></span>
-          <select id="gestureModifier"></select>
+        <label class="control-row range-row" title="Minimum time between tab switches; lower feels faster but can overshoot.">
+          <span><strong>Cooldown</strong><small id="wheelCooldownValue">Switch delay: 160ms</small></span>
+          <input id="wheelCooldownMs" type="range" step="10" />
         </label>
-        <label class="control-row" title="Add Shift to the selected modifier before gestures are active.">
-          <span><strong>Require Shift</strong><small>Add a second key for safer gestures</small></span>
-          <input id="gestureWithShift" type="checkbox" />
+        <label class="control-row" title="Shortens the cooldown during repeated wheel bursts.">
+          <span><strong>Acceleration</strong><small>Speed up intentional wheel bursts</small></span>
+          <input id="wheelAcceleration" type="checkbox" />
+        </label>
+        <label class="control-row" title="Allow horizontal wheel or trackpad motion to switch tabs.">
+          <span><strong>Horizontal wheel</strong><small>Use sideways wheel or trackpad motion</small></span>
+          <input id="horizontalWheel" type="checkbox" />
+        </label>
+        <label class="control-row" title="Prevent extra tab jumps from trackpad or wheel momentum.">
+          <span><strong>Safe overshoot guard</strong><small>Prevent extra tab jumps from trackpad or wheel momentum</small></span>
+          <input id="overshootGuard" type="checkbox" />
+        </label>
+        <label class="control-row" title="Allow wheel-cycling when cursor is inside text boxes, search fields, and editors/docs">
+          <span><strong>Editable fields</strong><small>Allow wheel-cycling when cursor is inside text boxes, search fields, and editors/docs</small></span>
+          <input id="allowGesturesInEditableFields" type="checkbox" />
+        </label>
+        <label class="control-row range-row" title="Normal page scroll speed when page scroll filtering is active.">
+          <span><strong>Page Scroll Speed</strong><small id="pageScrollSpeedValue">Page speed: 1.0x</small></span>
+          <input id="pageScrollSpeedMultiplier" type="range" step="0.1" />
+        </label>
+        <label class="control-row range-row" title="Maximum normal page scroll step as a percentage of the active viewport.">
+          <span><strong>Viewport Step Cap</strong><small id="pageScrollViewportCapValue">Max step: 100%</small></span>
+          <input id="pageScrollViewportCapRatio" type="range" step="0.05" />
         </label>
         <label class="control-row" title="Swap wheel down/right and up/left.">
           <span><strong>Invert wheel</strong><small>Swap next and previous direction</small></span>
@@ -105,44 +139,12 @@
           <span><strong>Wrap around</strong><small>Continue from last to first tab</small></span>
           <input id="wrapAround" type="checkbox" />
         </label>
-        <label class="control-row" title="Shortens the cooldown during repeated wheel bursts.">
-          <span><strong>Acceleration</strong><small>Speed up intentional wheel bursts</small></span>
-          <input id="wheelAcceleration" type="checkbox" />
-        </label>
-        <label class="control-row" title="Allow horizontal wheel or trackpad motion to switch tabs.">
-          <span><strong>Horizontal wheel</strong><small>Use sideways wheel or trackpad motion</small></span>
-          <input id="horizontalWheel" type="checkbox" />
-        </label>
-        <label class="control-row" title="Prevent extra tab jumps from trackpad or wheel momentum.">
-          <span><strong>Safe overshoot guard</strong><small>Prevent extra tab jumps from trackpad or wheel momentum</small></span>
-          <input id="overshootGuard" type="checkbox" />
-        </label>
-        <label class="control-row" title="Allow wheel-cycling when cursor is inside text boxes, search fields, and editors/docs">
-          <span><strong>Editable fields</strong><small>Allow wheel-cycling when cursor is inside text boxes, search fields, and editors/docs</small></span>
-          <input id="allowGesturesInEditableFields" type="checkbox" />
-        </label>
-        <label class="control-row range-row" title="Higher values need less wheel movement before switching tabs.">
-          <span><strong>Sensitivity</strong><small id="wheelSensitivityValue">Wheel distance: 1.0x</small></span>
-          <input id="wheelSensitivity" type="range" step="0.1" />
-        </label>
-        <label class="control-row range-row" title="Minimum time between tab switches; lower feels faster but can overshoot.">
-          <span><strong>Cooldown</strong><small id="wheelCooldownValue">Switch delay: 160ms</small></span>
-          <input id="wheelCooldownMs" type="range" step="10" />
-        </label>
-        <label class="control-row range-row" title="Normal page scroll speed when page scroll filtering is active.">
-          <span><strong>Page Scroll Speed</strong><small id="pageScrollSpeedValue">Page speed: 1.0x</small></span>
-          <input id="pageScrollSpeedMultiplier" type="range" step="0.1" />
-        </label>
-        <label class="control-row range-row" title="Maximum normal page scroll step as a percentage of the active viewport.">
-          <span><strong>Viewport Step Cap</strong><small id="pageScrollViewportCapValue">Max step: 100%</small></span>
-          <input id="pageScrollViewportCapRatio" type="range" step="0.05" />
-        </label>
       </section>
     </main>
 
     <div class="action-row">
-      <button id="helpBtn">Help</button>
-      <button id="settingsBtn">Settings</button>
+      <button id="refreshTabWheelBtn" type="button" title="Refresh TabWheel on this tab">Refresh extension</button>
+      <button id="resetBtn" type="button" title="Restore factory defaults and clear saved tab order, scroll memory, and recent searches">Reset to defaults</button>
     </div>
 
     <div class="popup-toast" id="popupToast" role="status" aria-live="polite" aria-atomic="true"></div>

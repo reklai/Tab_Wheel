@@ -1,6 +1,5 @@
-// Typed wrappers around every TabWheel runtime message. UI surfaces and the
-// content script call these instead of building message objects by hand, so
-// the message contract has one place to check on the sending side.
+// Sending runtime messages directly from UI code makes contract drift hard to
+// spot. Keep message construction behind these wrappers.
 
 import { sendRuntimeMessage, sendRuntimeMessageWithRetry, RuntimeRetryPolicy } from "./runtimeClient";
 import { normalizeSearchQuery } from "../../common/contracts/tabWheel";
@@ -81,6 +80,25 @@ export function activateTabWheelTab(tabId: number): Promise<TabWheelActionResult
   });
 }
 
+export function openTabWheelUrlTab(url: string): Promise<TabWheelActionResult> {
+  return sendRuntimeMessage<TabWheelActionResult>({
+    type: "TABWHEEL_OPEN_URL_TAB",
+    url,
+  });
+}
+
+export function resetTabWheelState(): Promise<TabWheelActionResult> {
+  return sendRuntimeMessage<TabWheelActionResult>({
+    type: "TABWHEEL_RESET_STATE",
+  });
+}
+
+export function activateTabWheelContentScripts(): Promise<TabWheelContentScriptActivationResult> {
+  return sendRuntimeMessage<TabWheelContentScriptActivationResult>({
+    type: "TABWHEEL_ACTIVATE_CONTENT_SCRIPTS",
+  });
+}
+
 export function openNativeNewTabWheelTab(windowId?: number): Promise<TabWheelActionResult> {
   return sendRuntimeMessage<TabWheelActionResult>({
     type: "TABWHEEL_OPEN_NATIVE_NEW_TAB",
@@ -114,10 +132,6 @@ export function saveTabWheelScrollPosition(scroll: ScrollData): Promise<TabWheel
     type: "TABWHEEL_SAVE_SCROLL_POSITION",
     ...scroll,
   });
-}
-
-export function openTabWheelHelp(): Promise<TabWheelActionResult> {
-  return sendRuntimeMessage<TabWheelActionResult>({ type: "TABWHEEL_OPEN_HELP" });
 }
 
 export function openTabWheelOptions(): Promise<TabWheelActionResult> {

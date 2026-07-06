@@ -5,15 +5,14 @@ TabWheel is a browser extension for switching tabs with the mouse scroll wheel. 
 It is built for a small, reliable workflow:
 
 - `Alt + Wheel`: switch tabs.
-- `Alt + Left Click`: open the in-page search launcher by default, or remap it to Browser Default new tab, recent tab, close, duplicate, settings, or native click.
-- `Alt + Middle Click`: jump to the most recently used tab.
-- `Alt + Right Click`: close the current tab; when available, activate the most recently used tab first.
+- `Alt + Middle Click`: open the settings page by default.
+- `Alt + Left Click` and `Alt + Right Click`: native clicks by default; remap either to TabWheel Search, Browser Default new tab, recent tab, close, duplicate, or settings.
 - Toolbar popup: change mode, tune wheel behavior, and use fallback controls.
 
 ## Features
 
 - Mouse wheel tab switching with configurable modifier: `Alt / Option`, `Ctrl / Control`, or `Meta / Command`.
-- In-page search launcher that uses the browser's default search provider first, with a fixed Google fallback if the browser search API is unavailable.
+- In-page search launcher with live local suggestions blended from recent searches, open tabs, browser history, and bookmarks (`/tab`, `/hist`, `/book` narrow to one source); web searches use the browser's default search provider first, with a fixed Google fallback if the browser search API is unavailable.
 - Remappable left, middle, and right click actions: TabWheel Search, Browser Default new tab, Most Recent Tab, Close Tab, Duplicate Tab, Open Settings, or native click pass-through.
 - Optional `Shift` requirement to reduce accidental activation.
 - General mode for normal tab-order cycling.
@@ -124,7 +123,7 @@ src/
       toolbarPopup.ts    # popup state, fallback actions, mode switching, refresh
   lib/
     appInit/
-      appInit.ts         # page-side listeners, search/click gestures, scroll memory, help overlay trigger
+      appInit.ts         # page-side listeners, search/click gestures, and scroll memory
     adapters/runtime/
       runtimeClient.ts   # typed runtime messaging helpers and retry behavior
       tabWheelApi.ts     # content/popup API wrappers around runtime messages
@@ -148,9 +147,6 @@ src/
         tabWheelCore.ts    # pure wheel delta normalization and tab target math
     ui/
       panels/
-        help/
-          help.ts          # in-page help overlay
-          help.css         # help overlay styles
         searchLauncher/
           searchLauncher.ts  # in-page search launcher
           searchLauncher.css # search launcher styles

@@ -1,6 +1,5 @@
-// Shared project type declarations
-
-// Allow importing .css files as text (esbuild text loader)
+// The overlay modules import CSS as raw text so the content script can inject it
+// into a shadow root instead of depending on page-level stylesheets.
 declare module "*.css" {
   const content: string;
   export default content;
@@ -40,9 +39,9 @@ type TabWheelClickAction = "search" | "nativeNewTab" | "recentTab" | "closeToRec
 
 type TabWheelMruState = Record<string, number[]>;
 
-// Search palette: which source a suggestion request (and each result) draws on.
-// "recent" = the user's own past queries; "tab" = currently open tabs.
-type TabWheelSearchMode = "recent" | "tab";
+// "recent" is the blended default source. The other modes are explicit palette
+// filters and must stay in sync with searchLauncher.ts command parsing.
+type TabWheelSearchMode = "recent" | "tab" | "hist" | "book";
 
 interface TabWheelSuggestionItem {
   source: TabWheelSearchMode;
@@ -52,6 +51,7 @@ interface TabWheelSuggestionItem {
   tabId?: number;
   windowId?: number;
   favIconUrl?: string;
+  url?: string;
 }
 
 interface TabWheelSuggestionsResult {
@@ -59,6 +59,13 @@ interface TabWheelSuggestionsResult {
   reason?: string;
   mode: TabWheelSearchMode;
   items: TabWheelSuggestionItem[];
+}
+
+interface TabWheelContentScriptActivationResult {
+  attempted: number;
+  injected: number;
+  skipped: number;
+  failed: number;
 }
 
 interface TabWheelSettings {

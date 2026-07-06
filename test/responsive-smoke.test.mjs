@@ -11,7 +11,6 @@ function readText(pathFromRoot) {
 
 test("in-page overlays include mobile tightening for small devices", () => {
   for (const file of [
-    "src/lib/ui/panels/help/help.css",
     "src/lib/ui/panels/searchLauncher/searchLauncher.css",
   ]) {
     const css = readText(file);
