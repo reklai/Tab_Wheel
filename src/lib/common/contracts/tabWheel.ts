@@ -13,10 +13,12 @@ export { TABWHEEL_CLICK_ACTIONS };
 
 export const MAX_SCROLL_MEMORY_ENTRIES = 300;
 export const MAX_MRU_TABS = 100;
+export const MAX_SEARCH_HISTORY_ENTRIES = 50;
 export const TABWHEEL_STORAGE_KEYS = {
   settings: "tabWheelSettings",
   scrollMemory: "tabWheelScrollMemory",
   mruState: "tabWheelMruState",
+  searchHistory: "tabWheelSearchHistory",
 } as const;
 export const TABWHEEL_MODIFIER_KEYS: readonly TabWheelModifierKey[] = [
   "alt",
@@ -135,6 +137,25 @@ export function normalizeSearchQuery(value: unknown): string {
 
 export function buildSearchUrl(query: string): string {
   return GOOGLE_SEARCH_URL_TEMPLATE.replaceAll("%s", encodeURIComponent(normalizeSearchQuery(query)));
+}
+
+// Recent TabWheel Search queries, most-recent-first. Kept local to power the
+// search palette's autocomplete; deduped case-insensitively (keeping the newest
+// spelling) and capped so stored history stays bounded.
+export function normalizeSearchHistory(value: unknown): string[] {
+  if (!Array.isArray(value)) return [];
+  const seenKeys = new Set<string>();
+  const queries: string[] = [];
+  for (const rawQuery of value) {
+    const query = normalizeSearchQuery(rawQuery);
+    if (!query) continue;
+    const key = query.toLowerCase();
+    if (seenKeys.has(key)) continue;
+    seenKeys.add(key);
+    queries.push(query);
+    if (queries.length >= MAX_SEARCH_HISTORY_ENTRIES) break;
+  }
+  return queries;
 }
 
 export function normalizeTabWheelCycleScope(value: unknown): TabWheelCycleScope {

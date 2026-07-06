@@ -667,3 +667,40 @@ test("removed dedicated tag panel files are not referenced", () => {
 
   assert.doesNotMatch(source, /ui\/panels\/tabWheel|ht-tabwheel-container|openTabWheelPanel|Wheel List|tagged/);
 });
+
+test("search palette wires suggestion fetch and tab activation", () => {
+  const messages = readText("src/lib/common/contracts/runtimeMessages.ts");
+  const handler = readText("src/lib/backgroundRuntime/handlers/tabWheelMessageHandler.ts");
+  const api = readText("src/lib/adapters/runtime/tabWheelApi.ts");
+  const domain = readText("src/lib/backgroundRuntime/domains/tabWheelDomain.ts");
+  const contract = readText("src/lib/common/contracts/tabWheel.ts");
+  const launcher = readText("src/lib/ui/panels/searchLauncher/searchLauncher.ts");
+  const fuzzy = readText("src/lib/core/search/fuzzyMatch.ts");
+  const types = readText("src/types.d.ts");
+
+  assert.match(messages, /TABWHEEL_GET_SEARCH_SUGGESTIONS/);
+  assert.match(messages, /TABWHEEL_ACTIVATE_TAB/);
+  assert.match(handler, /case "TABWHEEL_GET_SEARCH_SUGGESTIONS":[\s\S]*domain\.getSearchSuggestions\(message\.query,\s*message\.mode,\s*sender\.tab\)/);
+  assert.match(handler, /case "TABWHEEL_ACTIVATE_TAB":[\s\S]*domain\.activateExistingTab\(message\.tabId\)/);
+  assert.match(api, /getTabWheelSearchSuggestions/);
+  assert.match(api, /activateTabWheelTab/);
+
+  assert.match(contract, /searchHistory:\s*"tabWheelSearchHistory"/);
+  assert.match(contract, /MAX_SEARCH_HISTORY_ENTRIES = 50/);
+  assert.match(contract, /normalizeSearchHistory/);
+  assert.match(types, /type TabWheelSearchMode = "recent" \| "tab"/);
+
+  assert.match(domain, /async function getSearchSuggestions\(/);
+  assert.match(domain, /async function activateExistingTab\(/);
+  assert.match(domain, /recordSearchQuery/);
+  assert.match(domain, /fuzzyScore/);
+  assert.match(domain, /TABWHEEL_STORAGE_KEYS\.searchHistory/);
+  assert.match(fuzzy, /export function fuzzyScore/);
+
+  assert.match(launcher, /parseLauncherInput/);
+  assert.match(launcher, /getTabWheelSearchSuggestions/);
+  assert.match(launcher, /activateTabWheelTab/);
+  assert.match(launcher, /createDebouncedCallback/);
+  assert.match(launcher, /role="listbox"/);
+  assert.doesNotMatch(launcher, /suggestqueries|duckduckgo|autocomplete\?q=|fetch\(/);
+});

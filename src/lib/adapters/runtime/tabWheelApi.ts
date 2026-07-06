@@ -63,6 +63,24 @@ export function openTabWheelSearchTab(query: string, windowId?: number): Promise
   });
 }
 
+export function getTabWheelSearchSuggestions(
+  query: string,
+  mode: TabWheelSearchMode,
+): Promise<TabWheelSuggestionsResult> {
+  return sendRuntimeMessage<TabWheelSuggestionsResult>({
+    type: "TABWHEEL_GET_SEARCH_SUGGESTIONS",
+    query: normalizeSearchQuery(query),
+    mode,
+  });
+}
+
+export function activateTabWheelTab(tabId: number): Promise<TabWheelActionResult> {
+  return sendRuntimeMessage<TabWheelActionResult>({
+    type: "TABWHEEL_ACTIVATE_TAB",
+    tabId,
+  });
+}
+
 export function openNativeNewTabWheelTab(windowId?: number): Promise<TabWheelActionResult> {
   return sendRuntimeMessage<TabWheelActionResult>({
     type: "TABWHEEL_OPEN_NATIVE_NEW_TAB",

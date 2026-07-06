@@ -40,6 +40,27 @@ type TabWheelClickAction = "search" | "nativeNewTab" | "recentTab" | "closeToRec
 
 type TabWheelMruState = Record<string, number[]>;
 
+// Search palette: which source a suggestion request (and each result) draws on.
+// "recent" = the user's own past queries; "tab" = currently open tabs.
+type TabWheelSearchMode = "recent" | "tab";
+
+interface TabWheelSuggestionItem {
+  source: TabWheelSearchMode;
+  primary: string;
+  secondary?: string;
+  positions: number[];
+  tabId?: number;
+  windowId?: number;
+  favIconUrl?: string;
+}
+
+interface TabWheelSuggestionsResult {
+  ok: boolean;
+  reason?: string;
+  mode: TabWheelSearchMode;
+  items: TabWheelSuggestionItem[];
+}
+
 interface TabWheelSettings {
   invertScroll: boolean;
   gestureModifier: TabWheelModifierKey;

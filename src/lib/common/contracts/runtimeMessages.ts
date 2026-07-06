@@ -16,6 +16,8 @@ export type BackgroundRuntimeMessage =
   | { type: "TABWHEEL_TOGGLE_CYCLE_SCOPE"; windowId?: number }
   | { type: "TABWHEEL_SET_CYCLE_SCOPE"; cycleScope: TabWheelCycleScope; windowId?: number; suppressPageStatus?: boolean }
   | { type: "TABWHEEL_OPEN_SEARCH_TAB"; query: string; windowId?: number }
+  | { type: "TABWHEEL_GET_SEARCH_SUGGESTIONS"; query: string; mode: TabWheelSearchMode }
+  | { type: "TABWHEEL_ACTIVATE_TAB"; tabId: number }
   | { type: "TABWHEEL_OPEN_NATIVE_NEW_TAB"; windowId?: number }
   | { type: "TABWHEEL_ACTIVATE_MOST_RECENT_TAB"; windowId?: number }
   | { type: "TABWHEEL_CLOSE_CURRENT_TAB_AND_ACTIVATE_RECENT"; windowId?: number }
